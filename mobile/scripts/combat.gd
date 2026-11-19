@@ -6,45 +6,39 @@ signal material_collected(id: String, quantity: int)
 const Gear = preload("res://scripts/gear.gd")
 
 const HEROES: Array[Dictionary] = [
-	{"name": "守墓剑士", "skill": "破墓斩", "tactic": "裂地斩", "hp": 156, "speed": 106.0, "damage": 31, "interval": 0.33, "reach": 103.0, "cooldown": 3.6, "color": Color("#ffbd76")},
-	{"name": "灰林游侠", "skill": "散射", "tactic": "重矢", "hp": 109, "speed": 122.0, "damage": 24, "interval": 0.24, "reach": 490.0, "cooldown": 3.3, "color": Color("#8af1c6")},
-	{"name": "余火术士", "skill": "烬火印", "tactic": "霜环", "hp": 105, "speed": 101.0, "damage": 35, "interval": 0.43, "reach": 460.0, "cooldown": 4.1, "color": Color("#ddb2ff")}
+	{"name": "神将", "skill": "镇山诀", "tactic": "裂岳", "hp": 156, "speed": 106.0, "damage": 31, "interval": 0.33, "reach": 103.0, "cooldown": 3.6, "color": Color("#ffbd76")},
+	{"name": "神射", "skill": "连珠箭", "tactic": "贯云矢", "hp": 109, "speed": 122.0, "damage": 24, "interval": 0.24, "reach": 490.0, "cooldown": 3.3, "color": Color("#8af1c6")},
+	{"name": "雷法", "skill": "五雷印", "tactic": "寒霄诀", "hp": 105, "speed": 101.0, "damage": 35, "interval": 0.43, "reach": 460.0, "cooldown": 4.1, "color": Color("#ddb2ff")}
 ]
-const FOES: Array[Dictionary] = [
-	{"hp": 44, "speed": 81.0, "damage": 9, "size": 57.0, "radius": 15.0},
-	{"hp": 59, "speed": 119.0, "damage": 12, "size": 63.0, "radius": 18.0},
-	{"hp": 410, "speed": 69.0, "damage": 24, "size": 105.0, "radius": 31.0}
-]
-const WAVES := [
-	[4, 0, 0], [5, 2, 0], [5, 4, 0], [6, 6, 0], [4, 3, 1]
-]
+# 十天干精怪共用战斗结构，各有形制、数值与层主招式。
+const ARCHETYPES := {
+	"jia": {"name": "藤巨妖", "skill": "青藤冲撞", "art": 0, "speed": 92.0, "vitality": 1.06, "force": 1.0, "radius": 71.0, "windup": 0.96, "effect": "knock"},
+	"yi": {"name": "缠藤精", "skill": "藤缚汲生", "art": 0, "speed": 94.0, "vitality": 0.94, "force": 0.91, "radius": 66.0, "windup": 0.87, "effect": "heal"},
+	"bing": {"name": "火狐", "skill": "烈焰爆燃", "art": 1, "speed": 111.0, "vitality": 0.92, "force": 1.11, "radius": 76.0, "windup": 0.88, "effect": "flare"},
+	"ding": {"name": "烬祟", "skill": "阴焰焚灵", "art": 1, "speed": 97.0, "vitality": 0.88, "force": 1.04, "radius": 75.0, "windup": 0.93, "effect": "drain"},
+	"wu": {"name": "磐石精", "skill": "磐山坠", "art": 2, "speed": 76.0, "vitality": 1.20, "force": 1.10, "radius": 86.0, "windup": 1.08, "effect": "knock"},
+	"ji": {"name": "蚀壤精", "skill": "重壤蚀灵", "art": 2, "speed": 79.0, "vitality": 1.12, "force": 1.04, "radius": 83.0, "windup": 1.01, "effect": "drain"},
+	"geng": {"name": "岳卫", "skill": "金甲震地", "art": 2, "speed": 84.0, "vitality": 1.15, "force": 1.10, "radius": 79.0, "windup": 1.02, "effect": "knock"},
+	"xin": {"name": "刃魈", "skill": "寒刃突袭", "art": 0, "speed": 108.0, "vitality": 0.90, "force": 1.14, "radius": 64.0, "windup": 0.82, "effect": "knock"},
+	"ren": {"name": "激流妖", "skill": "激潮洗灵", "art": 0, "speed": 105.0, "vitality": 0.98, "force": 0.99, "radius": 80.0, "windup": 0.98, "effect": "drain"},
+	"gui": {"name": "寒魄", "skill": "寒霜封步", "art": 1, "speed": 102.0, "vitality": 0.94, "force": 1.03, "radius": 72.0, "windup": 0.91, "effect": "chill"}
+}
 const HOME := Vector2(418, 383)
-const FOOTWORK := Rect2(353, 355, 130, 56)
-const SLAM_RADIUS := 105.0
-const BOSS := 2
+const FOOTWORK := Rect2(330, 312, 201, 143)
+const TELEGRAPH_ASPECT := 0.64
 const MAX_MANA := 100.0
 const SKILL_COST := 30.0
 const TACTIC_COST := 22.0
-const MOTIONS := {
-	&"attack": [-1, 0, -2, 1, 2, -1],
-	&"retreat": [3, 4, 5],
-	&"hurt": [6, 7, 8],
-	&"skill": [-2],
-	&"tactic": [-2]
-}
+const PLAYER := {"hp": 150, "speed": 115.0, "damage": 34, "cooldown": 3.2, "color": Color("#e5cb93")}
 
-var hero_id := 0
-var hero_style := 0
-var weapon_id := ""
-var hero: Dictionary = HEROES[0]
+var weapon_form := "long_blade"
+# 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
+var trail_color := Color("#e5cb93")
+var hero: Dictionary = PLAYER
 var position := HOME
 var hp := 156
 var max_hp := 156
-var level := 1
-var xp := 0
 var kills := 0
-var ash := 0
-var wave := 0
 var result: StringName
 var mana := MAX_MANA
 var max_mana := MAX_MANA
@@ -55,8 +49,6 @@ var retreat_cooldown := 1.35
 var damage_reduction := 0.0
 var crit_chance := 0.0
 var basic_critical := false
-var dodge_crit := false
-var crit_ready := false
 var thorns := 0
 var kill_heal := 0
 var gear_attack := 0
@@ -73,54 +65,55 @@ var facing := 0.0
 var motion: StringName
 var motion_time := 0.0
 var motion_duration := 0.0
-var next_wave := -1.0
+var dungeon_layer := 1
+var challenging := false
+var encounter_stem := "jia"
+var archetype: Dictionary = ARCHETYPES.jia
+var spawn_in := 0.0
+var serial_counter := 0
+var player_slow := 0.0
+var gear := {}
+var shield := 0.0
+var companions := 0
+var companion_left := 0.75
+var recovery_left := 1.0
+var hits := 0
+var damage_taken := 0
+var trigger_tokens := {}
 
 var enemies: Array[Dictionary] = []
 var shots: Array[Dictionary] = []
 var drops: Array[Dictionary] = []
 var effects: Array[Dictionary] = []
 var popups: Array[Dictionary] = []
+# 给画面层用的打击事件队列：震屏、顿帧、闪白都从这里取，不参与任何结算。
+var pulses: Array[Dictionary] = []
+
+const MAX_PULSES := 12
 
 func _init() -> void:
 	loot_rng.randomize()
 	combat_rng.randomize()
 
-func reset(choice: int, bonuses: Dictionary = {}, style: int = 0, equipped_weapon: String = "") -> void:
-	hero_id = choice
-	hero_style = style
-	hero = HEROES[choice].duplicate()
-	var weapon := Gear.weapon(equipped_weapon, choice)
-	weapon_id = weapon.get("id", "")
-	if not weapon.is_empty():
-		hero.interval = weapon.interval
-		hero.reach = weapon.reach
-	gear_attack = int(bonuses.get("attack", 0))
-	hero.damage += gear_attack
-	hero.speed *= 1.0 + float(bonuses.get("speed", 0)) / 100.0
-	damage_reduction = clampf(float(bonuses.get("armor", 0)) / 100.0, 0.0, 0.65)
-	crit_chance = clampf(float(bonuses.get("crit", 0)) / 100.0, 0.0, 1.0)
-	dodge_crit = int(bonuses.get("dodge_crit", 0)) > 0
-	crit_ready = false
+func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = false, stem: String = "") -> void:
+	dungeon_layer = layer
+	challenging = boss_fight
+	encounter_stem = Gear.WuXing.ling_of(layer) if stem.is_empty() else stem
+	archetype = ARCHETYPES[encounter_stem]
+	spawn_in = 0.88
+	serial_counter = 0
+	player_slow = 0.0
+	_apply_equipment(bonuses, form)
 	basic_critical = false
-	thorns = int(bonuses.get("thorns", 0))
-	kill_heal = int(bonuses.get("kill_heal", 0))
-	retreat_cooldown = maxf(0.45, 1.35 - float(bonuses.get("dodge_ms", 0)) / 1000.0)
 	position = HOME
-	hp = int(hero.hp) + int(bonuses.get("hp", 0))
-	max_hp = hp
-	level = 1
-	xp = 0
+	hp = max_hp
+	shield = _stat("shield")
 	kills = 0
-	ash = 0
 	materials_found = 0
-	wave = -1
 	result = &""
-	max_mana = MAX_MANA + float(bonuses.get("mana", 0))
 	mana = max_mana
-	mana_recovery = 10.0 + float(bonuses.get("regen", 0))
-	var mana_factor := 1.0 - clampf(float(bonuses.get("mana_discount", 0)) / 100.0, 0.0, 0.50)
-	skill_cost = ceilf(SKILL_COST * mana_factor)
-	tactic_cost = ceilf(TACTIC_COST * mana_factor)
+	skill_cost = SKILL_COST
+	tactic_cost = TACTIC_COST
 	skill_left = 0.0
 	tactic_left = 0.0
 	retreat_left = 0.0
@@ -129,24 +122,59 @@ func reset(choice: int, bonuses: Dictionary = {}, style: int = 0, equipped_weapo
 	stride = 0.0
 	facing = 0.0
 	motion = &""
+	companion_left = 0.75
+	recovery_left = 1.0
+	hits = 0
+	damage_taken = 0
+	trigger_tokens.clear()
 	enemies.clear()
 	shots.clear()
 	drops.clear()
 	effects.clear()
 	popups.clear()
-	_start_wave()
+	pulses.clear()
+	_spawn_enemy(0.62 if challenging else 0.28)
+	if not challenging:
+		_spawn_enemy(0.50)
+	_trigger("战斗开始时")
 
-func xp_target() -> int:
-	return level * 3 + 1
+func refresh_equipment(bonuses: Dictionary, form: String) -> void:
+	var health_ratio := float(hp) / float(max_hp)
+	var mana_ratio := mana / max_mana
+	var old_shield := _stat("shield")
+	if form != weapon_form:
+		motion = &""
+	_apply_equipment(bonuses, form)
+	hp = maxi(1, roundi(health_ratio * float(max_hp)))
+	mana = mana_ratio * max_mana
+	var new_shield := _stat("shield")
+	shield = minf(new_shield, shield + maxf(0.0, new_shield - old_shield))
 
-func pose() -> int:
-	if motion == &"":
-		return -1
-	var frames: Array = MOTIONS[motion]
-	return frames[mini(frames.size() - 1, floori(motion_time / motion_duration * frames.size()))]
+func _apply_equipment(bonuses: Dictionary, form: String) -> void:
+	weapon_form = form
+	hero = PLAYER.duplicate()
+	gear = bonuses
+	var weapon: Dictionary = Gear.WEAPON_FORMS[form]
+	hero.interval = float(weapon.interval) / (1.0 + _stat("attack_speed") / 100.0)
+	hero.reach = weapon.reach
+	gear_attack = roundi(_stat("attack"))
+	hero.damage = roundi(float(PLAYER.damage) * _stat("attack_multiplier", 1.0)) + gear_attack
+	hero.speed *= 1.0 + _stat("speed") / 100.0
+	damage_reduction = clampf(_stat("armor") / 100.0, 0.0, 0.75)
+	crit_chance = clampf(_stat("crit") / 100.0, 0.0, 0.75)
+	thorns = roundi(_stat("thorns") + _stat("deflect"))
+	kill_heal = roundi(_stat("kill_heal"))
+	retreat_cooldown = maxf(0.45, 1.35 - _stat("dodge_ms") / 1000.0)
+	max_hp = maxi(1, roundi((float(PLAYER.hp) + _stat("hp")) * _stat("hp_multiplier", 1.0)))
+	max_mana = MAX_MANA + _stat("mana")
+	mana_recovery = 10.0 + _stat("regen")
+	companions = int(gear.get("companions", 0))
+
+const BUSY_MOTIONS := [&"attack", &"skill", &"tactic", &"retreat"]
 
 func attack() -> void:
-	if result != &"" or motion != &"":
+	# 受击与复活只是演出，不该锁住出手；真正占手的是自己的四个动作。
+	if result != &"" or motion in BUSY_MOTIONS:
 		return
 	facing = _direction_to_enemy()
 	_start_motion(&"attack", hero.interval)
@@ -156,90 +184,62 @@ func skill() -> void:
 		return
 	facing = _direction_to_enemy()
 	mana -= skill_cost
-	skill_left = hero.cooldown
-	_start_motion(&"skill", 0.34 if weapon_id == "warhammer" else 0.24)
-	var power := 63 + (level - 1) * 7 + gear_attack
-	if weapon_id == "warhammer":
-		_crush(position + Vector2.from_angle(facing) * 35.0, 111.0, power, 440.0)
-	elif weapon_id == "twin_blades":
-		_sweep(power, 118.0, facing, hero.color, 200.0)
+	skill_left = float(hero.cooldown) * (1.0 - _stat("cooldown") / 100.0)
+	_start_motion(&"skill", 0.28)
+	var power := roundi(float(hero.damage) * 1.65 + _stat("skill_damage") + _stat("elemental_power"))
+	if weapon_form == "bow":
+		for spread in [-0.20, 0.0, 0.20]:
+			_fire(facing + spread, power, 880.0, hero.reach, 2)
+	elif weapon_form == "staff":
+		_fire(facing, power, 660.0, hero.reach, 1, 105.0)
 	else:
-		_release_class_skill(power)
+		_crush(position + Vector2.from_angle(facing) * 65.0, 125.0, power, 200.0)
+	_trigger("消耗灵力时")
+	_trigger("释放技能时")
+	_pulse(&"cast", position, 1.2)
 	feedback.emit(&"skill")
-
-func _release_class_skill(power: int) -> void:
-	match hero_id:
-		0:
-			_ring(position, hero.color, 157)
-			for enemy in enemies:
-				if position.distance_to(enemy.pos) < 157.0:
-					_damage_enemy(enemy, power, 390)
-		1:
-			for spread in [-0.36, -0.18, 0.0, 0.18, 0.36]:
-				_fire(facing + spread, roundi(power * 0.73), 880, 530)
-		2:
-			var enemy := _nearest_enemy()
-			var distance := 145.0 if enemy.is_empty() else position.distance_to(enemy.pos)
-			var center := position + Vector2.from_angle(facing) * minf(distance, hero.reach)
-			_ring(center, hero.color, 135)
-			_ring(center, Color("#f4d08c"), 74)
-			for target in enemies:
-				if center.distance_to(target.pos) < 135.0:
-					_damage_enemy(target, power + 13, 135)
 
 func tactic() -> void:
 	if result != &"" or tactic_left > 0.0 or dodge_left > 0.0 or mana < tactic_cost:
 		return
 	facing = _direction_to_enemy()
 	mana -= tactic_cost
-	tactic_left = 4.6
-	_start_motion(&"tactic", 0.32 if weapon_id == "warhammer" else 0.24)
-	var power := 42 + (level - 1) * 6 + gear_attack
-	if weapon_id == "warhammer":
-		_crush(position + Vector2.from_angle(facing) * 74.0, 90.0, power + 9, 320.0)
-	elif weapon_id == "twin_blades":
-		_sweep(power + 17, 98.0, facing, Color("#cbffe4"), 310.0)
-	else:
-		_release_class_tactic(power)
+	tactic_left = 4.6 * (1.0 - _stat("cooldown") / 100.0)
+	_start_motion(&"tactic", 0.42)
+	var power := roundi(float(hero.damage) * 1.20 + _stat("skill_damage"))
+	_crush(position + Vector2.from_angle(facing) * 78.0, 118.0, power, 310.0)
+	_trigger("消耗灵力时")
+	_trigger("释放技能时")
+	_pulse(&"stomp", position, 1.5)
 	feedback.emit(&"skill")
-
-func _release_class_tactic(power: int) -> void:
-	match hero_id:
-		0:
-			var impact := position + Vector2.from_angle(facing) * 105.0
-			_ring(impact, Color("#e49060"), 102.0)
-			for enemy in enemies:
-				if Vector2(enemy.pos).distance_to(impact) < 102.0:
-					_damage_enemy(enemy, power, 230.0)
-		1:
-			_fire(facing, power + 17, 1000.0, 560.0)
-		2:
-			_ring(position, Color("#91d0ff"), 145.0)
-			for enemy in enemies:
-				if enemy.spawn <= 0.0 and Vector2(enemy.pos).distance_to(position) < 145.0:
-					_damage_enemy(enemy, power, 205.0)
-					enemy.slow = 0.85
 
 func retreat() -> void:
 	if result != &"" or retreat_left > 0.0:
 		return
-	dodge_left = 0.17
+	dodge_left = 0.31
 	retreat_left = retreat_cooldown
-	if dodge_crit:
-		crit_ready = true
-	_start_motion(&"retreat", 0.23)
+	_start_motion(&"retreat", 0.38)
 	_ring(position, Color("#cfc3dd"), 39)
+	_trigger("后撤后")
+	_pulse(&"dash", position, 0.6)
 	feedback.emit(&"retreat")
 
-func step(delta: float, direction: Vector2, hold_attack: bool) -> void:
+func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = false) -> void:
 	if result != &"":
 		return
+	var target := _nearest_enemy() if not challenging else {}
+	if not challenging:
+		direction = _farm_direction(target)
+		hold_attack = not target.is_empty() and position.distance_to(target.pos) <= float(hero.reach) + 12.0
 	_step_player(delta, direction)
+	if not challenging:
+		_farm_actions(target)
 	if hold_attack:
 		attack()
 	_step_shots(delta)
 	_step_enemies(delta)
 	_step_drops(delta)
+	_tick_bonus(delta)
 	for effect in effects:
 		effect.life -= delta
 	for popup in popups:
@@ -247,36 +247,70 @@ func step(delta: float, direction: Vector2, hold_attack: bool) -> void:
 		popup.pos.y -= 30.0 * delta
 	effects = effects.filter(func(effect: Dictionary) -> bool: return effect.life > 0.0)
 	popups = popups.filter(func(popup: Dictionary) -> bool: return popup.life > 0.0)
-	if hp <= 0:
-		result = &"defeat"
-		return
-	if not enemies.is_empty():
-		return
-	if next_wave < 0.0:
-		next_wave = 1.6
-	next_wave -= delta
-	if next_wave <= 0.0:
-		if wave < WAVES.size() - 1:
-			_start_wave()
-		else:
+	if challenging:
+		if hp <= 0:
+			result = &"defeat"
+		elif enemies.is_empty():
 			result = &"victory"
-			feedback.emit(&"level")
+		return
+	if hp <= 0:
+		hp = max_hp
+		mana = max_mana
+		shield = _stat("shield")
+		invulnerable = 1.2
+		_start_motion(&"revive", 0.62)
+		_ring(position, Color("#a4db99"), 62.0)
+		_pulse(&"revive", position, 1.0)
+	spawn_in = maxf(0.0, spawn_in - delta)
+	if spawn_in == 0.0 and enemies.size() < 3:
+		_spawn_enemy()
+		spawn_in = 1.15
 
-func _start_wave() -> void:
-	wave += 1
-	next_wave = -1.0
-	var order: Array[int] = []
-	for type in range(FOES.size()):
-		for _unit in range(WAVES[wave][type]):
-			order.append(type)
-	for i in range(order.size()):
-		var type := order[i]
-		var rank := floori(i / 6.0)
-		var rank_size := mini(6, order.size() - rank * 6)
-		var offset := Vector2(219 + rank * 62 + i % 2 * 18, (i % 6 - (rank_size - 1) * 0.5) * 39 + rank * 10)
-		if type == BOSS:
-			offset = Vector2(218, 0)
-		enemies.append({"serial": wave * 100 + i, "pos": HOME + offset, "type": type, "hp": FOES[type].hp, "spawn": 0.38 + i * 0.09, "hit": 0.0, "cooldown": 0.0, "windup": 0.0, "stride": i * 0.9, "knock": Vector2.ZERO, "slow": 0.0})
+func _farm_direction(target: Dictionary) -> Vector2:
+	if target.is_empty():
+		return Vector2.ZERO
+	var gap: Vector2 = target.pos - position
+	if target.windup > 0.0:
+		return Vector2(-1.0, 0.0)
+	if gap.length() <= float(hero.reach) - 12.0 and absf(gap.y) < 36.0:
+		return Vector2.ZERO
+	return Vector2(clampf(gap.x / 40.0, 0.0, 1.0), clampf(gap.y / 30.0, -1.0, 1.0))
+
+func _farm_actions(target: Dictionary) -> void:
+	if target.is_empty() or motion != &"":
+		return
+	var gap := position.distance_to(target.pos)
+	if gap < (float(hero.reach) if weapon_form in ["bow", "staff"] else 155.0):
+		if skill_left <= 0.0 and mana >= skill_cost:
+			skill()
+		elif tactic_left <= 0.0 and mana >= tactic_cost and gap < 175.0:
+			tactic()
+
+func _spawn_enemy(delay: float = 0.38) -> void:
+	var strong := challenging
+	var tribulation := strong and not Gear.Realm.jie_ling_of(dungeon_layer).is_empty()
+	var growth := float(dungeon_layer - 1)
+	var scale_hp := (67.0 + growth * 2.2) if not strong else (245.0 + growth * 11.0)
+	var scale_damage := 7.5 + growth * 0.36 if not strong else 35.0 + growth * 1.25
+	if tribulation:
+		scale_hp *= 1.60
+		scale_damage *= 1.24
+	var max_health := roundi(scale_hp * float(archetype.vitality))
+	var offset := Vector2(196.0, 0.0) if strong else Vector2(138.0 + float(serial_counter % 3) * 19.0,
+		(float(serial_counter % 3) - 1.0) * 54.0)
+	var stats := {"radius": 29.0 if strong else 15.0, "size": 118.0 if tribulation else (107.0 if strong else 57.0),
+		"speed": float(archetype.speed) * (0.83 if strong else 1.0), "damage": roundi(scale_damage * float(archetype.force))}
+	var danger_radius := float(archetype.radius) * (1.23 if tribulation else 1.0)
+	enemies.append({"serial": serial_counter, "pos": HOME + offset, "art": archetype.art, "hp": max_health,
+		"max_hp": max_health, "stats": stats, "boss": strong, "spawn": delay, "hit": 0.0,
+		"cooldown": 1.2 if strong else 0.15, "windup": 0.0, "windup_total": archetype.windup, "strike_at": Vector2.ZERO,
+		"strike_radius": danger_radius, "stride": 0.0, "knock": Vector2.ZERO, "slow": 0.0})
+	serial_counter += 1
+
+func collect_pending_materials() -> void:
+	for drop in drops:
+		material_collected.emit(drop.material, drop.quantity)
+	drops.clear()
 
 func _start_motion(kind: StringName, duration: float) -> void:
 	motion = kind
@@ -288,15 +322,17 @@ func _step_player(delta: float, direction: Vector2) -> void:
 	if dodge_left > 0.0:
 		position.x = maxf(FOOTWORK.position.x, position.x - minf(delta, dodge_left) * 300.0)
 	else:
-		var motion_step := direction.limit_length() * float(hero.speed) * delta
+		var pace := 0.58 if player_slow > 0.0 else 1.0
+		var motion_step := direction.limit_length() * float(hero.speed) * pace * delta
 		position.y = clampf(position.y + motion_step.y * 0.48, FOOTWORK.position.y, FOOTWORK.end.y)
 		var front := FOOTWORK.end.x
 		if motion_step.x > 0.0:
 			for enemy in enemies:
-				var radius: float = FOES[enemy.type].radius
+				var radius: float = enemy.stats.radius
 				if enemy.spawn <= 0.0 and enemy.hp > 0 and absf(enemy.pos.y - position.y) <= radius + 16.0:
 					front = minf(front, maxf(position.x, enemy.pos.x - radius - 34.0))
 		position.x = clampf(position.x + motion_step.x, FOOTWORK.position.x, front)
+	player_slow = maxf(0.0, player_slow - delta)
 	stride = stride + delta * 14.0 if old != position else 0.0
 	mana = minf(max_mana, mana + delta * mana_recovery)
 	skill_left = maxf(0.0, skill_left - delta)
@@ -308,11 +344,11 @@ func _step_player(delta: float, direction: Vector2) -> void:
 		var previous := motion_time
 		motion_time += delta
 		if motion == &"attack":
-			var release := motion_duration * (0.53 if weapon_id == "warhammer" else 1.0 / 3.0)
+			var release := motion_duration * (0.53 if weapon_form == "hammer" else 1.0 / 3.0)
 			if previous < release and motion_time >= release:
 				_release_attack()
 			var followup := motion_duration * 0.66
-			if weapon_id == "twin_blades" and previous < followup and motion_time >= followup:
+			if weapon_form == "dual_blades" and previous < followup and motion_time >= followup:
 				_release_attack(true)
 		if motion_time >= motion_duration:
 			motion = &""
@@ -335,98 +371,145 @@ func _direction_to_enemy() -> float:
 
 func _release_attack(followup: bool = false) -> void:
 	if not followup:
-		basic_critical = crit_ready or (crit_chance > 0.0 and combat_rng.randf() < crit_chance)
-		crit_ready = false
-	var damage: int = hero.damage + (level - 1) * 5
+		basic_critical = combat_rng.randf() < crit_chance
+	var damage: int = hero.damage
 	if basic_critical:
-		damage = roundi(damage * 1.5)
-	match weapon_id:
-		"warhammer":
-			_crush(position + Vector2.from_angle(facing) * 36.0, float(hero.reach) - 36.0, damage, 295.0, basic_critical)
+		damage = roundi(float(damage) * (1.5 + (_stat("crit_damage") + _stat("keen_sight")) / 100.0))
+	match weapon_form:
+		"hammer":
+			_crush(position + Vector2.from_angle(facing) * 36.0, float(hero.reach) - 30.0, damage, 295.0, basic_critical)
 			feedback.emit(&"hammer_hit")
-		"twin_blades":
-			_sweep(roundi(damage * 0.62) if followup else damage, hero.reach, facing + (0.25 if followup else -0.25), Color("#eaffd3") if followup else hero.color, 58.0, basic_critical)
+		"dual_blades":
+			_sweep(roundi(damage * 0.62) if followup else damage, hero.reach, facing + (0.25 if followup else -0.25), trail_color, 58.0, basic_critical)
 			feedback.emit(&"slash")
-		"longbow":
+		"bow":
 			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
 			feedback.emit(&"shot")
-		"spellstaff":
+		"staff":
 			_fire(facing, damage, 640.0, hero.reach, 1, 53.0, basic_critical)
 			feedback.emit(&"shot")
-		"wand":
-			_fire(facing, damage, 900.0, hero.reach, 1, 0.0, basic_critical)
-			feedback.emit(&"shot")
 		_:
-			if hero_id == 0:
-				_sweep(damage, hero.reach, facing, hero.color, 115.0, basic_critical)
-				feedback.emit(&"slash")
-			else:
-				_fire(facing, damage, 600.0 if hero_id == 2 else 840.0, hero.reach, 1, 0.0, basic_critical)
-				feedback.emit(&"shot")
+			_sweep(damage, hero.reach, facing, trail_color, 115.0, basic_critical)
+			feedback.emit(&"slash")
 
 func _sweep(damage: int, reach: float, angle: float, color: Color, knock: float, critical: bool = false) -> void:
 	effects.append({"type": &"slash", "pos": position, "angle": angle, "color": color, "radius": reach, "life": 0.19, "duration": 0.19})
 	for enemy in enemies:
 		var gap: Vector2 = enemy.pos - position
-		if gap.length() < reach + FOES[enemy.type].radius * 0.55 and cos(gap.angle() - angle) > -0.05:
+		if gap.length() < reach + enemy.stats.radius * 0.55 and cos(gap.angle() - angle) > -0.05:
 			_damage_enemy(enemy, damage, knock, critical)
 
 func _crush(center: Vector2, radius: float, damage: int, knock: float, critical: bool = false) -> void:
 	effects.append({"type": &"crush", "pos": center, "color": Color("#ffcb86"), "radius": radius, "life": 0.34, "duration": 0.34})
 	for enemy in enemies:
-		if center.distance_to(enemy.pos) < radius + FOES[enemy.type].radius * 0.55:
+		if center.distance_to(enemy.pos) < radius + enemy.stats.radius * 0.55:
 			_damage_enemy(enemy, damage, knock, critical)
 
 func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1, splash: float = 0.0, critical: bool = false) -> void:
 	var forward := Vector2.from_angle(angle)
 	const LAUNCH_OFFSET := 15.0
 	shots.append({"pos": position + forward * LAUNCH_OFFSET, "velocity": forward * speed, "life": (reach - LAUNCH_OFFSET) / speed, "damage": damage,
-		"magic": hero_id == 2, "wand": weapon_id == "wand", "color": hero.color, "hits": hits, "struck": [], "splash": splash, "critical": critical})
+		"magic": weapon_form == "staff", "wand": false, "color": trail_color, "hits": hits, "struck": [], "splash": splash, "critical": critical})
 
-func _ring(point: Vector2, color: Color, radius: float) -> void:
-	effects.append({"type": &"ring", "pos": point, "color": color, "radius": radius, "life": 0.38, "duration": 0.38})
+func _ring(point: Vector2, color: Color, radius: float, effect_type: StringName = &"ring") -> void:
+	effects.append({"type": effect_type, "pos": point, "color": color, "radius": radius, "life": 0.38, "duration": 0.38})
 
-func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool = false) -> void:
+# 只记录「发生了什么、在哪里、多重」，画面层自行决定震多少、顿多久。
+func _pulse(kind: StringName, point: Vector2, power: float) -> void:
+	pulses.append({"kind": kind, "pos": point, "power": power})
+	if pulses.size() > MAX_PULSES:
+		pulses = pulses.slice(pulses.size() - MAX_PULSES)
+
+func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool = false, secondary: bool = false) -> void:
 	if enemy.spawn > 0.0 or enemy.hp <= 0:
 		return
+	var heal_after_hit := 0.0
+	if not secondary:
+		damage += roundi(_stat("impact") * 0.55 + _stat("pressure") * 0.25)
+		var resistance := (0.11 if enemy.boss else 0.03) - (_stat("armor_break") + _stat("penetration")) / 100.0
+		damage = maxi(1, roundi(float(damage) * (1.0 - maxf(0.0, resistance - float(enemy.get("breach", 0.0))))))
+		damage = maxi(1, roundi(float(damage) * _stat("weapon_matchup", 1.0)))
+		heal_after_hit = float(damage) * _stat("feed_enemy_ratio")
+		knock += _stat("impact") * 5.0
 	enemy.hp -= damage
+	if heal_after_hit > 0.0 and enemy.hp > 0:
+		enemy.hp = mini(enemy.max_hp, int(enemy.hp) + roundi(heal_after_hit))
 	enemy.hit = 0.15
-	enemy.knock += position.direction_to(enemy.pos) * knock * (0.15 if enemy.type == BOSS else 1.0)
-	popups.append({"pos": enemy.pos - Vector2(0, FOES[enemy.type].size * 0.66), "text": str(damage), "life": 0.6, "critical": critical})
+	enemy.knock += position.direction_to(enemy.pos) * knock * (0.15 if enemy.boss else 1.0)
+	popups.append({"pos": enemy.pos - Vector2(0, enemy.stats.size * 0.66), "text": str(damage), "life": 0.6, "critical": critical})
+	if not secondary:
+		_pulse(&"crit" if critical else &"hit", enemy.pos, clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2))
+	if not secondary:
+		var alive: bool = enemy.hp > 0
+		var leech := _stat("lifesteal") + _stat("drain")
+		if leech > 0.0:
+			_heal(float(damage) * minf(0.60, leech / 100.0))
+		if alive:
+			var burn := _stat("burn") + _stat("venom") + _stat("ignite") + _stat("scorch_armor")
+			if burn > 0.0:
+				_mark_damage(enemy, burn * (1.0 + _stat("burn_damage") / 100.0), 2.0 + _stat("ignite_cap") * 0.03)
+			if _stat("chill") + _stat("pressure") > 0.0:
+				enemy.slow = maxf(enemy.slow, 0.45 + (_stat("chill") + _stat("pressure") + _stat("slow_power")) / 100.0)
+			_trigger_hit(enemy, knock, critical)
+			_clash(enemy)
+			if challenging:
+				_companion_strike(enemy)
+		if alive:
+			return
 	if enemy.hp > 0:
 		return
 	kills += 1
 	if kill_heal > 0:
-		hp = mini(max_hp, hp + kill_heal)
-	var boss: bool = enemy.type == BOSS
-	xp += 4 if boss else 1
-	drops.append({"pos": enemy.pos, "heal": kills % 4 == 0 or boss, "age": 0.0, "collected": false})
-	var loot := Gear.roll_loot(enemy.type, loot_rng)
-	for index in range(loot.size()):
-		drops.append({
-			"pos": Vector2(enemy.pos) + Vector2(22.0 + 24.0 * index, -9.0),
-			"material": loot[index].id, "quantity": loot[index].quantity, "age": 0.0, "collected": false
-		})
+		_heal(float(kill_heal))
+	if not challenging:
+		var amount := Gear.roll_farm_quantity(loot_rng, kills == 1, _stat("material_drop_multiplier", 1.0))
+		if amount > 0:
+			drops.append({"pos": enemy.pos, "material": encounter_stem, "quantity": amount,
+				"age": 0.0, "collected": false})
 	_ring(enemy.pos - Vector2(0, 12), Color("#d28f58"), 41)
-	var target := xp_target()
-	if xp >= target:
-		xp -= target
-		level += 1
-		max_hp += 8
-		hp = mini(max_hp, hp + 27)
-		_ring(position, Color("#facd82"), 60)
-		feedback.emit(&"level")
+	_pulse(&"kill", enemy.pos, 1.6 if enemy.boss else 0.7)
+	if not secondary:
+		_trigger("击杀时", enemy)
+		if kill_heal > 0:
+			_trigger("击杀回血时", enemy)
 
 func _damage_player(damage: int, attacker: Dictionary = {}) -> void:
-	if dodge_left > 0.0 or invulnerable > 0.0:
+	if invulnerable > 0.0:
 		return
-	invulnerable = 0.49
-	hp = maxi(0, hp - maxi(1, roundi(damage * (1.0 - damage_reduction))))
-	_start_motion(&"hurt", 0.22)
+	if dodge_left > 0.0 or combat_rng.randf() < (_stat("dodge") + _stat("keen_step")) / 100.0:
+		_trigger("闪避成功时", attacker)
+		return
+	invulnerable = 0.49 + _stat("stability") * 0.002
+	var incoming := float(damage) * (1.0 - damage_reduction)
+	if combat_rng.randf() < _stat("block") / 100.0:
+		incoming *= 0.5
+		_trigger("格挡成功时", attacker)
+	if shield > 0.0:
+		var absorbed := minf(shield, incoming)
+		shield -= absorbed
+		incoming -= absorbed
+		if shield <= 0.0:
+			_trigger("护盾破裂时", attacker)
+	var loss := maxi(0, roundi(incoming - _stat("mitigation") * 0.16))
+	if loss >= hp:
+		_trigger("受致命伤时（每局 1 次）", attacker, true)
+	hp = maxi(0, hp - loss)
+	_start_motion(&"hurt", 0.34)
 	_ring(position, Color("#ec756f"), 34)
+	_pulse(&"hurt", position, clampf(float(loss) / maxf(float(max_hp) * 0.12, 1.0), 0.5, 2.4))
 	feedback.emit(&"hurt")
+	damage_taken += 1
+	_trigger("受击时", attacker)
+	if damage_taken == 10:
+		_trigger("受击累计 10 次", attacker)
+	if hp * 2 < max_hp:
+		_trigger("生命低于 50%", attacker)
+	if _stat("energy_absorb") > 0.0:
+		mana = minf(max_mana, mana + _stat("energy_absorb"))
+		_trigger("受击回蓝时", attacker)
 	if thorns > 0 and hp > 0 and not attacker.is_empty():
-		_damage_enemy(attacker, thorns, 0.0)
+		_damage_enemy(attacker, thorns, 0.0, false, true)
+		_trigger("荆棘触发时", attacker)
 		_ring(attacker.pos, Color("#f1bc76"), 26.0)
 
 func _step_enemies(delta: float) -> void:
@@ -436,42 +519,73 @@ func _step_enemies(delta: float) -> void:
 		if enemy.spawn > 0.0:
 			enemy.spawn -= delta
 			continue
-		var stats: Dictionary = FOES[enemy.type]
-		var movement := Vector2(enemy.pos).direction_to(position)
+		if float(enemy.get("dot_time", 0.0)) > 0.0:
+			enemy.dot_time -= delta
+			enemy.dot_tick -= delta
+			if enemy.dot_tick <= 0.0:
+				enemy.dot_tick += 0.5
+				_damage_enemy(enemy, maxi(1, roundi(float(enemy.dot) * 0.5)), 0.0, false, true)
+				if enemy.hp <= 0:
+					continue
+			if enemy.dot_time <= 0.0:
+				enemy.erase("dot")
+				enemy.erase("dot_tick")
+		var stats: Dictionary = enemy.stats
 		var gap := Vector2(enemy.pos).distance_to(position)
-		var near: bool = gap < stats.radius + 37.0
-		var boss: bool = enemy.type == BOSS
+		var near: bool = gap < float(stats.radius) + 37.0
 		enemy.cooldown -= delta
 		enemy.hit = maxf(0.0, enemy.hit - delta)
 		enemy.slow = maxf(0.0, enemy.slow - delta)
-		var slamming := false
-		if boss:
-			if enemy.windup > 0.0:
-				slamming = true
-				enemy.windup = maxf(0.0, enemy.windup - delta)
-				if enemy.windup == 0.0:
-					_ring(enemy.pos, Color("#e46e4b"), SLAM_RADIUS)
-					if gap < SLAM_RADIUS:
-						_damage_player(stats.damage, enemy)
-					enemy.cooldown = 1.25
-					feedback.emit(&"skill")
-			elif gap < SLAM_RADIUS * 0.72 and enemy.cooldown <= 0.0:
-				slamming = true
-				enemy.windup = 0.65
-		if not near and not slamming:
+		var preparing := _step_boss_skill(enemy, delta, gap) if enemy.boss else false
+		if not near and not preparing:
 			var speed: float = stats.speed * (0.55 if enemy.slow > 0.0 else 1.0)
-			enemy.pos += movement * Vector2(1.0, 0.76) * speed * delta
+			enemy.pos += Vector2(enemy.pos).direction_to(position) * Vector2(1.0, 0.76) * speed * delta
 			enemy.stride += delta * 12.0
 		enemy.pos += enemy.knock * delta
 		enemy.knock *= exp(-11.0 * delta)
-		if not boss and near and enemy.cooldown <= 0.0 and invulnerable == 0.0 and dodge_left == 0.0:
-			enemy.cooldown = 0.53
+		if not enemy.boss and near and enemy.cooldown <= 0.0:
+			enemy.cooldown = 0.73
 			_damage_player(stats.damage, enemy)
 	enemies = enemies.filter(func(enemy: Dictionary) -> bool: return enemy.hp > 0)
 	_separate_enemies(delta)
 	for enemy in enemies:
-		enemy.pos.x = clampf(enemy.pos.x, position.x + FOES[enemy.type].radius + 32.0, 874.0)
-		enemy.pos.y = clampf(enemy.pos.y, 165.0, 567.0)
+		enemy.pos.x = clampf(enemy.pos.x, position.x + float(enemy.stats.radius) + 24.0, 743.0)
+		enemy.pos.y = clampf(enemy.pos.y, 270.0, 476.0)
+
+func _step_boss_skill(enemy: Dictionary, delta: float, gap: float) -> bool:
+	if enemy.windup <= 0.0:
+		if gap < float(enemy.strike_radius) + 49.0 and enemy.cooldown <= 0.0:
+			enemy.windup = enemy.windup_total
+			enemy.strike_at = position
+			return true
+		return false
+	enemy.windup = maxf(0.0, enemy.windup - delta)
+	if enemy.windup == 0.0:
+		_ring(enemy.strike_at, Color("#f0805e"), enemy.strike_radius, &"crush")
+		_pulse(&"quake", enemy.strike_at, 1.9)
+		enemy.cooldown = 2.0
+		var gap_at_impact: Vector2 = position - enemy.strike_at
+		gap_at_impact.y /= TELEGRAPH_ASPECT
+		if gap_at_impact.length_squared() <= pow(enemy.strike_radius, 2):
+			var before := hp
+			_damage_player(enemy.stats.damage, enemy)
+			if hp < before:
+				_boss_hit_effect(enemy)
+		feedback.emit(&"skill")
+	return true
+
+func _boss_hit_effect(enemy: Dictionary) -> void:
+	match archetype.effect:
+		"drain":
+			mana = maxf(0.0, mana - 12.0)
+		"heal":
+			enemy.hp = mini(enemy.max_hp, int(enemy.hp) + roundi(float(enemy.max_hp) * 0.07))
+		"knock":
+			position.x = maxf(FOOTWORK.position.x, position.x - 34.0)
+		"chill":
+			player_slow = 1.1
+		"flare":
+			enemy.cooldown = 1.55
 
 func _separate_enemies(delta: float) -> void:
 	for i in range(enemies.size()):
@@ -482,7 +596,7 @@ func _separate_enemies(delta: float) -> void:
 			var other := enemies[j]
 			if other.spawn > 0.0:
 				continue
-			var target_gap: float = (FOES[first.type].radius + FOES[other.type].radius) * 0.87
+			var target_gap: float = (float(first.stats.radius) + float(other.stats.radius)) * 0.87
 			var gap: Vector2 = other.pos - first.pos
 			if gap.length_squared() < target_gap * target_gap:
 				var shift := gap.normalized() * (target_gap - gap.length()) * minf(1.0, delta * 6.0)
@@ -496,7 +610,7 @@ func _step_shots(delta: float) -> void:
 		for enemy in enemies:
 			if enemy.spawn > 0.0 or enemy.hp <= 0 or shot.struck.has(enemy.serial):
 				continue
-			var radius: float = FOES[enemy.type].radius + (8.0 if shot.magic else 3.0)
+			var radius: float = enemy.stats.radius + (8.0 if shot.magic else 3.0)
 			if Vector2(shot.pos).distance_squared_to(enemy.pos) < radius * radius:
 				_damage_enemy(enemy, shot.damage, 105.0 if shot.magic else 60.0, shot.critical)
 				shot.struck.append(enemy.serial)
@@ -517,18 +631,135 @@ func _step_drops(delta: float) -> void:
 		var gap := position.distance_to(drop.pos)
 		if gap < 19.0:
 			drop.collected = true
-			if drop.has("material"):
-				materials_found += int(drop.quantity)
-				popups.append({
-					"pos": position + Vector2(29.0 + 41.0 * (materials_found % 2), -49.0),
-					"text": "+%d" % drop.quantity, "material": drop.material, "life": 0.9
-				})
-				material_collected.emit(drop.material, drop.quantity)
-			else:
-				ash += 3 if drop.heal else 1
-				if drop.heal:
-					hp = mini(max_hp, hp + 24)
+			materials_found += int(drop.quantity)
+			material_collected.emit(drop.material, drop.quantity)
+			_trigger("拾取材料时")
 			feedback.emit(&"pickup")
-		elif gap < 95.0 or enemies.is_empty():
-			drop.pos = Vector2(drop.pos).lerp(position, minf(1.0, delta * (7.0 if enemies.is_empty() else 11.0)))
+		elif drop.age >= 0.35:
+			drop.pos = Vector2(drop.pos).lerp(position, minf(1.0, delta * 8.5))
 	drops = drops.filter(func(drop: Dictionary) -> bool: return not drop.collected)
+
+func _stat(key: String, fallback: float = 0.0) -> float:
+	return float(gear.get(key, fallback))
+
+func _heal(amount: float, events: bool = true) -> void:
+	var before := hp
+	hp = mini(max_hp, hp + maxi(1, roundi(amount * (1.0 + _stat("healing") / 100.0)))) if amount > 0.0 else hp
+	if hp > before and events:
+		_trigger("治疗生效时")
+		_trigger("生命回复时")
+		if hp == max_hp:
+			_trigger("生命回满时")
+
+func _mark_damage(enemy: Dictionary, power: float, seconds: float) -> void:
+	if power > float(enemy.get("dot", 0.0)):
+		enemy.dot = power
+	enemy.dot_time = maxf(float(enemy.get("dot_time", 0.0)), seconds)
+	if not enemy.has("dot_tick"):
+		enemy.dot_tick = 0.5
+
+func _tick_bonus(delta: float) -> void:
+	recovery_left -= delta
+	if recovery_left <= 0:
+		recovery_left += 1.0
+		var regeneration := _stat("regeneration") + _stat("vitality")
+		if not challenging:
+			regeneration += float(max_hp) * 0.065
+		if regeneration > 0.0:
+			_heal(regeneration)
+			_trigger("再生中时")
+		if mana < max_mana:
+			_trigger("回蓝时")
+	companion_left = maxf(0.0, companion_left - delta)
+	if not challenging and companions > 0:
+		_companion_strike(_nearest_enemy())
+
+func _companion_strike(target: Dictionary) -> void:
+	if companions == 0 or companion_left > 0.0 or target.is_empty() or target.hp <= 0:
+		return
+	companion_left = 0.75
+	var damage := roundi(float(hero.damage) * Gear.Origins.COMPANION_DPS_RATIO * companions * 0.75 / float(hero.interval))
+	_ring(target.pos, Color("#b0d193"), 32.0)
+	_damage_enemy(target, damage, 0.0, false, true)
+
+func _trigger_hit(enemy: Dictionary, knock: float, critical: bool) -> void:
+	hits += 1
+	if hits == 1:
+		_trigger("首次命中时", enemy)
+	if hits % 3 == 0:
+		_trigger("每第 3 击", enemy)
+	if hits % 5 == 0:
+		_trigger("连续命中 5 次", enemy)
+	if critical:
+		_trigger("暴击时", enemy)
+		_trigger("暴伤触发时", enemy)
+	if knock >= 200.0:
+		_trigger("击退目标时", enemy)
+	if enemy.slow > 0.0:
+		_trigger("命中被减速目标时", enemy)
+		_trigger("目标被减速时", enemy)
+	if float(enemy.get("dot_time", 0.0)) > 0.0:
+		_trigger("目标燃烧时", enemy)
+		if _stat("venom") > 0.0:
+			_trigger("目标中毒时", enemy)
+	if _stat("armor_break") > 0.0:
+		_trigger("破甲命中时", enemy)
+	if _stat("penetration") > 0.0:
+		_trigger("穿甲生效时", enemy)
+	if _stat("pressure") > 0.0:
+		_trigger("目标被重压时", enemy)
+
+func _trigger(condition: String, target: Dictionary = {}, once: bool = false) -> void:
+	if once and trigger_tokens.has(condition):
+		return
+	for effect in gear.get("triggers", []):
+		if effect.condition != condition:
+			continue
+		if once:
+			trigger_tokens[condition] = true
+		var enemy := target if not target.is_empty() and target.hp > 0 else _nearest_enemy()
+		var action: Dictionary = effect.action
+		var x: float = effect.strength
+		match action.id:
+			"heal": _heal(x * float(action.heal_scale), false)
+			"shield": shield += x * float(action.shield_scale)
+			"absorb": mana = minf(max_mana, mana + x * float(action.absorb_scale))
+			_:
+				if enemy.is_empty():
+					continue
+				match action.id:
+					"entangle":
+						enemy.slow = maxf(enemy.slow, action.seconds)
+						_heal(x * float(action.drain_per_second_scale), false)
+					"flare": _area_extra(enemy.pos, roundi(x * float(action.aoe_damage_scale)), 88.0)
+					"ignite": _mark_damage(enemy, x * float(action.damage_per_second_scale), action.seconds)
+					"armor_break": enemy.breach = maxf(enemy.get("breach", 0.0), x * float(action.armor_loss_scale))
+					"pierce": _damage_enemy(enemy, roundi(float(hero.damage) * x * float(action.damage_scale) * 1.5), 0.0, true, true)
+					"flush": enemy.knock += position.direction_to(enemy.pos) * x * float(action.knockback_scale)
+					"freeze": enemy.slow = maxf(enemy.slow, x * float(action.duration_scale))
+
+func _area_extra(center: Vector2, damage: int, radius: float) -> void:
+	_ring(center, Color("#f3c7a3"), radius)
+	for enemy in enemies:
+		if center.distance_to(enemy.pos) <= radius:
+			_damage_enemy(enemy, maxi(1, damage), 0.0, false, true)
+
+func _clash(enemy: Dictionary) -> void:
+	for effect in gear.get("clashes", []):
+		if enemy.hp <= 0:
+			return
+		if combat_rng.randf() > float(effect.get("chance", 1.0)):
+			continue
+		var x: float = effect.strength
+		match effect.id:
+			"steam":
+				_area_extra(enemy.pos, roundi(x * float(effect.aoe_damage_scale)), 91.0)
+				enemy.cooldown = maxf(enemy.cooldown, effect.blind_seconds)
+			"corrode":
+				enemy.breach = minf(x * float(effect.armor_loss_scale) * float(effect.max_stacks),
+					float(enemy.get("breach", 0.0)) + x * float(effect.armor_loss_scale))
+			"rend": _mark_damage(enemy, x * float(effect.moving_bleed_per_second_scale), 2.0)
+			"root":
+				enemy.slow = maxf(enemy.slow, effect.root_seconds)
+				_heal(x * float(effect.life_drain_scale), false)
+			"mire": enemy.slow = maxf(enemy.slow, x * float(effect.duration_scale))

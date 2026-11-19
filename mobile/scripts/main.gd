@@ -5,24 +5,26 @@ const Arena = preload("res://scripts/arena.gd")
 const Sound = preload("res://scripts/sound.gd")
 const Gothic = preload("res://scripts/gothic.gd")
 const Gear = preload("res://scripts/gear.gd")
-const ForgeArt = preload("res://scripts/forge_art.gd")
 const Forge = preload("res://scripts/forge.gd")
+const EquipmentSlot = preload("res://scripts/equipment_slot.gd")
+const CharacterPage = preload("res://scripts/character_page.gd")
 const Roster = preload("res://scripts/roster.gd")
-const HeroPreview = preload("res://scripts/hero_preview.gd")
-const CAMP = preload("res://art/hero-vault.webp")
-const FORGE_BG = preload("res://art/furnace-vault.webp")
-const CAMP_GRADE = preload("res://art/gothic_grade.gdshader")
-const SPELL_ATLAS = preload("res://art/spell-icons.webp")
+const Appearance = preload("res://scripts/appearance.gd")
+const Stick = preload("res://scripts/stick.gd")
+const Turnover = preload("res://scripts/layer_turnover.gd")
+const CAMP = preload("res://art/immortals/terrace.webp")
+const FORGE_BG = preload("res://art/immortals/furnace.webp")
+const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
 const FONT = preload("res://art/fonts/game.ttf")
 const HEADING_FONT = preload("res://art/fonts/heading.ttf")
 
-const NIGHT := Color("#100e0e")
+const NIGHT := Color("#152d26")
 const INK := Color("#eee3cf")
 const GOLD := Color("#cdb180")
 const MUTED := Color("#c0b3a4")
-const IRON := Color("#231e1b")
-const BORDER := Color("#6c5843")
-const CRIMSON := Color("#452022")
+const IRON := Color("#263d32")
+const BORDER := Color("#98825c")
+const CRIMSON := Color("#873c2d")
 const SPELL_CELL := Vector2(128, 128)
 const SPELL_INDEX := {
 	&"sword": 0, &"slash": 1, &"cleave": 2, &"retreat": 3,
@@ -34,12 +36,12 @@ var run := Combat.new()
 var profile := Gear.new()
 var sounds := Sound.new()
 var state: StringName = &"selection"
-var choice := 0
-var hero_style := 0
 var touches: Dictionary = {}
 var action_buttons: Dictionary = {}
 var action_glyphs: Dictionary = {}
 var cooldown_labels: Dictionary = {}
+var cooldown_sweeps: Dictionary = {}
+var cooldown_totals: Dictionary = {}
 var sound_buttons: Array[Button] = []
 var spell_textures: Dictionary = {}
 
@@ -47,27 +49,40 @@ var safe: MarginContainer
 var camp: TextureRect
 var camp_shade: TextureRect
 var battle_shade: TextureRect
-var selection: VBoxContainer
+var selection: CharacterPage
 var battle: VBoxContainer
-var overlay: ColorRect
-var headline: Label
-var summary: Label
-var overlay_action: Button
-var result_forge_button: Button
+var battle_context: Label
+var encounter_label: Label
+var ling_label: Label
+var farm_readout: VBoxContainer
+var farm_health: Gothic.Meter
+var farm_status: Label
+var loot_line: Label
+var recent_loot := ""
+var loot_animation: Tween
+var farm_actions: HBoxContainer
+var challenge_button: Button
+var boss_controls: VBoxContainer
+var boss_readout: VBoxContainer
+var boss_health: Gothic.Meter
+var boss_hint: Label
+var gear_slots := {}
+var notice_cover: ColorRect
+var notice_title: Label
+var notice_text: Label
+var turnover: Turnover
+var retry_until := 0.0
 var forge: Forge
-var forge_return: StringName
-var hero_choices: Array[Button] = []
-var style_choices: Array[Button] = []
-var hero_preview: HeroPreview
-var enter_button: Button
-var selection_utilities: Array[Button] = []
-var wave_title: Label
 var life_seal: Gothic.Orb
 var mana_seal: Gothic.Orb
+var life_value: Label
+var mana_value: Label
 var field: Arena
+var stick: Stick
+var gear_card: Node
 
 func _ready() -> void:
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var ui_style := Theme.new()
 	ui_style.default_font = FONT
 	ui_style.default_font_size = 16
@@ -79,7 +94,10 @@ func _ready() -> void:
 	_build_view()
 	resized.connect(_adapt_safe_area)
 	_adapt_safe_area()
-	_show_selection()
+	if profile.has_character():
+		_enter_farm()
+	else:
+		_show_selection()
 
 func _build_view() -> void:
 	var base := ColorRect.new()
@@ -89,11 +107,6 @@ func _build_view() -> void:
 
 	camp = _image(CAMP)
 	camp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	var grade := ShaderMaterial.new()
-	grade.shader = CAMP_GRADE
-	grade.set_shader_parameter("grade_weight", 0.12)
-	grade.set_shader_parameter("exposure", 1.23)
-	camp.material = grade
 	_fill(camp)
 	add_child(camp)
 	camp_shade = _image(_camp_gradient())
@@ -115,10 +128,10 @@ func _build_view() -> void:
 	var page := _vbox(0)
 	safe.add_child(page)
 
-	selection = _vbox(9)
+	selection = CharacterPage.new()
 	selection.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page.add_child(selection)
 	_build_selection()
+	page.add_child(selection)
 
 	battle = _vbox(9)
 	battle.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -131,92 +144,100 @@ func _build_view() -> void:
 	forge.close_requested.connect(_close_forge)
 	forge.hide()
 	page.add_child(forge)
+	stick = Stick.new()
+	stick.hide()
+	add_child(stick)
+	_fill(stick)
 	_build_overlay()
 
 func _build_selection() -> void:
-	var utilities := _hbox(0)
-	selection.add_child(utilities)
-	var forge_button := _icon_button(&"anvil", "墓火锻造", false, Vector2(46, 46))
-	forge_button.pressed.connect(_open_forge)
-	utilities.add_child(forge_button)
-	selection_utilities.append(forge_button)
-	var spacer := _space(0)
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	utilities.add_child(spacer)
-	var sound_button := _sound_button()
-	utilities.add_child(sound_button)
-	selection_utilities.append(sound_button)
-	selection.add_child(_space(10))
-	var title := _label("余烬地牢", 41, Color("#eee1c8"))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_constant_override("outline_size", 8)
-	title.add_theme_color_override("font_outline_color", Color("#1b1412"))
-	selection.add_child(title)
-	hero_preview = HeroPreview.new()
-	hero_preview.custom_minimum_size.y = 285.0
-	hero_preview.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	selection.add_child(hero_preview)
-	var styles := _hbox(5)
-	styles.alignment = BoxContainer.ALIGNMENT_CENTER
-	selection.add_child(styles)
-	for i in range(2):
-		var option := _button(["男", "女"][i], i == hero_style, 44.0)
-		option.custom_minimum_size.x = 63
-		option.add_theme_font_size_override("font_size", 14)
-		option.accessibility_name = ["男性", "女性"][i]
-		option.pressed.connect(_choose_style.bind(i))
-		styles.add_child(option)
-		style_choices.append(option)
-	var choices := _hbox(8)
-	selection.add_child(choices)
-	for i in range(Combat.HEROES.size()):
-		var tile := _button(Gear.CLASSES[i], false, 62.0)
-		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tile.add_theme_font_size_override("font_size", 13)
-		tile.pressed.connect(_choose.bind(i))
-		choices.add_child(tile)
-		hero_choices.append(tile)
-		var portrait := _image(_spell_texture([&"sword", &"arrow", &"spark"][i]))
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tile.add_child(portrait)
-		portrait.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-		portrait.offset_left = -19.0
-		portrait.offset_right = 19.0
-		portrait.offset_top = 1.0
-		portrait.offset_bottom = 39.0
-
-	enter_button = _icon_button(&"portal", "确认角色，踏入地牢", true, Vector2(94, 54))
-	enter_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	enter_button.pressed.connect(_confirm_hero)
-	selection.add_child(enter_button)
-	selection.add_child(_space(3))
+	selection.ui = self
+	selection.profile = profile
+	selection.journey_requested.connect(_enter_farm)
 
 func _build_battle() -> void:
-	var status := _hbox(11)
+	battle.add_theme_constant_override("separation", 7)
+	var status := _hbox(7)
 	battle.add_child(status)
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", _box(Color(NIGHT, 0.97), BORDER, 1, 8))
+	status.add_child(panel)
+	battle_context = _label("", 13, INK)
+	battle_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(battle_context)
 	status.add_child(_sound_button())
-	wave_title = _label("", 18, INK)
-	wave_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wave_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	wave_title.add_theme_constant_override("outline_size", 6)
-	wave_title.add_theme_color_override("font_outline_color", NIGHT)
-	status.add_child(wave_title)
-	var pause_button := _icon_button(&"pause", "暂停", false, Vector2(44, 44))
-	pause_button.pressed.connect(_pause_game)
-	status.add_child(pause_button)
+
+	var info := _hud_card(battle, 9)
+	var heading := _hbox(6)
+	info.add_child(heading)
+	encounter_label = _label("", 21, INK)
+	encounter_label.add_theme_font_override("font", HEADING_FONT)
+	encounter_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.add_child(encounter_label)
+	ling_label = _label("", 12, GOLD)
+	ling_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	heading.add_child(ling_label)
+
+	farm_readout = _vbox(4)
+	info.add_child(farm_readout)
+	var feed := Control.new()
+	feed.clip_contents = true
+	feed.custom_minimum_size.y = 24
+	farm_readout.add_child(feed)
+	loot_line = _label("", 13, Color("#c4e0a4"))
+	_fill(loot_line)
+	feed.add_child(loot_line)
+	farm_health = _meter(Color("#8cb286"), 5)
+	farm_readout.add_child(farm_health)
+	farm_status = _label("", 11, MUTED)
+	farm_readout.add_child(farm_status)
+
+	boss_readout = _vbox(5)
+	info.add_child(boss_readout)
+	boss_health = _meter(Color("#c65c4c"), 9, 5)
+	boss_readout.add_child(boss_health)
+	boss_hint = _label("", 12, INK)
+	boss_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	boss_readout.add_child(boss_hint)
+
+	var tags := _hud_card(battle, 6)
+	gear_card = tags.get_parent()
+	var strip := _hbox(8)
+	strip.alignment = BoxContainer.ALIGNMENT_CENTER
+	tags.add_child(strip)
+	for slot in Gear.SLOTS:
+		var frame := EquipmentSlot.new(44)
+		frame.pressed.connect(_press_camp_slot.bind(slot))
+		strip.add_child(frame)
+		gear_slots[slot] = frame
+
 	var spring := _space(1)
 	spring.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	battle.add_child(spring)
+	farm_actions = _hbox(7)
+	battle.add_child(farm_actions)
+	var forge_button := _button("回炉坊", false, 53.0)
+	forge_button.custom_minimum_size.x = 89
+	forge_button.pressed.connect(_open_forge)
+	farm_actions.add_child(forge_button)
+	challenge_button = _button("", true, 53.0)
+	challenge_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	challenge_button.add_theme_font_size_override("font_size", 16)
+	challenge_button.pressed.connect(_challenge)
+	farm_actions.add_child(challenge_button)
 
-	var movement := _hbox(5)
+	boss_controls = _vbox(5)
+	battle.add_child(boss_controls)
+	var movement := _hbox(6)
 	movement.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	battle.add_child(movement)
+	boss_controls.add_child(movement)
 	_add_action(movement, &"back", "后退", false, false)
 	_add_action(movement, &"forward", "前进", false, false)
 
 	var dock := Gothic.Dock.new()
 	dock.custom_minimum_size.y = 76.0
-	battle.add_child(dock)
+	boss_controls.add_child(dock)
 	var hud := _hbox(4)
 	dock.add_child(hud)
 	_fill(hud)
@@ -224,99 +245,137 @@ func _build_battle() -> void:
 	hud.offset_right = -3
 	life_seal = _orb("生命")
 	hud.add_child(life_seal)
+	life_value = _orb_value(life_seal)
 	var skills := _hbox(4)
 	skills.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skills.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hud.add_child(skills)
 	_add_action(skills, &"attack", "普攻", true, true)
-	_add_action(skills, &"skill", "主技能", false, true)
-	_add_action(skills, &"tactic", "副技能", false, true)
+	_add_action(skills, &"skill", "破阵", false, true)
+	_add_action(skills, &"tactic", "震退", false, true)
 	_add_action(skills, &"retreat", "后撤", false, true)
-	mana_seal = _orb("魔法")
-	mana_seal.glow = Color("#368acd")
-	mana_seal.shade = Color("#10295a")
+	mana_seal = _orb("灵力")
+	mana_seal.glow = Color("#459d8c")
+	mana_seal.shade = Color("#17483c")
 	mana_seal.highlight = Color("#a3ddff")
 	hud.add_child(mana_seal)
-	battle.add_child(_space(3))
+	mana_value = _orb_value(mana_seal)
+
+func _hud_card(parent: Node, padding: int) -> VBoxContainer:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _box(Color(NIGHT, 0.94), Color(BORDER, 0.80), 1, padding))
+	parent.add_child(card)
+	var content := _vbox(4)
+	card.add_child(content)
+	return content
+
+func _meter(ink: Color, height: int, segments: int = 0) -> Gothic.Meter:
+	var bar := Gothic.Meter.new()
+	bar.ink = ink
+	bar.ticks = segments
+	bar.custom_minimum_size.y = height
+	return bar
 
 func _build_overlay() -> void:
-	overlay = ColorRect.new()
-	overlay.color = Color("#0f0b0ad9")
-	_fill(overlay)
-	add_child(overlay)
 	var center := CenterContainer.new()
+	notice_cover = ColorRect.new()
+	notice_cover.color = Color("#101810cc")
+	_fill(notice_cover)
+	add_child(notice_cover)
 	_fill(center)
-	overlay.add_child(center)
-	var card := PanelContainer.new()
-	card.custom_minimum_size.x = 275
-	card.add_theme_stylebox_override("panel", _box(Color("#211a17"), BORDER, 2, 20))
-	center.add_child(card)
-	var stack := _vbox(12)
-	card.add_child(stack)
-	headline = _label("", 29, INK)
-	headline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stack.add_child(headline)
-	summary = _label("", 14, MUTED)
-	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stack.add_child(summary)
-	var commands := _hbox(10)
+	notice_cover.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size.x = 319
+	panel.add_theme_stylebox_override("panel", _box(Color("#22382e"), GOLD, 1, 14))
+	center.add_child(panel)
+	var stack := _vbox(8)
+	panel.add_child(stack)
+	notice_title = _label("", 27, GOLD)
+	notice_title.add_theme_font_override("font", HEADING_FONT)
+	stack.add_child(notice_title)
+	notice_text = _label("", 14, INK)
+	notice_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stack.add_child(notice_text)
+	var commands := _hbox(6)
 	stack.add_child(commands)
-	overlay_action = _icon_button(&"play", "继续战斗", true, Vector2(90, 49))
-	overlay_action.pressed.connect(_continue_or_retry)
-	overlay_action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	commands.add_child(overlay_action)
-	result_forge_button = _icon_button(&"anvil", "墓火锻造", false, Vector2(52, 49))
-	result_forge_button.pressed.connect(_open_forge)
-	commands.add_child(result_forge_button)
-	var leave := _icon_button(&"leave", "返回选角", false, Vector2(73, 49))
-	leave.pressed.connect(_show_selection)
-	commands.add_child(leave)
-	overlay.hide()
+	var prepare := _button("先回炉坊", false, 43)
+	prepare.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	prepare.pressed.connect(_open_forge)
+	commands.add_child(prepare)
+	var begin := _button("迎接天劫", true, 43)
+	begin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	begin.pressed.connect(func() -> void: _start_encounter(true))
+	commands.add_child(begin)
+	var close := _button("留在本层挂机", false, 36)
+	close.pressed.connect(_close_notice)
+	stack.add_child(close)
+	notice_cover.hide()
+
+	turnover = Turnover.new()
+	turnover.ui = self
+	_fill(turnover)
+	add_child(turnover)
+	turnover.hide()
 
 func _physics_process(delta: float) -> void:
-	if state != &"battle":
+	if state in [&"farm", &"jie_notice"]:
+		run.step(delta)
+	elif state == &"boss":
+		var left := _held(&"back") or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
+		var right := _held(&"forward") or Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
+		var up := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+		var down := Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
+		var direction := Vector2(int(right) - int(left), int(down) - int(up))
+		# 摇杆优先：按下就用摇杆的方向，键盘与前后键仍然可用。
+		var steer := stick.value()
+		if steer != Vector2.ZERO:
+			direction = steer
+		run.step(delta, direction, _held(&"attack") or Input.is_physical_key_pressed(KEY_J))
+		if not run.result.is_empty():
+			_finish_challenge(run.result)
+	else:
 		return
-	var left := _held(&"back") or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
-	var right := _held(&"forward") or Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
-	var up := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
-	var down := Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
-	var direction := Vector2(int(right) - int(left), int(down) - int(up))
-	run.step(delta, direction, _held(&"attack") or Input.is_physical_key_pressed(KEY_J))
-	field.queue_redraw()
 	_update_battle()
-	if run.result != &"":
-		_show_result(run.result)
 
 func _input(event: InputEvent) -> void:
-	if state == &"selection":
+	if forge.detail_cover != null and forge.detail_cover.visible:
+		if event is InputEventKey and event.pressed:
+			if event.keycode == KEY_ESCAPE:
+				forge.close_derivation()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_TAB:
+				get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode if event.physical_keycode else event.keycode
 		if key == KEY_ESCAPE:
-			if state == &"battle":
-				_pause_game()
-			elif state == &"paused":
-				_continue_or_retry()
-			elif state == &"forge":
-				_close_forge()
+			match state:
+				&"forge": _close_forge()
+				&"jie_notice": _close_notice()
+				_: return
 			get_viewport().set_input_as_handled()
 			return
-		if state == &"battle":
+		if state == &"boss":
 			match key:
 				KEY_J: run.attack()
 				KEY_Q: run.skill()
 				KEY_E: run.tactic()
 				KEY_SPACE: run.retreat()
-	if state != &"battle":
+	if state != &"boss":
 		return
 	if event is InputEventScreenTouch:
 		_handle_pointer(event.index, event.position, event.pressed and not event.canceled)
 	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION and event.button_index == MOUSE_BUTTON_LEFT:
 		_handle_pointer(-1, event.position, event.pressed)
+	elif event is InputEventScreenDrag:
+		stick.drag(event.index, event.position)
+	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION:
+		stick.drag(-1, event.position)
 
 func _handle_pointer(pointer: int, point: Vector2, pressed: bool) -> void:
 	if not pressed:
-		if touches.erase(pointer):
+		var moved := stick.release(pointer)
+		if touches.erase(pointer) or moved:
 			_update_pressed()
 			get_viewport().set_input_as_handled()
 		return
@@ -333,110 +392,137 @@ func _handle_pointer(pointer: int, point: Vector2, pressed: bool) -> void:
 			&"retreat": run.retreat()
 		get_viewport().set_input_as_handled()
 		return
+	_fit_stick()
+	if stick.accepts(point):
+		stick.begin(pointer, point)
+		get_viewport().set_input_as_handled()
+
+# 走位区卡在装备条与技能坞之间，正好是战场本身。
+func _fit_stick() -> void:
+	if gear_card == null or not is_instance_valid(boss_controls):
+		return
+	var top: float = (gear_card as Control).get_global_rect().end.y + 6.0
+	var bottom: float = boss_controls.get_global_rect().position.y - 6.0
+	stick.set_zone(Rect2(0.0, top, size.x, maxf(0.0, bottom - top)))
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		_pause_game()
-		profile.flush()
-	elif what == NOTIFICATION_APPLICATION_RESUMED:
-		if is_instance_valid(safe):
-			_adapt_safe_area()
-
-func _choose(index: int) -> void:
-	var changed := choice != index
-	choice = index
-	_refresh_roster(changed)
-
-func _choose_style(index: int) -> void:
-	var changed := hero_style != index
-	hero_style = index
-	_refresh_roster(changed)
-
-func _refresh_roster(gesture: bool) -> void:
-	hero_preview.select_hero(Roster.id(choice, hero_style), gesture, profile.equipped("weapon", choice))
-	for i in range(style_choices.size()):
-		_restyle(style_choices[i], i == hero_style)
-	for i in range(hero_choices.size()):
-		var button := hero_choices[i]
-		var weapon := Gear.weapon(profile.equipped("weapon", i), i)
-		button.get_child(0).texture = _class_icon(i, weapon)
-		_restyle(button, i == choice)
-		button.get_child(0).modulate.a = 1.0 if i == choice else 0.62
-		for mode in ["normal", "hover", "pressed", "disabled"]:
-			var plate := button.get_theme_stylebox(mode)
-			plate.set_content_margin(SIDE_TOP, 34)
-			plate.set_content_margin(SIDE_BOTTOM, 6)
-
-func _confirm_hero() -> void:
-	if state != &"selection" or hero_preview.confirming:
-		return
-	hero_preview.confirm()
-	for control in hero_choices + style_choices + selection_utilities + [enter_button]:
-		control.disabled = true
-	await get_tree().create_timer(Roster.CONFIRM_TIME).timeout
-	for control in hero_choices + style_choices + selection_utilities + [enter_button]:
-		control.disabled = false
-	if state == &"selection":
-		_begin()
+	if what in [NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT]:
+		_clear_input()
+	elif what == NOTIFICATION_APPLICATION_RESUMED and is_instance_valid(safe):
+		_adapt_safe_area()
 
 func _show_selection() -> void:
 	state = &"selection"
-	_clear_input()
-	overlay.hide()
 	battle.hide()
 	field.hide()
 	battle_shade.hide()
 	forge.hide()
+	stick.hide()
 	camp.texture = CAMP
+	camp.self_modulate = Color.WHITE
+	camp_shade.texture = _camp_gradient()
 	camp.show()
 	camp_shade.show()
-	hero_preview.show()
 	selection.show()
-	_choose(choice)
+	selection.show_home()
 
-func _begin() -> void:
+func _enter_farm() -> void:
+	_start_encounter(false)
+
+func _start_encounter(challenge: bool) -> void:
+	if not profile.has_character():
+		return
+	if run.encounter_stem == profile.ling() and not run.challenging:
+		run.collect_pending_materials()
 	_clear_input()
-	run.reset(choice, profile.bonuses(choice), hero_style, profile.equipped("weapon", choice))
-	state = &"battle"
+	notice_cover.hide()
+	turnover.dismiss()
+	var person := profile.character()
+	var weapon := profile.item(profile.equipped("weapon"))
+	var element := Gear.WuXing.stem_element(person.day_stem)
+	field.portrait_id = Roster.portrait_id(person.day_stem, person.gender == "female")
+	field.hero_element = element
+	var outfit := profile.loadout()
+	var form: String = weapon.get("weapon_form", "long_blade")
+	var tribulation := Gear.Realm.jie_ling_of(profile.layer()) if challenge else ""
+	var ling := profile.ling() if tribulation.is_empty() else tribulation
+	if ling != profile.ling():
+		outfit = profile.loadout({}, true, ling)
+	var bonuses := Gear.Loadout.bonuses(outfit, person, profile.layer())
+	# 六个槽位的五行与阴阳同时决定数值和外观：换一件装备，场上的人就跟着换一身。
+	field.look = Appearance.build(outfit.entries, outfit.patterns, form)
+	run.trail_color = field.look.trail
+	if state == &"forge" and not challenge and run.dungeon_layer == profile.layer():
+		run.refresh_equipment(bonuses, form)
+	else:
+		run.reset(profile.layer(), bonuses, form, challenge, ling)
+	state = &"boss" if challenge else &"farm"
+	battle_context.text = profile.layer_caption()
+	encounter_label.text = "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(ling)] if not tribulation.is_empty() else (
+		run.archetype.name + " · 层主" if challenge else "挂机刷怪")
+	ling_label.text = Gear.ling_caption(ling) + "当令"
+	ling_label.add_theme_color_override("font_color", Gear.MATERIAL_COLORS[Gear.WuXing.stem_element(ling)])
+	_set_loadout_slots(outfit.entries, person, challenge)
+	farm_actions.visible = not challenge
+	farm_readout.visible = not challenge
+	boss_readout.visible = challenge
+	boss_controls.visible = challenge
+	stick.visible = challenge
+	if not challenge and recent_loot.is_empty():
+		loot_line.text = "材料流水  ·  " + Gear.material(ling).name
+
 	selection.hide()
 	forge.hide()
 	camp.hide()
 	camp_shade.hide()
-	hero_preview.hide()
-	overlay.hide()
+	field.set_camp_view(not challenge)
 	field.show()
 	battle_shade.show()
 	battle.show()
-	_set_glyph(&"attack", [&"sword", &"arrow", &"spark"][choice])
-	_set_glyph(&"skill", [&"slash", &"fan", &"sigil"][choice])
-	_set_glyph(&"tactic", [&"cleave", &"heavy", &"frost"][choice])
-	_describe(action_buttons[&"attack"], "普攻")
-	_describe(action_buttons[&"skill"], run.hero.skill)
-	_describe(action_buttons[&"tactic"], run.hero.tactic)
-	var weapon := Gear.weapon(run.weapon_id, choice)
-	if not weapon.is_empty():
-		var attack_button: Button = action_buttons[&"attack"]
-		var attack_glyph: Gothic.Glyph = attack_button.get_node("Glyph")
-		attack_glyph.art = ForgeArt.texture(weapon.icon)
-		attack_glyph.queue_redraw()
-		_describe(attack_button, weapon.name + " · 普攻")
-	match run.weapon_id:
-		"warhammer":
-			_describe(action_buttons[&"skill"], "撼地锤")
-			_describe(action_buttons[&"tactic"], "震荡锤")
-		"twin_blades":
-			_set_glyph(&"skill", &"slash")
-			_set_glyph(&"tactic", &"cleave")
-			_describe(action_buttons[&"skill"], "旋刃")
-			_describe(action_buttons[&"tactic"], "交刃")
+	var symbols := {"long_blade": &"sword", "hammer": &"heavy", "bow": &"arrow", "staff": &"spark", "dual_blades": &"slash"}
+	_set_glyph(&"attack", symbols[form])
+	_set_glyph(&"skill", &"slash")
+	_set_glyph(&"tactic", &"sigil")
+	_describe(action_buttons[&"attack"], "普攻 · " + Gear.Rules.NAME_PARTS.weapons[form])
 	_update_battle()
 	field.queue_redraw()
-	sounds.play(&"start")
+	if challenge:
+		sounds.play(&"start")
+
+func _set_loadout_slots(entries: Dictionary, person: Dictionary, read_only: bool) -> void:
+	for slot in Gear.SLOTS:
+		var frame: EquipmentSlot = gear_slots[slot]
+		frame.display(slot, entries.get(slot, {}), person)
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE if read_only else Control.MOUSE_FILTER_STOP
+		frame.focus_mode = Control.FOCUS_NONE if read_only else Control.FOCUS_ALL
+
+func _press_camp_slot(slot: String) -> void:
+	if state != &"farm":
+		return
+	var frame: EquipmentSlot = gear_slots[slot]
+	if frame.occupied:
+		forge.show_derivation(profile.item(profile.equipped(slot)))
+	else:
+		_open_forge(slot)
 
 func _update_battle() -> void:
-	wave_title.text = "%02d / %02d" % [run.wave + 1, Combat.WAVES.size()]
+	if state != &"boss":
+		farm_health.set_amount(run.hp, run.max_hp)
+		farm_status.text = "生命 %d/%d   ·   本层击退 %d" % [run.hp, run.max_hp, run.kills]
+		var wait := maxi(profile.challenge_wait(), ceili(retry_until - Time.get_unix_time_from_system()))
+		var next := "冲 第%d层 · %s当令" % [profile.layer() + 1, Gear.ling_caption(Gear.WuXing.ling_of(profile.layer() + 1))]
+		challenge_button.text = ("调息 %d 秒\n" % wait + next) if wait > 0 else next
+		return
+	var enemy: Dictionary = run.enemies[0] if not run.enemies.is_empty() else {}
+	if not enemy.is_empty():
+		boss_health.set_amount(enemy.hp, enemy.max_hp)
+		var preparing: bool = enemy.windup > 0.0
+		boss_hint.text = "%s · 后撤避开红圈" % run.archetype.skill if preparing else "层主生命 %d / %d" % [enemy.hp, enemy.max_hp]
+		boss_hint.add_theme_color_override("font_color", Color("#ffaca0") if preparing else MUTED)
 	life_seal.set_amount(run.hp, run.max_hp)
 	mana_seal.set_amount(run.mana, run.max_mana)
+	life_value.text = "生命\n%d" % run.hp
+	mana_value.text = "灵力\n%d" % int(run.mana)
 	_cooldown(&"skill", run.skill_left, run.mana < run.skill_cost)
 	_cooldown(&"tactic", run.tactic_left, run.mana < run.tactic_cost)
 	_cooldown(&"retreat", run.retreat_left, false)
@@ -446,76 +532,104 @@ func _cooldown(action: StringName, left: float, out_of_mana: bool) -> void:
 	button.disabled = left > 0.0 or out_of_mana
 	cooldown_labels[action].text = str(ceili(left)) if left > 0.0 else ""
 	action_glyphs[action].modulate.a = 0.42 if button.disabled else 1.0
+	# 转一圈的时长按本次冷却的峰值记，读条才不会跳。
+	var total := maxf(float(cooldown_totals.get(action, 0.0)), left)
+	cooldown_totals[action] = total
+	cooldown_sweeps[action].show_amount(left, total, out_of_mana)
 
-func _pause_game() -> void:
-	if state == &"battle":
-		_show_result(&"paused")
+func _challenge() -> void:
+	if state != &"farm" or profile.challenge_wait() > 0 or Time.get_unix_time_from_system() < retry_until:
+		return
+	var tribulation := Gear.Realm.jie_ling_of(profile.layer())
+	if tribulation.is_empty():
+		_start_encounter(true)
+		return
+	var element := Gear.WuXing.stem_element(tribulation)
+	var counter := String(Gear.WuXing.KE.find_key(element))
+	var detained := Gear.WuXing.jingyu(counter, element)
+	notice_title.text = "%s劫当前" % Gear.WuXing.ELEMENT_NAMES[element]
+	notice_text.text = "%s覆盖本层流年。\n你的%s属装备将落%s位（Q %.2f）。\n可先回炉坊查看六件装备的渡劫境遇。" % [
+		Gear.ling_caption(tribulation), Gear.WuXing.ELEMENT_NAMES[counter], Gear.WuXing.JINGYU_NAMES[detained], Gear.WuXing.JINGYU[detained]]
+	turnover.dismiss()
+	state = &"jie_notice"
+	notice_cover.show()
+
+func _close_notice() -> void:
+	notice_cover.hide()
+	state = &"farm"
 
 func _stash_material(id: String, quantity: int) -> void:
-	profile.collect(id, quantity)
-
-func _open_forge() -> void:
-	if state not in [&"selection", &"victory", &"defeat"]:
+	if not profile.collect(id, quantity):
+		loot_line.text = profile.storage_error
 		return
-	forge_return = state
+	var material := Gear.material(id)
+	recent_loot = "+%d %s" % [quantity, material.name]
+	loot_line.text = "材料流水  ·  %s   /   库存 %d" % [recent_loot, profile.stock(id)]
+	loot_line.add_theme_color_override("font_color", material.tint.lerp(INK, 0.3))
+	if loot_animation != null:
+		loot_animation.kill()
+	loot_line.position.y = 7.0
+	loot_line.modulate.a = 0.30
+	loot_animation = create_tween().set_parallel(true)
+	loot_animation.tween_property(loot_line, "position:y", 0.0, 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	loot_animation.tween_property(loot_line, "modulate:a", 1.0, 0.26)
+
+func _open_forge(slot: String = "") -> void:
+	if state not in [&"farm", &"jie_notice"]:
+		return
+	var preview_ling := Gear.Realm.jie_ling_of(profile.layer())
+	run.collect_pending_materials()
 	state = &"forge"
 	_clear_input()
-	overlay.hide()
-	selection.hide()
-	hero_preview.hide()
+	notice_cover.hide()
+	turnover.dismiss()
 	battle.hide()
 	field.hide()
 	battle_shade.hide()
+	stick.hide()
 	camp.texture = FORGE_BG
-	camp_shade.hide()
+	camp.self_modulate = Color(0.25, 0.25, 0.25)
+	camp_shade.texture = _forge_vignette()
+	camp_shade.show()
 	camp.show()
-	forge.open_role(choice)
 	forge.show()
+	forge.open(preview_ling, slot)
 
 func _close_forge() -> void:
-	if forge_return == &"selection":
-		_show_selection()
+	_enter_farm()
+
+func _finish_challenge(outcome: StringName) -> void:
+	if outcome == &"defeat":
+		retry_until = Time.get_unix_time_from_system() + 30.0
+		profile.start_challenge_cooldown()
+		_enter_farm()
 		return
-	forge.hide()
-	camp.hide()
-	field.show()
-	battle_shade.show()
-	battle.show()
-	_show_result(forge_return)
-
-func _show_result(outcome: StringName) -> void:
-	state = outcome
-	_clear_input()
-	summary.visible = outcome != &"paused"
-	result_forge_button.visible = outcome != &"paused"
-	if summary.visible:
-		profile.flush()
-		summary.text = "击杀 %d · 余烬 %d · 材料 %d" % [run.kills, run.ash, run.materials_found]
-	match outcome:
-		&"paused":
-			headline.text = "战斗暂停"
-			_set_icon(overlay_action, &"play")
-			_describe(overlay_action, "继续战斗")
-		&"victory":
-			headline.text = "石墓已肃清"
-			_set_icon(overlay_action, &"retry")
-			_describe(overlay_action, "再战一次")
-		_:
-			headline.text = "倒在石墓中"
-			_set_icon(overlay_action, &"retry")
-			_describe(overlay_action, "重新挑战")
-	overlay.show()
-
-func _continue_or_retry() -> void:
-	if state == &"paused":
-		overlay.hide()
-		state = &"battle"
-	else:
-		_begin()
+	var from_stem := run.encounter_stem
+	var old_entries: Dictionary = profile.loadout({}, true, from_stem).entries
+	var old_layer := profile.layer()
+	var rewards := {profile.ling(): 3}
+	if old_layer % 5 == 0:
+		rewards["relic_core"] = 1
+	if not profile.advance_layer(rewards):
+		_enter_farm()
+		loot_line.text = profile.storage_error
+		return
+	retry_until = 0.0
+	var new_entries: Dictionary = profile.loadout().entries
+	var is_breakthrough := not Gear.Realm.jie_ling_of(old_layer).is_empty()
+	recent_loot = ""
+	_enter_farm()
+	sounds.play(&"level")
+	turnover.play(from_stem, profile.ling(), old_entries, new_entries, profile.layer(),
+		String(profile.realm().name) if is_breakthrough else "")
 
 func _toggle_sound() -> void:
 	sounds.enabled = not sounds.enabled
-	for button in sound_buttons:
+	for index in range(sound_buttons.size() - 1, -1, -1):
+		var button := sound_buttons[index]
+		if not is_instance_valid(button) or not button.is_inside_tree():
+			sound_buttons.remove_at(index)
+			continue
 		_set_icon(button, &"sound" if sounds.enabled else &"mute")
 		_describe(button, "关闭音效" if sounds.enabled else "开启音效")
 	if sounds.enabled:
@@ -547,11 +661,19 @@ func _held(action: StringName) -> bool:
 
 func _clear_input() -> void:
 	touches.clear()
+	if stick != null:
+		stick.clear()
 	_update_pressed()
 
 func _update_pressed() -> void:
 	for action in action_buttons:
-		action_buttons[action].set_pressed_no_signal(_held(action))
+		var down := _held(action)
+		action_buttons[action].set_pressed_no_signal(down)
+		# 按住时图标提亮一档，手指盖住按钮也知道自己按着的是哪个。
+		var glyph: Control = action_glyphs[action]
+		glyph.modulate = Color(1.35, 1.28, 1.12) if down else Color.WHITE
+		glyph.scale = Vector2.ONE * (0.92 if down else 1.0)
+		glyph.pivot_offset = glyph.size * 0.5
 
 func _add_action(row: HBoxContainer, action: StringName, title: String, primary: bool, skill_slot: bool) -> void:
 	var tile := _icon_button(action, title, primary, Vector2(44, 52 if skill_slot else 44))
@@ -560,19 +682,31 @@ func _add_action(row: HBoxContainer, action: StringName, title: String, primary:
 		var glyph: Gothic.Glyph = tile.get_node("Glyph")
 		glyph.offset_left = -20
 		glyph.offset_right = 20
-		glyph.offset_top = -21
-		glyph.offset_bottom = 19
+		glyph.offset_top = -26
+		glyph.offset_bottom = 12
 		tile.clip_contents = true
+		var caption := _label(title, 10, INK)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		caption.add_theme_constant_override("outline_size", 4)
+		caption.add_theme_color_override("font_outline_color", NIGHT)
+		tile.add_child(caption)
+		_fill(caption)
 	tile.toggle_mode = true
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(tile)
 	action_buttons[action] = tile
 	action_glyphs[action] = tile.get_node("Glyph")
 	if action in [&"skill", &"tactic", &"retreat"]:
+		var sweep := Gothic.Sweep.new()
+		tile.add_child(sweep)
+		_fill(sweep)
+		cooldown_sweeps[action] = sweep
 		var counter := _label("", 12, INK)
 		counter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		counter.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		counter.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 		counter.add_theme_constant_override("outline_size", 5)
 		counter.add_theme_color_override("font_outline_color", NIGHT)
 		tile.add_child(counter)
@@ -588,6 +722,16 @@ func _orb(title: String) -> Gothic.Orb:
 	orb.accessibility_name = title
 	orb.tooltip_text = title
 	return orb
+
+func _orb_value(orb: Gothic.Orb) -> Label:
+	var label := _label("", 10, INK)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_constant_override("outline_size", 5)
+	label.add_theme_color_override("font_outline_color", NIGHT)
+	orb.add_child(label)
+	_fill(label)
+	return label
 
 func _sound_button() -> Button:
 	var tile := _icon_button(&"mute", "开启音效", false, Vector2(44, 44))
@@ -627,11 +771,6 @@ func _describe(button: Button, title: String) -> void:
 
 func _set_glyph(action: StringName, symbol: StringName) -> void:
 	_set_icon(action_buttons[action], symbol)
-
-func _class_icon(index: int, weapon: Dictionary) -> Texture2D:
-	if not weapon.is_empty():
-		return ForgeArt.texture(weapon.icon)
-	return _spell_texture([&"sword", &"arrow", &"spark"][index])
 
 func _set_icon(button: Button, symbol: StringName) -> void:
 	var glyph: Gothic.Glyph = button.get_node("Glyph")
@@ -708,6 +847,19 @@ func _camp_gradient() -> GradientTexture2D:
 	texture.height = 256
 	texture.fill_from = Vector2(0, 0)
 	texture.fill_to = Vector2(0, 1)
+	return texture
+
+func _forge_vignette() -> GradientTexture2D:
+	var shade := Gradient.new()
+	shade.offsets = PackedFloat32Array([0.0, 0.42, 1.0])
+	shade.colors = PackedColorArray([Color.TRANSPARENT, Color.TRANSPARENT, Color("#060c0cd9")])
+	var texture := GradientTexture2D.new()
+	texture.gradient = shade
+	texture.width = 128
+	texture.height = 256
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 1.0)
 	return texture
 
 func _battle_gradient() -> GradientTexture2D:

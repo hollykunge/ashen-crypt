@@ -49,6 +49,86 @@ class Dock extends Control:
 		for rivet in [Vector2(66, h - 13), Vector2(w - 66, h - 13)]:
 			draw_circle(rivet, 1.5, Color("#c7a473"), true, -1.0, true)
 
+# 血条：掉血先留一截「余血」慢慢退，看得见这一下挨了多少。
+class Meter extends Control:
+	var fraction := 1.0
+	var chip := 1.0
+	var ink := Color("#c65c4c")
+	var plate := Color("#101a16")
+	var ticks := 0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		resized.connect(queue_redraw)
+		set_process(true)
+
+	func _process(delta: float) -> void:
+		if chip <= fraction + 0.001:
+			if chip != fraction:
+				chip = fraction
+				queue_redraw()
+			return
+		chip = maxf(fraction, chip - delta * maxf(0.22, (chip - fraction) * 2.4))
+		queue_redraw()
+
+	func set_amount(current: float, total: float) -> void:
+		var next := clampf(current / maxf(total, 0.001), 0.0, 1.0)
+		if is_equal_approx(next, fraction):
+			return
+		if next > fraction:
+			chip = next
+		fraction = next
+		queue_redraw()
+
+	func _draw() -> void:
+		var bounds := Rect2(Vector2.ZERO, size)
+		draw_rect(bounds, plate)
+		if chip > fraction:
+			draw_rect(Rect2(0.0, 0.0, size.x * chip, size.y), Color(ink.lerp(Color.WHITE, 0.55), 0.55))
+		var filled := Rect2(0.0, 0.0, size.x * fraction, size.y)
+		draw_rect(filled, ink)
+		if size.y >= 6.0 and fraction > 0.0:
+			draw_rect(Rect2(0.0, 0.0, filled.size.x, maxf(1.0, size.y * 0.28)), Color(1, 1, 1, 0.16))
+		for i in range(1, ticks):
+			var x := size.x * float(i) / ticks
+			draw_line(Vector2(x, 0.0), Vector2(x, size.y), Color(0.04, 0.06, 0.05, 0.55), 1.0)
+
+# 技能按钮上的冷却扫盘：一圈由满到空的暗罩，比单看秒数直观。
+class Sweep extends Control:
+	var fraction := 0.0
+	var starved := false
+	var ink := Color("#0a1512")
+	var edge := Color("#d8bd8a")
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		resized.connect(queue_redraw)
+
+	func show_amount(left: float, total: float, out_of_mana: bool) -> void:
+		var next := clampf(left / maxf(total, 0.001), 0.0, 1.0)
+		if is_equal_approx(next, fraction) and starved == out_of_mana:
+			return
+		fraction = next
+		starved = out_of_mana
+		queue_redraw()
+
+	func _draw() -> void:
+		if fraction <= 0.001 and not starved:
+			return
+		var center := size * 0.5
+		var radius := size.length() * 0.5
+		if starved and fraction <= 0.001:
+			draw_rect(Rect2(Vector2.ZERO, size), Color("#1d2a3c99"))
+			return
+		var span := TAU * fraction
+		var points := PackedVector2Array([center])
+		var steps := maxi(3, ceili(span / 0.22))
+		for i in range(steps + 1):
+			points.append(center + Vector2.from_angle(-PI * 0.5 + span * i / steps) * radius)
+		draw_colored_polygon(points, Color(ink, 0.62))
+		var tip := center + Vector2.from_angle(-PI * 0.5 + span) * radius
+		draw_line(center, tip, Color(edge, 0.45), 1.0, true)
+
 class Glyph extends Control:
 	var symbol: StringName = &"sword"
 	var ink := Color("#d9bd87")

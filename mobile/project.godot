@@ -4,11 +4,11 @@ config_version=5
 
 config/name="余烬地牢"
 run/main_scene="res://main.tscn"
-config/description="竖屏像素动作游戏"
+config/description="中国神仙绘卷 · 竖屏动作游戏"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false
 boot_splash/bg_color=Color(0.063, 0.055, 0.055, 1)
-config/icon="res://art/icon.png"
+config/icon="res://art/immortals/seal.png"
 
 [display]
 

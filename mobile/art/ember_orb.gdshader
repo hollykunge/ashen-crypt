@@ -11,13 +11,18 @@ void fragment() {
 	float edge = 1.0 - smoothstep(0.95, 0.985, r);
 	vec3 color = vec3(0.045, 0.03, 0.026);
 
-	float metal_angle = 0.55 + 0.45 * dot(normalize(p + vec2(0.0001)), normalize(vec2(-0.64, -0.77)));
-	float metal = smoothstep(0.78, 0.81, r) * (1.0 - smoothstep(0.921, 0.95, r));
-	color = mix(color, mix(vec3(0.14, 0.105, 0.069), vec3(0.50, 0.39, 0.26), metal_angle), metal);
-	float engraving = (1.0 - smoothstep(0.007, 0.025, abs(r - 0.888))) * (0.35 + 0.65 * pow(metal_angle, 3.0));
-	color += vec3(0.22, 0.15, 0.09) * engraving;
-
-	float glass_r = r / 0.79;
+	// Eight engraved trigrams surround each jade disc.
+	float angle = atan(p.y, p.x);
+	float octant = mod(floor((angle + PI / 8.0) / (PI / 4.0)), 8.0);
+	float across = sin(mod(angle + PI / 8.0, PI / 4.0) - PI / 8.0) * r;
+	float band = clamp(floor((r - 0.76) / 0.063), 0.0, 2.0);
+	float line = 1.0 - smoothstep(0.012, 0.023, abs(r - (0.795 + band * 0.063)));
+	float broken = mod(floor(octant / exp2(band)), 2.0);
+	float gap = mix(1.0, smoothstep(0.015, 0.035, abs(across)), broken);
+	float engraving = line * gap * (1.0 - smoothstep(0.18, 0.20, abs(across)));
+	color = mix(vec3(0.09, 0.17, 0.13), vec3(0.85, 0.66, 0.38), engraving);
+	color += vec3(0.35, 0.25, 0.13) * (1.0 - smoothstep(0.008, 0.025, abs(r - 0.953)));
+	float glass_r = r / 0.75;
 	float glass = 1.0 - smoothstep(0.98, 1.0, glass_r);
 	float surface = 0.79 - 1.58 * amount + 0.018 * sin(p.x * 11.0 + TIME * 1.4) * sin(3.14159 * amount);
 	float filled = smoothstep(surface - 0.014, surface + 0.014, p.y);
@@ -29,8 +34,10 @@ void fragment() {
 	float empty_rim = smoothstep(0.51, 0.90, glass_r) * 0.04;
 	vec3 interior = mix(vec3(0.048, 0.038, 0.033) + empty_rim, liquid, filled);
 	float sheen = exp(-dot((p - vec2(-0.27, -0.39)) * vec2(5.4, 17.0), (p - vec2(-0.27, -0.39)) * vec2(5.4, 17.0)));
-	float rim_light = smoothstep(0.81, 0.97, glass_r) * (1.0 - smoothstep(0.975, 1.0, glass_r)) * pow(metal_angle, 5.0);
+	float rim_light = smoothstep(0.81, 0.97, glass_r) * (1.0 - smoothstep(0.975, 1.0, glass_r)) * max(0.0, -p.x - p.y);
 	interior += vec3(0.92, 0.85, 0.73) * (0.45 * sheen + 0.25 * rim_light);
 	color = mix(color, interior, glass);
+	float aperture = smoothstep(0.12, 0.17, r);
+	color = mix(vec3(0.08, 0.12, 0.09), color, aperture);
 	COLOR = vec4(color, edge);
 }

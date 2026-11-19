@@ -2,18 +2,18 @@
 
 const roles = {
   knight: {
-    name: "守墓剑士", detail: "挥剑横扫近敌，用破墓斩击退身边的怪物。",
-    skill: "破墓斩", hp: 156, speed: 106, damage: 31, interval: .33,
+    names: ["二郎神", "九天玄女"], detail: "横扫近敌，施展镇山诀可击退围攻的精怪。",
+    skill: "镇山诀", hp: 156, speed: 106, damage: 31, interval: .33,
     reach: 103, cooldown: 3.6, color: "#ffbf74", sprite: 0
   },
   ranger: {
-    name: "灰林游侠", detail: "用快箭牵制敌人，以散射同时击中多只怪物。",
-    skill: "散射", hp: 109, speed: 122, damage: 24, interval: .24,
+    names: ["后羿", "青鸟仙子"], detail: "以弓箭牵制远敌，连珠箭可同时射中多个目标。",
+    skill: "连珠箭", hp: 109, speed: 122, damage: 24, interval: .24,
     reach: 490, cooldown: 3.3, color: "#8af1c6", sprite: 1
   },
   mage: {
-    name: "余火术士", detail: "投出余火弹，或在瞄准处引爆烬火印。",
-    skill: "烬火印", hp: 105, speed: 101, damage: 35, interval: .43,
+    names: ["雷部天师", "电母"], detail: "以雷符攻敌，可在瞄准处召下五雷印。",
+    skill: "五雷印", hp: 105, speed: 101, damage: 35, interval: .43,
     reach: 460, cooldown: 4.1, color: "#ddb2ff", sprite: 2
   }
 };
@@ -24,11 +24,11 @@ const monsters = {
   sentinel: { hp: 410, speed: 69, damage: 24, size: 105, radius: 31, sprite: 5 }
 };
 const waves = [
-  { skeleton: 4, name: "骸骨苏醒" },
-  { skeleton: 5, ghoul: 2, name: "食尸鬼来袭" },
-  { skeleton: 5, ghoul: 4, name: "墓道骚动" },
-  { skeleton: 6, ghoul: 6, name: "尸群涌入" },
-  { skeleton: 4, ghoul: 3, sentinel: 1, name: "石墓守卫" }
+  { skeleton: 4, name: "清山门", issuer: "土地公", order: "驱逐山魈，为香客开路" },
+  { skeleton: 5, ghoul: 2, name: "护灶火", issuer: "灶君", order: "击退山魈与火狐，护住灶火" },
+  { skeleton: 5, ghoul: 4, name: "守丹台", issuer: "太上老君", order: "扫清丹台前的精怪" },
+  { skeleton: 6, ghoul: 6, name: "开云路", issuer: "青鸟使者", order: "击退群妖，打通昆仑云路" },
+  { skeleton: 4, ghoul: 3, sentinel: 1, name: "伏山兽", issuer: "西王母", order: "降伏失控的镇山兽与随从" }
 ];
 
 const ui = Object.fromEntries(Array.from(document.querySelectorAll("[id]"), el => [el.id, el]));
@@ -45,33 +45,21 @@ const footwork = {
 const portrait = matchMedia("(max-width: 600px) and (orientation: portrait)");
 let viewLeft = 0;
 const crypt = new Image();
-const heroArt = ["0", "1-v2", "2-v2"];
-const sprites = Array.from({ length: 6 }, (_, i) => {
+const artRoot = "mobile/art/immortals/";
+function artwork(file) {
   const image = new Image();
-  image.src = i < heroArt.length ? "assets/pixel/heroes/ready-" + heroArt[i] + ".webp" : "assets/pixel/fighter-" + i + ".webp";
+  image.src = artRoot + file + ".webp";
   return image;
-});
-const strikes = heroArt.map(asset => {
-  const image = new Image();
-  image.src = "assets/pixel/heroes/strike-" + asset + ".webp";
-  return image;
-});
-const motionSheets = Object.keys(roles).map(role => {
-  const image = new Image();
-  image.src = "assets/pixel/heroes/motion/" + role + ".webp";
-  return image;
-});
-const readyPivots = [.66, .51, .47];
-const strikePivots = [.48, .51, .46];
-const motionCell = { width: 128, height: 112, x: 64, y: 104 };
-const motionPoses = {
-  attack: ["ready", 0, "strike", 1, 2, "ready"],
-  retreat: [3, 4, 5],
-  hurt: [6, 7, 8],
-  skill: ["strike"]
-};
-const attackRelease = motionPoses.attack.indexOf("strike") / motionPoses.attack.length;
-crypt.src = "assets/pixel/crypt.webp";
+}
+const actors = Array.from({ length: 6 }, (_, i) => ({
+  ready: artwork("ready-" + i), strike: artwork("strike-" + i)
+}));
+const foes = ["shanxiao", "fire-fox", "guardian"].map(artwork);
+const attackRelease = 2 / 6;
+crypt.src = artRoot + "battle-terrace.webp";
+const styleButtons = [...document.querySelectorAll("[data-style]")];
+const help = document.querySelector("footer");
+let style = 0;
 
 const input = {
   keys: new Set(), aiming: false, x: 0, y: 0, clickAttack: false,
@@ -115,7 +103,12 @@ function resizeArena() {
 
 function select(id) {
   selected = id;
-  classButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.class === id)));
+  for (const button of classButtons) {
+    const role = roles[button.dataset.class];
+    button.setAttribute("aria-pressed", String(button.dataset.class === id));
+    button.querySelector("img").src = artRoot + "portrait-" + (role.sprite * 2 + style) + ".webp";
+    button.querySelector(".class-title").textContent = role.names[style];
+  }
   ui["class-detail"].textContent = roles[id].detail;
 }
 
@@ -143,12 +136,15 @@ function begin() {
   kills = 0;
   ash = 0;
   mode = "battle";
+  help.hidden = false;
   ui.selection.hidden = true;
   ui.battle.hidden = false;
   ui.overlay.hidden = true;
   ui.skill.lastElementChild.textContent = role.skill;
-  ui["player-class"].textContent = role.name;
+  ui["player-class"].textContent = role.names[style];
   ui.pause.focus({ preventScroll: true });
+  ui.attack.dataset.glyph = ["sword", "bow", "spark"][role.sprite];
+  ui.skill.dataset.glyph = ["slash", "fan", "sigil"][role.sprite];
   startWave();
   updateHud();
   draw();
@@ -174,8 +170,12 @@ function startWave() {
       stride: i * .9, knockX: 0, knockY: 0, windup: 0
     });
   });
-  ui.wave.textContent = "第 " + (waveIndex + 1) + " / " + waves.length + " 波";
-  announce(wave.name, 1.65);
+  ui.issuer.textContent = wave.issuer + "敕令 · " + (waveIndex + 1) + " / " + waves.length;
+  ui.wave.textContent = wave.name;
+  ui.remaining.textContent = composition.length;
+  ui.patron.src = artRoot + "patron-" + waveIndex + ".webp";
+  ui.objective.textContent = wave.order;
+  announce(wave.order, 2.6);
   nextWave = null;
 }
 
@@ -242,6 +242,7 @@ function returnToSelection() {
   ui.battle.hidden = true;
   ui.overlay.hidden = true;
   ui.pause.disabled = false;
+  help.hidden = true;
   ui.selection.hidden = false;
   classButtons.find(button => button.dataset.class === selected).focus({ preventScroll: true });
 }
@@ -314,8 +315,8 @@ function hurt(enemy, damage, knock) {
   updateHud();
 }
 
-function burst(x, y, color, radius) {
-  effects.push({ type: "ring", x, y, color, radius, life: .38, maxLife: .38 });
+function burst(x, y, color, radius, type = "ring") {
+  effects.push({ type, x, y, color, radius, life: .38, maxLife: .38 });
 }
 
 function fire(angle, damage, speed, reach, magic = false) {
@@ -382,7 +383,7 @@ function useSkill() {
     const reach = Math.min(distance(player, target), role.reach);
     const center = { x: player.x + Math.cos(angle) * reach, y: player.y + Math.sin(angle) * reach };
     burst(center.x, center.y, role.color, 135);
-    burst(center.x, center.y, "#f4d08c", 74);
+    burst(center.x, center.y, "#f4d08c", 74, "thunder");
     enemies.forEach(enemy => {
       if (distance(center, enemy) < 135) hurt(enemy, power + 13, 135);
     });
@@ -562,21 +563,22 @@ function advance(dt) {
   }
   updateCooldown(ui.skill, player.skill, player.role.skill);
   updateCooldown(ui.dash, player.dash, "后撤");
-  const summary = "击杀 " + kills + " · 收集余烬 " + ash;
+  const summary = "击杀 " + kills + " · 收集灵砂 " + ash;
   if (player.hp <= 0) {
-    showResult("defeat", "倒在石墓中", summary, "重新挑战");
+    showResult("defeat", "山门失守", summary, "重新挑战");
     return;
   }
+  ui.remaining.textContent = enemies.length;
   if (enemies.length > 0) return;
   if (nextWave === null) {
     nextWave = 1.75;
-    announce(waveIndex + 1 === waves.length ? "守卫已倒下" : "清剿完成", 1.3);
+    announce(waveIndex + 1 === waves.length ? "镇山兽已降伏" : "敕令已成", 1.3);
   }
   nextWave -= dt;
   if (nextWave <= 0) {
     if (waveIndex + 1 < waves.length) startWave();
     else {
-      showResult("victory", "石墓已肃清", summary, "再战一次");
+      showResult("victory", "五令功成", summary, "再战一次");
       playSound("level");
     }
   }
@@ -606,34 +608,13 @@ function drawPixelArc(x, y, rx, ry, start, sweep, size, color) {
   }
 }
 
-function motionPose(motion) {
-  if (!motion) return "ready";
-  const poses = motionPoses[motion.kind];
-  return poses[Math.min(poses.length - 1, Math.floor(motion.time / motion.duration * poses.length))];
-}
-
-function drawMotionFrame(sheet, pose, trail) {
-  const { width, height, x, y } = motionCell;
-  const left = pose % 3 * width;
-  const top = Math.floor(pose / 3) * height;
-  if (trail) {
-    ctx.globalAlpha = .22;
-    ctx.drawImage(sheet, left, top, width, height, 15 - x, 3 - y, width, height);
-    ctx.globalAlpha = 1;
-  }
-  ctx.drawImage(sheet, left, top, width, height, -x, 3 - y, width, height);
-}
-
 function drawEntity(entity, isPlayer) {
   const { x, y, hit, stride } = entity;
-  const size = isPlayer ? 83 : entity.stats.size;
-  const id = isPlayer ? entity.role.sprite : entity.stats.sprite;
+  const size = isPlayer ? 87 : entity.stats.size;
   const motion = isPlayer ? entity.motion : null;
-  const pose = motionPose(motion);
-  const striking = pose === "strike" && strikes[id].naturalWidth > 0;
-  const sheet = Number.isInteger(pose) ? motionSheets[id] : null;
-  const sprite = striking ? strikes[id] : sprites[id];
-  const pivot = isPlayer ? (striking ? strikePivots[id] : readyPivots[id]) : .5;
+  const phase = motion ? motion.time / motion.duration : 0;
+  const striking = (motion?.kind === "attack" || motion?.kind === "skill") && phase >= attackRelease && phase < .86;
+  const sprite = isPlayer ? actors[entity.role.sprite * 2 + style][striking ? "strike" : "ready"] : foes[entity.stats.sprite - 3];
   const isBoss = entity.type === "sentinel";
   ellipse(x, y + 1, size * .32, size * .12, "#181122ba");
   if (isPlayer) {
@@ -642,20 +623,27 @@ function drawEntity(entity, isPlayer) {
   ctx.save();
   const bounce = reduceMotion || motion ? 0 : Math.floor(stride) % 2 * 3;
   const lunge = striking && !reduceMotion ? 9 : 0;
-  const recoil = motion?.kind === "hurt" && !reduceMotion ? [6, 3, 0][pose - 6] : 0;
+  const recoil = motion?.kind === "hurt" && !reduceMotion ? 6 * Math.sin(phase * Math.PI) : 0;
   const lift = !reduceMotion && entity.windup > 0 ? 6 : 0;
   ctx.translate(snap(x + Math.cos(player.angle) * lunge - recoil), snap(y + Math.sin(player.angle) * lunge) - bounce - lift);
   ctx.scale(isPlayer ? 1 : -1, 1);
   if (hit > 0 && (!isPlayer || (motion?.kind === "hurt" && motion.time < .07))) {
     ctx.filter = isPlayer ? "brightness(1.35)" : "brightness(1.7)";
   }
-  if (sheet?.naturalWidth) {
-    drawMotionFrame(sheet, pose, player.dodge > 0 && !reduceMotion);
-  } else if (sprite.complete && sprite.naturalWidth) {
+  if (!reduceMotion && isPlayer) {
+    if (motion?.kind === "retreat") ctx.rotate(-.16 * Math.sin(phase * Math.PI));
+    if (striking) ctx.rotate(.055 * Math.sin(phase * Math.PI));
+  }
+  if (sprite.complete && sprite.naturalWidth) {
     const scale = size / sprite.naturalHeight;
     const width = Math.round(sprite.naturalWidth * scale);
     const height = Math.round(sprite.naturalHeight * scale);
-    const left = -Math.round(width * pivot);
+    const left = -Math.round(width * .5);
+    if (isPlayer && player.dodge > 0 && !reduceMotion) {
+      ctx.globalAlpha = .22;
+      ctx.drawImage(sprite, left + 13, -height + 3, width, height);
+      ctx.globalAlpha = 1;
+    }
     ctx.drawImage(sprite, left, -height + 3, width, height);
   } else {
     const color = isPlayer ? player.role.color : ["#d4cab0", "#9b8389", "#bd8877"][entity.stats.sprite - 3];
@@ -685,6 +673,21 @@ function drawEffect(effect) {
     const angle = effect.angle - 1.45;
     drawPixelArc(effect.x, effect.y - 14, radius, radius, angle, 2.9, 9, effect.color);
     drawPixelArc(effect.x, effect.y - 14, radius - 3, radius - 3, angle + .38, 2.14, 6, "#fff4df");
+  } else if (effect.type === "thunder") {
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = effect.color;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      const offset = (i - 2) * effect.radius * .48;
+      const x = effect.x + offset;
+      const y = effect.y - Math.abs(offset) * .18;
+      ctx.beginPath();
+      ctx.moveTo(effect.x + offset * .65, y - 118);
+      ctx.lineTo(x - 8, y - 59);
+      ctx.lineTo(x + 8, y - 64);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
   } else {
     const radius = effect.radius * (.25 + .75 * progress);
     drawPixelArc(effect.x, effect.y, radius, radius * .64, 0, Math.PI * 2, 4, effect.color);
@@ -700,7 +703,7 @@ function drawEffect(effect) {
 
 function draw() {
   ctx.setTransform(1, 0, 0, 1, -viewLeft, 0);
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   ctx.fillStyle = "#211b38";
   ctx.fillRect(0, 0, W, H);
   if (crypt.complete && crypt.naturalWidth) ctx.drawImage(crypt, 0, 0, W, H);
@@ -835,6 +838,12 @@ ui.attack.addEventListener("click", event => {
   if (event.detail === 0) attack();
 });
 
+styleButtons.forEach(button => button.addEventListener("click", () => {
+  style = Number(button.dataset.style);
+  styleButtons.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+  select(selected);
+}));
+select(selected);
 classButtons.forEach(button => button.addEventListener("click", () => select(button.dataset.class)));
 ui.start.addEventListener("click", begin);
 ui.pause.addEventListener("click", pauseGame);

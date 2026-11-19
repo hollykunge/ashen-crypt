@@ -1,57 +1,110 @@
 extends RefCounted
 
-const SHEETS := [
-	preload("res://art/roster/knight-man.webp"),
-	preload("res://art/roster/knight-woman.webp"),
-	preload("res://art/roster/ranger-man.webp"),
-	preload("res://art/roster/ranger-woman.webp"),
-	preload("res://art/roster/mage-man.webp"),
-	preload("res://art/roster/mage-woman.webp")
+const WuXing = preload("res://scripts/rules/wuxing.gd")
+const ELEMENT_TINTS := {"mu": Color("#b9eab4"), "shui": Color("#b5d5ff"),
+	"huo": Color("#ffc4a5"), "tu": Color("#d7b58b"), "jin": Color("#f7e7b6")}
+const ELEMENT_GLOW := {"mu": Color("#83cd89"), "shui": Color("#83b9ef"),
+	"huo": Color("#ee8862"), "tu": Color("#c99965"), "jin": Color("#ead087")}
+
+const NAMES := ["二郎神", "九天玄女", "后羿", "青鸟仙子", "雷部天师", "电母"]
+const CONFIRM_TIME := 0.55
+
+const PORTRAITS := [
+	preload("res://art/immortals/portrait-0.webp"),
+	preload("res://art/immortals/portrait-1.webp"),
+	preload("res://art/immortals/portrait-2.webp"),
+	preload("res://art/immortals/portrait-3.webp"),
+	preload("res://art/immortals/portrait-4.webp"),
+	preload("res://art/immortals/portrait-5.webp")
 ]
-const STAGES := [
-	preload("res://art/roster/knight-man-stage.webp"),
-	preload("res://art/roster/knight-woman-stage.webp"),
-	preload("res://art/roster/ranger-man-stage.webp"),
-	preload("res://art/roster/ranger-woman-stage.webp"),
-	preload("res://art/roster/mage-man-stage.webp"),
-	preload("res://art/roster/mage-woman-stage.webp")
+
+const READY := [
+	preload("res://art/immortals/ready-0.webp"),
+	preload("res://art/immortals/ready-1.webp"),
+	preload("res://art/immortals/ready-2.webp"),
+	preload("res://art/immortals/ready-3.webp"),
+	preload("res://art/immortals/ready-4.webp"),
+	preload("res://art/immortals/ready-5.webp")
 ]
-const ALTERNATE_SHEETS := [
-	preload("res://art/roster/knight-man-alt.webp"),
-	preload("res://art/roster/knight-woman-alt.webp"),
-	preload("res://art/roster/ranger-man-alt.webp"),
-	preload("res://art/roster/ranger-woman-alt.webp"),
-	preload("res://art/roster/mage-man-alt.webp"),
-	preload("res://art/roster/mage-woman-alt.webp")
+
+const STRIKE := [
+	preload("res://art/immortals/strike-0.webp"),
+	preload("res://art/immortals/strike-1.webp"),
+	preload("res://art/immortals/strike-2.webp"),
+	preload("res://art/immortals/strike-3.webp"),
+	preload("res://art/immortals/strike-4.webp"),
+	preload("res://art/immortals/strike-5.webp")
 ]
-const ALTERNATE_STAGES := [
-	preload("res://art/roster/knight-man-alt-stage.webp"),
-	preload("res://art/roster/knight-woman-alt-stage.webp"),
-	preload("res://art/roster/ranger-man-alt-stage.webp"),
-	preload("res://art/roster/ranger-woman-alt-stage.webp"),
-	preload("res://art/roster/mage-man-alt-stage.webp"),
-	preload("res://art/roster/mage-woman-alt-stage.webp")
+
+const ALT_READY := [
+	preload("res://art/immortals/alt-ready-0.webp"),
+	preload("res://art/immortals/alt-ready-1.webp"),
+	preload("res://art/immortals/alt-ready-2.webp"),
+	preload("res://art/immortals/alt-ready-3.webp"),
+	preload("res://art/immortals/alt-ready-4.webp"),
+	preload("res://art/immortals/alt-ready-5.webp")
 ]
-const ALTERNATE_WEAPONS := ["warhammer", "twin_blades", "wand"]
-const CELL := Vector2(128, 112)
-const FEET := Vector2(64, 103)
-const FRAMES := 8
-const CONFIRM_TIME := 0.76
-const ROW := {&"idle": 0, &"walk": 1, &"attack": 2, &"skill": 3, &"tactic": 4, &"retreat": 5, &"hurt": 6, &"defeat": 7}
-const IDLE_TIME := [2.2, 1.65, 1.95, 1.65, 2.4, 2.05]
+
+const ALT_STRIKE := [
+	preload("res://art/immortals/alt-strike-0.webp"),
+	preload("res://art/immortals/alt-strike-1.webp"),
+	preload("res://art/immortals/alt-strike-2.webp"),
+	preload("res://art/immortals/alt-strike-3.webp"),
+	preload("res://art/immortals/alt-strike-4.webp"),
+	preload("res://art/immortals/alt-strike-5.webp")
+]
 
 static func id(role: int, style: int) -> int:
 	return role * 2 + style
 
-static func battle_art(hero: int, weapon: String) -> Texture2D:
-	return ALTERNATE_SHEETS[hero] if weapon in ALTERNATE_WEAPONS else SHEETS[hero]
+static func portrait_id(day_stem: String, female: bool) -> int:
+	var element := WuXing.stem_element(day_stem)
+	var base := 2 if element == "mu" else (4 if element == "shui" else 0)
+	return base + int(female)
 
-static func stage_art(hero: int, weapon: String) -> Texture2D:
-	return ALTERNATE_STAGES[hero] if weapon in ALTERNATE_WEAPONS else STAGES[hero]
+# 兵器形制 → 立绘用哪一套。双持类走替换装，其余走正装。
+# 想给某件兵器单独配图，就按 <形制>-<动作>-<神仙序号>.webp 丢进 art/immortals，这里会自动优先用它。
+const FORM_SETS := {
+	"long_blade": "", "staff": "", "bow": "",
+	"hammer": "alt", "dual_blades": "alt"
+}
+# 动作名的回退链：没有这一格的画，就退到上一格，最后一定能落到待机或出招。
+const FRAME_FALLBACK := {
+	&"windup": &"ready", &"recover": &"ready", &"guard": &"ready", &"dodge": &"ready",
+	&"hurt": &"ready", &"cast": &"strike", &"follow": &"strike", &"victory": &"strike"
+}
+# 出招类的画面更宽（兵器甩在身前），轴心要往左挪才站得稳。
+const FRAME_PIVOTS := {&"strike": 0.37, &"cast": 0.37, &"follow": 0.37, &"victory": 0.42}
 
-static func region(motion: StringName, phase: float) -> Rect2:
-	var frame := clampi(floori(phase * FRAMES), 0, FRAMES - 1)
-	return Rect2(Vector2(frame, ROW[motion]) * CELL, CELL)
+static var _art_cache := {}
 
-static func stage_region(pose: int) -> Rect2:
-	return Rect2(Vector2(pose % 3, floori(pose / 3.0)) * CELL * 2.0, CELL * 2.0)
+static func frame_pivot(frame: StringName) -> float:
+	return float(FRAME_PIVOTS.get(frame, 0.5))
+
+static func battle_art(hero: int, weapon_form: String, frame: StringName) -> Texture2D:
+	return _resolve(hero, weapon_form, frame).art
+
+static func _resolve(hero: int, weapon_form: String, frame: StringName) -> Dictionary:
+	var key := "%d|%s|%s" % [hero, weapon_form, frame]
+	if not _art_cache.has(key):
+		_art_cache[key] = _locate(hero, weapon_form, frame)
+	return _art_cache[key]
+
+static func _locate(hero: int, weapon_form: String, frame: StringName) -> Dictionary:
+	var set_name: String = FORM_SETS.get(weapon_form, "")
+	var current := frame
+	var guard := 0
+	while current != &"" and guard < 6:
+		guard += 1
+		var candidates := PackedStringArray(["%s-%s" % [weapon_form, current]])
+		if not set_name.is_empty():
+			candidates.append("%s-%s" % [set_name, current])
+		candidates.append(String(current))
+		for stem in candidates:
+			var path := "res://art/immortals/%s-%d.webp" % [stem, hero]
+			if ResourceLoader.exists(path):
+				return {"art": load(path), "stem": stem}
+		current = FRAME_FALLBACK.get(current, &"")
+	if set_name == "alt":
+		return {"art": ALT_READY[hero], "stem": "alt-ready"}
+	return {"art": READY[hero], "stem": "ready"}
