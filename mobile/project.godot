@@ -4,7 +4,7 @@ config_version=5
 
 config/name="余烬地牢"
 run/main_scene="res://main.tscn"
-config/description="中国神仙绘卷 · 竖屏动作游戏"
+config/description="中式暗黑神话 · 侧视像素动作游戏"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false
 boot_splash/bg_color=Color(0.063, 0.055, 0.055, 1)
@@ -16,7 +16,7 @@ window/size/viewport_width=390
 window/size/viewport_height=844
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-window/handheld/orientation=1
+window/handheld/orientation=6
 
 [input_devices]
 

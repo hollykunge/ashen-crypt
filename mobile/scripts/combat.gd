@@ -30,6 +30,17 @@ const MAX_MANA := 100.0
 const SKILL_COST := 30.0
 const TACTIC_COST := 22.0
 const PLAYER := {"hp": 150, "speed": 115.0, "damage": 34, "cooldown": 3.2, "color": Color("#e5cb93")}
+const BLADE_CUES := {"long_blade": [0.17, 0.43, 0.69], "dual_blades": [0.13, 0.33, 0.54, 0.75]}
+const BLADE_SLICES := {
+	"long_blade": [Vector2(0.0, 0.27), Vector2(0.27, 0.56), Vector2(0.56, 1.0)],
+	"dual_blades": [Vector2(0.0, 0.54), Vector2(0.54, 1.0), Vector2(0.0, 0.45), Vector2(0.45, 1.0)]
+}
+const ATTACK_BUFFER := 0.16
+const COMBO_WINDOW := 1.25
+const WAVE_SIZES := [1, 2, 1]
+const WAVE_SPACING := 176.0
+const RUN_SPEED := 228.0
+enum ControlMode { MANUAL, ASSISTED, AUTOMATIC }
 
 var weapon_form := "long_blade"
 # 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
@@ -61,12 +72,21 @@ var retreat_left := 0.0
 var invulnerable := 0.0
 var dodge_left := 0.0
 var stride := 0.0
+var step_direction := Vector2.RIGHT
 var facing := 0.0
 var motion: StringName
 var motion_time := 0.0
 var motion_duration := 0.0
+var attack_buffer_left := 0.0
+var strike_contacts := {}
+var combo_hits := 0
+var combo_left := 0.0
 var dungeon_layer := 1
 var challenging := false
+var continuous := false
+var wave_index := 0
+var section_x := 0.0
+var advancing := false
 var encounter_stem := "jia"
 var archetype: Dictionary = ARCHETYPES.jia
 var spawn_in := 0.0
@@ -95,9 +115,14 @@ func _init() -> void:
 	loot_rng.randomize()
 	combat_rng.randomize()
 
-func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = false, stem: String = "") -> void:
+func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = false, stem: String = "",
+		continuous_route: bool = false) -> void:
 	dungeon_layer = layer
 	challenging = boss_fight
+	continuous = boss_fight and continuous_route
+	wave_index = 0
+	section_x = 0.0
+	advancing = false
 	encounter_stem = Gear.WuXing.ling_of(layer) if stem.is_empty() else stem
 	archetype = ARCHETYPES[encounter_stem]
 	spawn_in = 0.88
@@ -120,8 +145,13 @@ func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = fal
 	invulnerable = 0.0
 	dodge_left = 0.0
 	stride = 0.0
+	step_direction = Vector2.RIGHT
 	facing = 0.0
 	motion = &""
+	attack_buffer_left = 0.0
+	strike_contacts.clear()
+	combo_hits = 0
+	combo_left = 0.0
 	companion_left = 0.75
 	recovery_left = 1.0
 	hits = 0
@@ -133,8 +163,10 @@ func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = fal
 	effects.clear()
 	popups.clear()
 	pulses.clear()
-	_spawn_enemy(0.62 if challenging else 0.28)
-	if not challenging:
+	if challenging:
+		_spawn_wave()
+	else:
+		_spawn_enemy(0.28)
 		_spawn_enemy(0.50)
 	_trigger("战斗开始时")
 
@@ -144,6 +176,7 @@ func refresh_equipment(bonuses: Dictionary, form: String) -> void:
 	var old_shield := _stat("shield")
 	if form != weapon_form:
 		motion = &""
+		attack_buffer_left = 0.0
 	_apply_equipment(bonuses, form)
 	hp = maxi(1, roundi(health_ratio * float(max_hp)))
 	mana = mana_ratio * max_mana
@@ -172,74 +205,108 @@ func _apply_equipment(bonuses: Dictionary, form: String) -> void:
 
 const BUSY_MOTIONS := [&"attack", &"skill", &"tactic", &"retreat"]
 
-func attack() -> void:
+func attack(buffer := true) -> void:
 	# 受击与复活只是演出，不该锁住出手；真正占手的是自己的四个动作。
-	if result != &"" or motion in BUSY_MOTIONS:
+	if result != &"" or advancing:
+		return
+	if motion in BUSY_MOTIONS:
+		if buffer and motion != &"retreat":
+			attack_buffer_left = ATTACK_BUFFER
 		return
 	facing = _direction_to_enemy()
+	attack_buffer_left = 0.0
+	strike_contacts.clear()
 	_start_motion(&"attack", hero.interval)
 
+func attack_cues() -> Array:
+	return BLADE_CUES.get(weapon_form, [0.53 if weapon_form == "hammer" else 1.0 / 3.0])
+
 func skill() -> void:
-	if result != &"" or skill_left > 0.0 or dodge_left > 0.0 or mana < skill_cost:
+	if result != &"" or advancing or skill_left > 0.0 or dodge_left > 0.0 or mana < skill_cost:
 		return
 	facing = _direction_to_enemy()
 	mana -= skill_cost
 	skill_left = float(hero.cooldown) * (1.0 - _stat("cooldown") / 100.0)
-	_start_motion(&"skill", 0.28)
+	_start_motion(&"skill", 0.34)
 	var power := roundi(float(hero.damage) * 1.65 + _stat("skill_damage") + _stat("elemental_power"))
+	var form := &"seal_burst"
 	if weapon_form == "bow":
+		form = &"arrow_seal"
 		for spread in [-0.20, 0.0, 0.20]:
-			_fire(facing + spread, power, 880.0, hero.reach, 2)
+			_fire(facing + spread, power, 880.0, hero.reach, 2, 0.0, false, true)
 	elif weapon_form == "staff":
-		_fire(facing, power, 660.0, hero.reach, 1, 105.0)
+		form = &"spell_seal"
+		_fire(facing, power, 660.0, hero.reach, 1, 105.0, false, true)
 	else:
 		_crush(position + Vector2.from_angle(facing) * 65.0, 125.0, power, 200.0)
+	var center := position + Vector2.from_angle(facing) * 65.0 if form == &"seal_burst" else position
+	_cast_effect(form, center, trail_color, 125.0 if form == &"seal_burst" else 65.0)
 	_trigger("消耗灵力时")
 	_trigger("释放技能时")
 	_pulse(&"cast", position, 1.2)
 	feedback.emit(&"skill")
 
 func tactic() -> void:
-	if result != &"" or tactic_left > 0.0 or dodge_left > 0.0 or mana < tactic_cost:
+	if result != &"" or advancing or tactic_left > 0.0 or dodge_left > 0.0 or mana < tactic_cost:
 		return
 	facing = _direction_to_enemy()
 	mana -= tactic_cost
 	tactic_left = 4.6 * (1.0 - _stat("cooldown") / 100.0)
 	_start_motion(&"tactic", 0.42)
 	var power := roundi(float(hero.damage) * 1.20 + _stat("skill_damage"))
-	_crush(position + Vector2.from_angle(facing) * 78.0, 118.0, power, 310.0)
+	var center := position + Vector2.from_angle(facing) * 78.0
+	_crush(center, 118.0, power, 310.0)
+	_cast_effect(&"quake_seal", center, Color("#e7b46e"), 118.0)
 	_trigger("消耗灵力时")
 	_trigger("释放技能时")
 	_pulse(&"stomp", position, 1.5)
 	feedback.emit(&"skill")
 
 func retreat() -> void:
-	if result != &"" or retreat_left > 0.0:
+	if result != &"" or advancing or retreat_left > 0.0:
 		return
 	dodge_left = 0.31
 	retreat_left = retreat_cooldown
+	attack_buffer_left = 0.0
 	_start_motion(&"retreat", 0.38)
 	_ring(position, Color("#cfc3dd"), 39)
 	_trigger("后撤后")
 	_pulse(&"dash", position, 0.6)
 	feedback.emit(&"retreat")
 
-func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = false) -> void:
+func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = false,
+		control_mode: ControlMode = ControlMode.MANUAL) -> void:
 	if result != &"":
 		return
-	var target := _nearest_enemy() if not challenging else {}
-	if not challenging:
+	var assisted := challenging and not advancing and control_mode != ControlMode.MANUAL \
+		and direction.is_zero_approx() and not hold_attack
+	var target := _nearest_enemy() if not challenging or assisted else {}
+	if advancing:
+		hold_attack = false
+	elif not challenging:
 		direction = _farm_direction(target)
 		hold_attack = not target.is_empty() and position.distance_to(target.pos) <= float(hero.reach) + 12.0
+	elif assisted:
+		var approach: Dictionary = target if not target.is_empty() or enemies.is_empty() else enemies[0]
+		direction = _assist_direction(approach)
+		if control_mode == ControlMode.AUTOMATIC and _in_imminent_danger(target):
+			retreat()
 	_step_player(delta, direction)
 	if not challenging:
 		_farm_actions(target)
-	if hold_attack:
-		attack()
+	elif assisted and not target.is_empty():
+		if control_mode == ControlMode.AUTOMATIC:
+			_farm_actions(target)
+		hold_attack = position.distance_to(target.pos) <= float(hero.reach) + float(target.stats.radius) * 0.40
+	if hold_attack or (attack_buffer_left > 0.0 and motion.is_empty()):
+		attack(false)
 	_step_shots(delta)
 	_step_enemies(delta)
 	_step_drops(delta)
 	_tick_bonus(delta)
+	combo_left = maxf(0.0, combo_left - delta)
+	if combo_left == 0.0:
+		combo_hits = 0
 	for effect in effects:
 		effect.life -= delta
 	for popup in popups:
@@ -250,8 +317,17 @@ func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = f
 	if challenging:
 		if hp <= 0:
 			result = &"defeat"
-		elif enemies.is_empty():
-			result = &"victory"
+		elif enemies.is_empty() and not advancing:
+			if boss_wave():
+				result = &"victory"
+			else:
+				advancing = true
+				stride = 0.0
+				facing = 0.0
+				motion = &""
+				attack_buffer_left = 0.0
+				dodge_left = 0.0
+				shots.clear()
 		return
 	if hp <= 0:
 		hp = max_hp
@@ -276,6 +352,21 @@ func _farm_direction(target: Dictionary) -> Vector2:
 		return Vector2.ZERO
 	return Vector2(clampf(gap.x / 40.0, 0.0, 1.0), clampf(gap.y / 30.0, -1.0, 1.0))
 
+func _assist_direction(target: Dictionary) -> Vector2:
+	if target.is_empty() or motion in BUSY_MOTIONS:
+		return Vector2.ZERO
+	var gap: Vector2 = target.pos - position
+	var stand_off := clampf(float(hero.reach) * 0.72, 60.0, 185.0)
+	return Vector2(clampf((gap.x - stand_off) / 29.0, 0.0, 1.0),
+		clampf((absf(gap.y) - 6.0) / 26.0, 0.0, 1.0) * signf(gap.y))
+
+func _in_imminent_danger(target: Dictionary) -> bool:
+	if target.is_empty() or target.windup <= 0.0 or target.windup > 0.28 or retreat_left > 0.0:
+		return false
+	var gap: Vector2 = position - target.strike_at
+	gap.y /= TELEGRAPH_ASPECT
+	return gap.length_squared() <= float(target.strike_radius) * float(target.strike_radius)
+
 func _farm_actions(target: Dictionary) -> void:
 	if target.is_empty() or motion != &"":
 		return
@@ -286,8 +377,18 @@ func _farm_actions(target: Dictionary) -> void:
 		elif tactic_left <= 0.0 and mana >= tactic_cost and gap < 175.0:
 			tactic()
 
+func boss_wave() -> bool:
+	return challenging and (not continuous or wave_index == WAVE_SIZES.size() - 1)
+
+func _spawn_wave() -> void:
+	if boss_wave():
+		_spawn_enemy(0.62)
+	else:
+		for slot in range(WAVE_SIZES[wave_index]):
+			_spawn_enemy(0.24 + slot * 0.13)
+
 func _spawn_enemy(delay: float = 0.38) -> void:
-	var strong := challenging
+	var strong := boss_wave()
 	var tribulation := strong and not Gear.Realm.jie_ling_of(dungeon_layer).is_empty()
 	var growth := float(dungeon_layer - 1)
 	var scale_hp := (67.0 + growth * 2.2) if not strong else (245.0 + growth * 11.0)
@@ -298,10 +399,12 @@ func _spawn_enemy(delay: float = 0.38) -> void:
 	var max_health := roundi(scale_hp * float(archetype.vitality))
 	var offset := Vector2(196.0, 0.0) if strong else Vector2(138.0 + float(serial_counter % 3) * 19.0,
 		(float(serial_counter % 3) - 1.0) * 54.0)
+	if challenging and not strong:
+		offset = Vector2(155.0 + enemies.size() * 37.0, enemies.size() * 58.0)
 	var stats := {"radius": 29.0 if strong else 15.0, "size": 118.0 if tribulation else (107.0 if strong else 57.0),
 		"speed": float(archetype.speed) * (0.83 if strong else 1.0), "damage": roundi(scale_damage * float(archetype.force))}
 	var danger_radius := float(archetype.radius) * (1.23 if tribulation else 1.0)
-	enemies.append({"serial": serial_counter, "pos": HOME + offset, "art": archetype.art, "hp": max_health,
+	enemies.append({"serial": serial_counter, "pos": HOME + offset + Vector2(section_x, 0.0), "art": archetype.art, "hp": max_health,
 		"max_hp": max_health, "stats": stats, "boss": strong, "spawn": delay, "hit": 0.0,
 		"cooldown": 1.2 if strong else 0.15, "windup": 0.0, "windup_total": archetype.windup, "strike_at": Vector2.ZERO,
 		"strike_radius": danger_radius, "stride": 0.0, "knock": Vector2.ZERO, "slow": 0.0})
@@ -317,39 +420,64 @@ func _start_motion(kind: StringName, duration: float) -> void:
 	motion_time = 0.0
 	motion_duration = duration
 
+func track_steps(previous: Vector2) -> void:
+	var movement := position - previous
+	var distance := movement.length()
+	if distance <= 0.001 or not motion.is_empty():
+		stride = 0.0
+		return
+	var direction := movement / distance
+	if step_direction.dot(direction) < 0.5:
+		stride = 0.0
+	stride += distance
+	step_direction = direction
+
 func _step_player(delta: float, direction: Vector2) -> void:
 	var old := position
-	if dodge_left > 0.0:
-		position.x = maxf(FOOTWORK.position.x, position.x - minf(delta, dodge_left) * 300.0)
+	var was_advancing := advancing
+	var left := FOOTWORK.position.x + section_x
+	if advancing:
+		var destination := HOME + Vector2(section_x + WAVE_SPACING, 0.0)
+		position = position.move_toward(destination, RUN_SPEED * delta)
+		if position == destination:
+			section_x += WAVE_SPACING
+			wave_index += 1
+			advancing = false
+			_spawn_wave()
+	elif dodge_left > 0.0:
+		position.x = maxf(left, position.x - minf(delta, dodge_left) * 300.0)
 	else:
 		var pace := 0.58 if player_slow > 0.0 else 1.0
 		var motion_step := direction.limit_length() * float(hero.speed) * pace * delta
 		position.y = clampf(position.y + motion_step.y * 0.48, FOOTWORK.position.y, FOOTWORK.end.y)
-		var front := FOOTWORK.end.x
+		var front := FOOTWORK.end.x + section_x
 		if motion_step.x > 0.0:
 			for enemy in enemies:
 				var radius: float = enemy.stats.radius
 				if enemy.spawn <= 0.0 and enemy.hp > 0 and absf(enemy.pos.y - position.y) <= radius + 16.0:
 					front = minf(front, maxf(position.x, enemy.pos.x - radius - 34.0))
-		position.x = clampf(position.x + motion_step.x, FOOTWORK.position.x, front)
+		position.x = clampf(position.x + motion_step.x, left, front)
 	player_slow = maxf(0.0, player_slow - delta)
-	stride = stride + delta * 14.0 if old != position else 0.0
+	if was_advancing and not advancing:
+		stride = 0.0
+	else:
+		track_steps(old)
 	mana = minf(max_mana, mana + delta * mana_recovery)
 	skill_left = maxf(0.0, skill_left - delta)
 	tactic_left = maxf(0.0, tactic_left - delta)
 	retreat_left = maxf(0.0, retreat_left - delta)
 	invulnerable = maxf(0.0, invulnerable - delta)
 	dodge_left = maxf(0.0, dodge_left - delta)
+	attack_buffer_left = maxf(0.0, attack_buffer_left - delta)
 	if motion != &"":
 		var previous := motion_time
 		motion_time += delta
 		if motion == &"attack":
-			var release := motion_duration * (0.53 if weapon_form == "hammer" else 1.0 / 3.0)
-			if previous < release and motion_time >= release:
-				_release_attack()
-			var followup := motion_duration * 0.66
-			if weapon_form == "dual_blades" and previous < followup and motion_time >= followup:
-				_release_attack(true)
+			var cues := attack_cues()
+			for index in range(cues.size()):
+				var release := motion_duration * float(cues[index])
+				if previous < release and motion_time >= release:
+					_release_attack(index)
 		if motion_time >= motion_duration:
 			motion = &""
 
@@ -369,8 +497,8 @@ func _direction_to_enemy() -> float:
 	var target := _nearest_enemy()
 	return 0.0 if target.is_empty() else (Vector2(target.pos) - position).angle()
 
-func _release_attack(followup: bool = false) -> void:
-	if not followup:
+func _release_attack(index: int) -> void:
+	if index == 0:
 		basic_critical = combat_rng.randf() < crit_chance
 	var damage: int = hero.damage
 	if basic_critical:
@@ -379,25 +507,36 @@ func _release_attack(followup: bool = false) -> void:
 		"hammer":
 			_crush(position + Vector2.from_angle(facing) * 36.0, float(hero.reach) - 30.0, damage, 295.0, basic_critical)
 			feedback.emit(&"hammer_hit")
-		"dual_blades":
-			_sweep(roundi(damage * 0.62) if followup else damage, hero.reach, facing + (0.25 if followup else -0.25), trail_color, 58.0, basic_critical)
-			feedback.emit(&"slash")
+		"long_blade", "dual_blades":
+			_blade_strike(index, damage)
 		"bow":
 			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
 			feedback.emit(&"shot")
 		"staff":
 			_fire(facing, damage, 640.0, hero.reach, 1, 53.0, basic_critical)
 			feedback.emit(&"shot")
-		_:
-			_sweep(damage, hero.reach, facing, trail_color, 115.0, basic_critical)
-			feedback.emit(&"slash")
 
-func _sweep(damage: int, reach: float, angle: float, color: Color, knock: float, critical: bool = false) -> void:
-	effects.append({"type": &"slash", "pos": position, "angle": angle, "color": color, "radius": reach, "life": 0.19, "duration": 0.19})
+func _blade_strike(index: int, damage: int) -> void:
+	var slices: Array = BLADE_SLICES[weapon_form]
+	var final := index == slices.size() - 1
+	var second_pair := weapon_form == "dual_blades" and index >= 2
+	var group := int(second_pair)
+	var raw := roundi(damage * 0.62) if second_pair else damage
+	var reach: float = hero.reach
+	var angle := facing + (0.25 if second_pair else -0.25) if weapon_form == "dual_blades" else facing
+	var lifetime := 0.24 if final else 0.15
+	effects.append({"type": &"flurry", "pos": position, "angle": facing, "color": trail_color,
+		"radius": reach, "life": lifetime, "duration": lifetime, "stroke": index, "finisher": final})
 	for enemy in enemies:
 		var gap: Vector2 = enemy.pos - position
-		if gap.length() < reach + enemy.stats.radius * 0.55 and cos(gap.angle() - angle) > -0.05:
-			_damage_enemy(enemy, damage, knock, critical)
+		if enemy.spawn > 0.0 or enemy.hp <= 0 or gap.length() >= reach + enemy.stats.radius * 0.55 \
+				or cos(gap.angle() - angle) <= -0.05:
+			continue
+		# 副切片共享原本的一次命中触发，双刀仍有两次独立触发机会。
+		var first_contact: bool = strike_contacts.get(enemy.serial, -1) != group
+		if _damage_enemy(enemy, raw, 92.0 if final else 8.0, basic_critical, false, slices[index], first_contact):
+			strike_contacts[enemy.serial] = group
+	feedback.emit(&"slash_finish" if final else &"slash")
 
 func _crush(center: Vector2, radius: float, damage: int, knock: float, critical: bool = false) -> void:
 	effects.append({"type": &"crush", "pos": center, "color": Color("#ffcb86"), "radius": radius, "life": 0.34, "duration": 0.34})
@@ -405,14 +544,22 @@ func _crush(center: Vector2, radius: float, damage: int, knock: float, critical:
 		if center.distance_to(enemy.pos) < radius + enemy.stats.radius * 0.55:
 			_damage_enemy(enemy, damage, knock, critical)
 
-func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1, splash: float = 0.0, critical: bool = false) -> void:
+func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1, splash: float = 0.0,
+		critical: bool = false, empowered: bool = false) -> void:
 	var forward := Vector2.from_angle(angle)
 	const LAUNCH_OFFSET := 15.0
 	shots.append({"pos": position + forward * LAUNCH_OFFSET, "velocity": forward * speed, "life": (reach - LAUNCH_OFFSET) / speed, "damage": damage,
-		"magic": weapon_form == "staff", "wand": false, "color": trail_color, "hits": hits, "struck": [], "splash": splash, "critical": critical})
+		"magic": weapon_form == "staff", "wand": false, "color": trail_color, "hits": hits, "struck": [],
+		"splash": splash, "critical": critical, "empowered": empowered})
+
+func _cast_effect(kind: StringName, point: Vector2, color: Color, radius: float) -> void:
+	const DURATION := 0.47
+	effects.append({"type": kind, "pos": point, "angle": facing, "color": color,
+		"radius": radius, "life": DURATION, "duration": DURATION})
 
 func _ring(point: Vector2, color: Color, radius: float, effect_type: StringName = &"ring") -> void:
-	effects.append({"type": effect_type, "pos": point, "color": color, "radius": radius, "life": 0.38, "duration": 0.38})
+	var lifetime := 0.16 if effect_type == &"impact" else 0.38
+	effects.append({"type": effect_type, "pos": point, "color": color, "radius": radius, "life": lifetime, "duration": lifetime})
 
 # 只记录「发生了什么、在哪里、多重」，画面层自行决定震多少、顿多久。
 func _pulse(kind: StringName, point: Vector2, power: float) -> void:
@@ -420,30 +567,44 @@ func _pulse(kind: StringName, point: Vector2, power: float) -> void:
 	if pulses.size() > MAX_PULSES:
 		pulses = pulses.slice(pulses.size() - MAX_PULSES)
 
-func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool = false, secondary: bool = false) -> void:
+func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool = false, secondary: bool = false,
+		slice: Vector2 = Vector2(0.0, 1.0), primary_hit: bool = true) -> bool:
 	if enemy.spawn > 0.0 or enemy.hp <= 0:
-		return
+		return false
 	var heal_after_hit := 0.0
+	var full_damage := damage
 	if not secondary:
 		damage += roundi(_stat("impact") * 0.55 + _stat("pressure") * 0.25)
 		var resistance := (0.11 if enemy.boss else 0.03) - (_stat("armor_break") + _stat("penetration")) / 100.0
 		damage = maxi(1, roundi(float(damage) * (1.0 - maxf(0.0, resistance - float(enemy.get("breach", 0.0))))))
 		damage = maxi(1, roundi(float(damage) * _stat("weapon_matchup", 1.0)))
+		full_damage = damage
+		damage = roundi(full_damage * slice.y) - roundi(full_damage * slice.x)
+		if damage == 0:
+			return false
 		heal_after_hit = float(damage) * _stat("feed_enemy_ratio")
-		knock += _stat("impact") * 5.0
+		if primary_hit:
+			knock += _stat("impact") * 5.0
 	enemy.hp -= damage
 	if heal_after_hit > 0.0 and enemy.hp > 0:
 		enemy.hp = mini(enemy.max_hp, int(enemy.hp) + roundi(heal_after_hit))
 	enemy.hit = 0.15
 	enemy.knock += position.direction_to(enemy.pos) * knock * (0.15 if enemy.boss else 1.0)
-	popups.append({"pos": enemy.pos - Vector2(0, enemy.stats.size * 0.66), "text": str(damage), "life": 0.6, "critical": critical})
+	var popup_offset := Vector2.ZERO
 	if not secondary:
-		_pulse(&"crit" if critical else &"hit", enemy.pos, clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2))
-	if not secondary:
+		combo_hits += 1
+		combo_left = COMBO_WINDOW
+		var stagger := combo_hits % 3 - 1
+		popup_offset = Vector2(stagger * 22.0, -absf(stagger) * 16.0)
+		_ring(enemy.pos, trail_color.lerp(Color("#ffd3a2"), 0.35), enemy.stats.size, &"impact")
+		_pulse(&"crit" if critical and primary_hit else &"hit", enemy.pos, clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2))
+	popups.append({"pos": enemy.pos + Vector2(0, -enemy.stats.size * 0.66), "offset": popup_offset,
+		"text": str(damage), "life": 0.6, "critical": critical})
+	if not secondary and primary_hit:
 		var alive: bool = enemy.hp > 0
 		var leech := _stat("lifesteal") + _stat("drain")
 		if leech > 0.0:
-			_heal(float(damage) * minf(0.60, leech / 100.0))
+			_heal(float(full_damage) * minf(0.60, leech / 100.0))
 		if alive:
 			var burn := _stat("burn") + _stat("venom") + _stat("ignite") + _stat("scorch_armor")
 			if burn > 0.0:
@@ -455,9 +616,9 @@ func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool 
 			if challenging:
 				_companion_strike(enemy)
 		if alive:
-			return
+			return true
 	if enemy.hp > 0:
-		return
+		return true
 	kills += 1
 	if kill_heal > 0:
 		_heal(float(kill_heal))
@@ -472,6 +633,7 @@ func _damage_enemy(enemy: Dictionary, damage: int, knock: float, critical: bool 
 		_trigger("击杀时", enemy)
 		if kill_heal > 0:
 			_trigger("击杀回血时", enemy)
+	return true
 
 func _damage_player(damage: int, attacker: Dictionary = {}) -> void:
 	if invulnerable > 0.0:
@@ -494,6 +656,10 @@ func _damage_player(damage: int, attacker: Dictionary = {}) -> void:
 	if loss >= hp:
 		_trigger("受致命伤时（每局 1 次）", attacker, true)
 	hp = maxi(0, hp - loss)
+	if loss > 0:
+		combo_hits = 0
+		combo_left = 0.0
+	attack_buffer_left = 0.0
 	_start_motion(&"hurt", 0.34)
 	_ring(position, Color("#ec756f"), 34)
 	_pulse(&"hurt", position, clampf(float(loss) / maxf(float(max_hp) * 0.12, 1.0), 0.5, 2.4))
@@ -549,7 +715,7 @@ func _step_enemies(delta: float) -> void:
 	enemies = enemies.filter(func(enemy: Dictionary) -> bool: return enemy.hp > 0)
 	_separate_enemies(delta)
 	for enemy in enemies:
-		enemy.pos.x = clampf(enemy.pos.x, position.x + float(enemy.stats.radius) + 24.0, 743.0)
+		enemy.pos.x = clampf(enemy.pos.x, position.x + float(enemy.stats.radius) + 24.0, 743.0 + section_x)
 		enemy.pos.y = clampf(enemy.pos.y, 270.0, 476.0)
 
 func _step_boss_skill(enemy: Dictionary, delta: float, gap: float) -> bool:
@@ -581,7 +747,7 @@ func _boss_hit_effect(enemy: Dictionary) -> void:
 		"heal":
 			enemy.hp = mini(enemy.max_hp, int(enemy.hp) + roundi(float(enemy.max_hp) * 0.07))
 		"knock":
-			position.x = maxf(FOOTWORK.position.x, position.x - 34.0)
+			position.x = maxf(FOOTWORK.position.x + section_x, position.x - 34.0)
 		"chill":
 			player_slow = 1.1
 		"flare":
@@ -616,6 +782,9 @@ func _step_shots(delta: float) -> void:
 				shot.struck.append(enemy.serial)
 				shot.hits -= 1
 				_ring(shot.pos - Vector2(0, 13), shot.color, maxf(24.0, shot.splash))
+				if shot.get("empowered", false):
+					_cast_effect(&"spell_impact" if shot.magic else &"arrow_impact", enemy.pos, shot.color,
+						maxf(34.0, shot.splash))
 				if shot.splash > 0.0:
 					for target in enemies:
 						if target.serial != enemy.serial and Vector2(enemy.pos).distance_to(target.pos) < shot.splash:

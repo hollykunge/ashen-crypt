@@ -23,7 +23,7 @@ func _ready() -> void:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.custom_minimum_size.x = 330
-	panel.add_theme_stylebox_override("panel", ui._box(Color("#152d26f5"), ui.GOLD, 1, 12))
+	panel.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.96), ui.GOLD, 1, 12))
 	center.add_child(panel)
 	content = ui._vbox(7)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE

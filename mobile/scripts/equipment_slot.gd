@@ -6,9 +6,9 @@ const ForgeArt = preload("res://scripts/forge_art.gd")
 
 const GOOD := Color("#b0d193")
 const BAD := Color("#ffaca0")
-const INK := Color("#eee3cf")
-const BORDER := Color("#98825c")
-const PLATE := Color("#071716")
+const INK := Color("#eee5d6")
+const BORDER := Color("#827059")
+const PLATE := Color("#181516")
 const FORTUNES := {
 	"旺": Color("#b29251"), "相": Color("#557447"), "休": Color("#515b5a"),
 	"囚": Color("#71362e"), "死": Color("#282a2c")

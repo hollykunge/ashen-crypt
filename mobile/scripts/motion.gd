@@ -2,17 +2,15 @@ extends RefCounted
 
 # 角色动作表。
 #
-# 每位神仙现在只有「待机 / 出招」两张立绘，所以动作不是靠换帧堆出来的，而是靠关键帧曲线：
-# 位移、俯仰、压扁、倾斜、残影、尘土各走一条曲线，渲染层按曲线把同一张画形变出来。
-# 以后补了分解图，只要给某个动作的 frame 轨多填几格（阶梯采样），其余曲线原样生效。
+# frame 轨给出每个动作的分解姿态，位移、残影与尘土走独立曲线。
+# 侧视战场用 SideArt 绘出每格像素精灵，Rig 也可以使用这些曲线为画面挂接装备特效。
 #
 # 约定：
 # - phase 为 0~1 的动作进度，连续动作（待机、走位）用 clock 秒数。
 # - shift / bend 单位是角色本地像素，+x 朝角色面向，+y 向下。
 # - bend 是上半身相对脚底的水平偏移，渲染层按高度加权，等于一个腰部的弯折。
 
-# 动作名。前两个一定有画，其余没补图时会退回这两张（见 roster.gd 的回退链），
-# 所以曲线现在就可以按完整的分解来写，补一张图亮一格。
+# 动作名对应角色精灵的分解姿态。
 const READY := &"ready"
 const STRIKE := &"strike"
 const WINDUP := &"windup"
@@ -167,6 +165,24 @@ static func idle(clock: float) -> Dictionary:
 	pose.bend = sin(clock * 0.9) * 1.8
 	pose.tilt = sin(clock * 0.62) * 0.012
 	pose.scale = Vector2(1.0 - breath * 0.006, 1.0 + breath * 0.012)
+	return pose
+
+# 每刀的剪影从判定帧开始，下一刀来之前收回握柄。
+static func flurry(phase: float, cues: Array) -> Dictionary:
+	var pose := REST.duplicate()
+	pose.frame = WINDUP
+	for index in range(cues.size() - 1, -1, -1):
+		var cue: float = cues[index]
+		if phase < cue:
+			continue
+		var final := index == cues.size() - 1
+		var end := 1.0 if final else float(cues[index + 1])
+		var beat := clampf((phase - cue) / (end - cue), 0.0, 1.0)
+		pose.frame = (RECOVER if final else WINDUP) if beat > 0.72 else (STRIKE if index % 2 == 0 or final else FOLLOW)
+		pose.shift = Vector2(26.0 if final else 17.0, -5.0 + float(index % 2) * 8.0) * (1.0 - beat)
+		pose.ghost = (1.2 if final else 0.82) * (1.0 - beat)
+		pose.dust = (1.1 if final else 0.48) * (1.0 - beat)
+		break
 	return pose
 
 # 取某个动作在 phase 处的姿态；没有这条曲线就退回站姿默认值。

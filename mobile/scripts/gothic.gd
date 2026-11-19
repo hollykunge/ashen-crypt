@@ -4,8 +4,8 @@ const ORB_MATERIAL = preload("res://art/ember_orb.gdshader")
 
 class Orb extends Control:
 	var fraction := 1.0
-	var glow := Color("#b5323b")
-	var shade := Color("#390d15")
+	var glow := Color("#b34135")
+	var shade := Color("#3e1413")
 	var highlight := Color("#f6a28a")
 	var glass: ShaderMaterial
 
@@ -54,7 +54,7 @@ class Meter extends Control:
 	var fraction := 1.0
 	var chip := 1.0
 	var ink := Color("#c65c4c")
-	var plate := Color("#101a16")
+	var plate := Color("#191617")
 	var ticks := 0
 
 	func _ready() -> void:
@@ -97,7 +97,7 @@ class Meter extends Control:
 class Sweep extends Control:
 	var fraction := 0.0
 	var starved := false
-	var ink := Color("#0a1512")
+	var ink := Color("#121013")
 	var edge := Color("#d8bd8a")
 
 	func _ready() -> void:
@@ -119,6 +119,9 @@ class Sweep extends Control:
 		var radius := size.length() * 0.5
 		if starved and fraction <= 0.001:
 			draw_rect(Rect2(Vector2.ZERO, size), Color("#1d2a3c99"))
+			return
+		if fraction >= 0.999:
+			draw_rect(Rect2(Vector2.ZERO, size), Color(ink, 0.62))
 			return
 		var span := TAU * fraction
 		var points := PackedVector2Array([center])

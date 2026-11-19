@@ -17,8 +17,9 @@ func _run() -> void:
 	_check(_test_migration() == true, "迁移和锻造工艺测试完整执行")
 	_check(_play(game) == true, "流程测试完整执行")
 	_check(_test_tribulation() == true, "天劫流程完整执行")
+	_check(_test_continuous_route() == true, "连战流程完整执行")
 	for path in [save_path, save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
-			save_path + ".jie", save_path + ".jie.tmp"]:
+			save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp"]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 	print("实玩流程：%d 项失败" % failures)
@@ -28,8 +29,9 @@ func _play(game) -> bool:
 	_press(game, "性别")
 	_check(_press(game, "女"), "性别页可更换角色")
 	_press(game, "日干")
-	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.Roster.PORTRAITS[3],
-		"甲木女性切换至青绿立绘")
+	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.SideArt.PORTRAITS[1]
+		and game.selection.portrait.modulate == game.Roster.ELEMENT_TINTS.mu.lerp(Color.WHITE, 0.67),
+		"甲木女性显示对应立绘和五行色")
 	var pane: Rect2 = game.selection.page_area.get_global_rect()
 	game.selection._swipe_event(-1, pane.get_center() + Vector2(55, 0), true)
 	game.selection._swipe_event(-1, pane.get_center() - Vector2(55, 0), false)
@@ -76,12 +78,21 @@ func _play(game) -> bool:
 	_check(game.state == &"farm" and game.run.hero.damage > bare_damage and game.run.kills == farming_kills,
 		"返场重算装备并继续原战场")
 	var old_entry: Dictionary = game.profile.describe(item, true)
-	game.challenge_button.pressed.emit()
+	game._start_encounter(true)
 	if not _check(game.state == &"boss" and game.boss_controls.visible and game.run.enemies.size() == 1
 			and game.run.archetype.name == "藤巨妖", "冲层后进入藤巨妖的手操战"):
 		return false
+	_check(game.mode_button.text == "自动普攻" and not game.manual_movement.visible, "挑战默认自动接敌与普攻")
+	_check(_press(game, "1×") and game.battle_speed == 2, "战斗按钮切至两倍速")
+	var spawn_before: float = game.run.enemies[0].spawn
+	game._physics_process(1.0 / 60.0)
+	_check(is_equal_approx(game.run.enemies[0].spawn, spawn_before - 2.0 / 60.0), "两倍速推进两个固定战斗步")
+	_check(_press(game, "2×") and _press(game, "3×") and game.battle_speed == 1, "倍速可循环回正常")
+	_check(_press(game, "自动普攻") and game.mode_button.text == "全自动", "可切至自动施法")
+	_check(_press(game, "全自动") and game.mode_button.text == "手动" and game.manual_movement.visible,
+		"手动模式恢复走位按钮")
 	_ticks(game, 120)
-	_check(game.run.enemies[0].hp == game.run.enemies[0].max_hp and game.run.skill_left == 0.0, "挑战时角色不自动攻击或施法")
+	_check(game.run.enemies[0].hp == game.run.enemies[0].max_hp and game.run.skill_left == 0.0, "手动模式保留走位和出招控制")
 	game.touches = {0: &"forward", 1: &"attack"}
 	for tick in range(1200):
 		if game.state != &"boss":
@@ -155,14 +166,66 @@ func _test_tribulation() -> bool:
 			and game.profile.realm().name == "筑基", "天劫对实战和装备槽角标同时覆盖当令"):
 		game.queue_free()
 		return false
-	# 用精确的临界伤害验证渡劫的落档与演出，实战胜负另由首层用例覆盖。
-	_ticks(game, 55)
-	game.run._damage_enemy(game.run.enemies[0], 100000, 0.0)
-	_ticks(game, 1)
-	_check(game.state == &"farm" and game.profile.layer() == 21 and game.profile.realm().name == "结丹"
-		and game.profile.character().lifespan == 110 and game.turnover.heading.text.contains("破境"), "渡劫成功才增加境界与阳寿")
+	for _wave in range(3):
+		_clear_wave(game)
+		if game.run.advancing:
+			_ticks(game, 55)
+	_check(game.state == &"next_layer" and game.profile.layer() == 21 and game.profile.realm().name == "结丹"
+		and game.profile.character().lifespan == 110 and game.encounter_label.text.contains("破境"),
+		"渡劫成功才增加境界与阳寿")
+	_ticks(game, 42)
+	_check(game.state == &"boss" and game.run.dungeon_layer == 21 and game.run.wave_index == 0,
+		"破境后自动进入下一层")
 	game.queue_free()
 	return true
+
+func _test_continuous_route() -> bool:
+	var game = Main.instantiate()
+	game.profile.save_path = save_path + ".route"
+	root.add_child(game)
+	game.set_physics_process(false)
+	if not _check(_press(game, "入山"), "可创建连战测试角色"):
+		return false
+	game.challenge_button.pressed.emit()
+	if not _check(game.state == &"boss" and game.run.continuous and game.run.wave_index == 0
+			and game.run.enemies.size() == 1 and not game.run.enemies[0].boss
+			and game.stop_route_button.visible, "点击开始连战进入精怪波次"):
+		return false
+	game.control_mode = game.Combat.ControlMode.MANUAL
+	game.run.hp -= 10
+	game.run.mana = 30.0
+	_clear_wave(game)
+	var arrival_x: float = game.run.position.x
+	_check(game.run.advancing and game.encounter_label.text == "前往下一波" and game.profile.layer() == 1,
+		"普通波全清后向前推进")
+	_ticks(game, 10)
+	_check(game.run.position.x > arrival_x and game.run.hp == game.run.max_hp - 10 and game.run.mana < game.run.max_mana,
+		"手动模式也会跑图，血量和灵力沿用同一场战斗")
+	_ticks(game, 48)
+	_check(game.run.wave_index == 1 and game.run.enemies.size() == 2 and not game.run.boss_wave(), "到达后刷新第二波")
+	_clear_wave(game)
+	_ticks(game, 53)
+	_check(game.run.wave_index == 2 and game.run.boss_wave() and game.run.enemies[0].boss, "第二波结束后遭遇层主")
+	var old_stock: int = game.profile.stock("jia")
+	_clear_wave(game)
+	var restored := Gear.new(game.profile.save_path)
+	restored.load_profile()
+	_check(game.state == &"next_layer" and restored.layer() == 2 and restored.stock("jia") == old_stock + 3,
+		"通关先持久化层数并只结算一次奖励")
+	_ticks(game, 45)
+	_check(game.state == &"boss" and game.run.dungeon_layer == 2 and game.run.wave_index == 0
+		and game.run.continuous, "层主战之后自动开始下一层第一波")
+	_check(_press(game, "停止连战") and game.state == &"farm" and game.profile.layer() == 2, "中途停止可回到当前层挂机")
+	_ticks(game, 60)
+	_check(game.state == &"farm" and game.profile.layer() == 2, "停止后不会继续自动挑战")
+	game.queue_free()
+	return true
+
+func _clear_wave(game) -> void:
+	for foe in game.run.enemies:
+		foe.spawn = 0.0
+		game.run._damage_enemy(foe, 100000, 0.0)
+	_ticks(game, 1)
 
 func _ticks(game, count: int) -> void:
 	for _tick in range(count):

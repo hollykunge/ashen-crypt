@@ -50,30 +50,21 @@
 
 ## Godot 手机版
 
-用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。选角页点击「兜率炉坊」可以打造装备，点击「领令出战」进入战斗。
+用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。立下命籍后点击「入山」进入山门，在山门可以回炉坊锻造或挑战层主。手机版支持横屏和竖屏。
 
 导出 iOS 工程时，把 [导出配置示例](mobile/export_presets.cfg.example) 复制为 `mobile/export_presets.cfg`。在 Godot 的 iOS 导出设置中填入自己的 Team ID 和 Bundle Identifier，再使用 Xcode 配置签名。
 
 ### 战斗表现
 
-画面这一层分三块，各自只做一件事：
+战场采用侧视构图，远山、残祠、石路和场上精灵沿着同一条地面线排列。[战场渲染](mobile/scripts/arena.gd) 把场上的前后走位投影成石路上的小幅纵深，也按同一套投影绘制预警和弹道。
 
-| 文件 | 管什么 |
-| --- | --- |
-| [mobile/scripts/motion.gd](mobile/scripts/motion.gd) | **动作**。每个动作一条关键帧曲线：位移、俯仰、压扁、倾斜、残影、尘土。普攻按五种兵器各有一条。 |
-| [mobile/scripts/rig.gd](mobile/scripts/rig.gd)、[figure.gd](mobile/scripts/figure.gd) | **画人**。把立绘切成横带按姿态弯折，再叠披帛、边光、腕光、符牌、法阵与残影。 |
-| [mobile/scripts/appearance.gd](mobile/scripts/appearance.gd) | **装备外观**。六个槽位的主导五行、阴阳与功率预算决定袍色、刃光、披帛、符环与脚下法阵。 |
-
-两条约定：
-
-- **换装备一定看得见。** 外观只读装备的推导结果，不另立数值；换一件火行护甲就换一身火色袍，换一把水行兵器刃光与斩击就转蓝。规则与 [规则锻造系统设计](docs/crafting-rules.md) 同源。
-- **补图即生效。** 立绘现在只有 `ready` / `strike` 两张，其余动作（`windup`、`follow`、`recover`、`guard`、`dodge`、`hurt`、`cast`、`victory`）按回退链退回这两张。把新图按 `<兵器形制>-<动作>-<神仙序号>.webp` 或 `<动作>-<神仙序号>.webp` 丢进 [mobile/art/immortals](mobile/art/immortals)，[roster.gd](mobile/scripts/roster.gd) 会自动优先使用，不必改代码。
-
-立绘本身的待办记在 [mobile/art/immortals/prompts.json](mobile/art/immortals/prompts.json)：现有六张站姿一律仰头看天，而挂机与待机长期显示的就是这一张，所以第一批是按**绢本工笔重彩**重画底图并改成平视前方，之后才是补动作与按兵器分图。该文件同时写明了出图规矩——高 288、脚底压下边缘、六人同一头身比、出招类轴心 37%——这些可以交给 `tests/_fit_art.gd` 自动裁切对齐。
-
-姿态要靠画解决的，渲染层不要硬掰：试过在骨架上绕颈把头压平，兵器和头发会跟着一起拐，这类修正属于底图。
+男女修行人各用一张 4 列 × 3 行的像素图集，每格为 96 × 96 像素，脚底锚点和武器握点定义在 [side_art.gd](mobile/scripts/side_art.gd)。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。装备继续影响武器形制、袍色、刃光与符阵。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
 
 手操战的走位用浮动摇杆（[stick.gd](mobile/scripts/stick.gd)）：在战场区按下即生摇杆，松手即收，键盘 WASD 与前后键同时保留。
+
+点击「开始连战」后，每层先清两波精怪，再打层主。清完一波会自动跑向下一波，击败层主后结算并自动开下一层。点「停止连战」可返回当前层挂机，战败则进入调息。
+
+连战默认自动接敌和普攻，技能牌可手动释放。点击操作模式可切到全自动或手动，倍速键在 1×、2×、3× 之间切换。桌面端也可用 M 和 V 切换。
 
 ### 开发用脚本
 
@@ -85,7 +76,7 @@ godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 3
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，用来核对装备外观和每个动作的分解姿态。`_fit_art.gd` 把生成出来的立绘裁成游戏要的规格：去掉透明边、按相对身高缩放、脚底压在画幅下边缘——站姿填 1.0，下蹲前扑的姿势按比站姿矮多少填。
+`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。
 
 ## 网页原型
 

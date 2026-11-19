@@ -6,6 +6,8 @@ const Gear = preload("res://scripts/gear.gd")
 const Loadout = preload("res://scripts/loadout.gd")
 const Roster = preload("res://scripts/roster.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
+const PORTRAIT_LIGHT = preload("res://scripts/portrait_light.gdshader")
+const SideArt = preload("res://scripts/side_art.gd")
 const GOOD := Color("#b0d193")
 const BAD := Color("#ffaca0")
 const PAGES := ["性别", "日干", "月令", "时辰", "出身"]
@@ -34,7 +36,7 @@ var draft := {"gender": "male", "day_stem": "geng", "month_branch": "mao", "hour
 var creator: VBoxContainer
 var gallery: VBoxContainer
 var portrait: TextureRect
-var halo: Halo
+var portrait_frame: PortraitFrame
 var portrait_tag: Label
 var reading: Label
 var helpful: Label
@@ -147,27 +149,26 @@ func _build_portrait() -> void:
 	frame.clip_contents = true
 	creator.add_child(frame)
 	var backing := Panel.new()
-	backing.add_theme_stylebox_override("panel", ui._box(Color("#162b23f6"), ui.BORDER, 1, 0))
+	backing.add_theme_stylebox_override("panel", ui._box(Color("#181617a8"), ui.BORDER, 1, 0))
 	ui._fill(backing)
 	frame.add_child(backing)
 
-	halo = Halo.new()
-	ui._fill(halo)
-	halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	frame.add_child(halo)
-	portrait = ui._image(Roster.PORTRAITS[0])
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	portrait = ui._image(SideArt.PORTRAITS[0])
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ui._fill(portrait)
 	portrait.offset_left = 12.0
 	portrait.offset_right = -12.0
 	portrait.offset_top = 6.0
 	portrait.offset_bottom = -7.0
-	var soften := Shader.new()
-	soften.code = "shader_type canvas_item; void fragment() { COLOR.a *= smoothstep(0.0, 0.17, UV.x) * smoothstep(0.0, 0.17, 1.0 - UV.x) * smoothstep(0.0, 0.09, UV.y); }"
 	var material := ShaderMaterial.new()
-	material.shader = soften
+	material.shader = PORTRAIT_LIGHT
+	material.set_shader_parameter("soften_edges", true)
 	portrait.material = material
 	frame.add_child(portrait)
+
+	portrait_frame = PortraitFrame.new()
+	ui._fill(portrait_frame)
+	frame.add_child(portrait_frame)
 
 	portrait_tag = _text("", 17, ui.INK)
 	portrait_tag.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -177,7 +178,7 @@ func _build_portrait() -> void:
 	frame.add_child(portrait_tag)
 
 	var summary := PanelContainer.new()
-	summary.add_theme_stylebox_override("panel", ui._box(Color("#152d26ef"), ui.BORDER, 1, 8))
+	summary.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.94), ui.BORDER, 1, 8))
 	frame.add_child(summary)
 	summary.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	summary.offset_left = 8
@@ -240,10 +241,10 @@ func _refresh_creator() -> void:
 			ui._restyle(choice_buttons[field][id], draft[field] == id)
 	var day_element := WuXing.stem_element(draft.day_stem)
 	var female: bool = draft.gender == "female"
-	portrait.texture = Roster.PORTRAITS[Roster.portrait_id(draft.day_stem, female)]
-	portrait.modulate = Roster.ELEMENT_TINTS[day_element].lerp(Color.WHITE, 0.38)
-	halo.tint = Roster.ELEMENT_GLOW[day_element]
-	halo.queue_redraw()
+	portrait.texture = SideArt.PORTRAITS[int(female)]
+	portrait.modulate = Roster.ELEMENT_TINTS[day_element].lerp(Color.WHITE, 0.67)
+	portrait_frame.tint = Roster.ELEMENT_GLOW[day_element].lerp(ui.GOLD, 0.68)
+	portrait_frame.queue_redraw()
 	portrait_tag.text = "%s · %s%s" % [Gear.stem_name(draft.day_stem),
 		"阳" if WuXing.stem_polarity(draft.day_stem) > 0 else "阴", WuXing.ELEMENT_NAMES[day_element]]
 	origin_good.text = "所得  " + ORIGIN_NOTES[draft.origin][0]
@@ -277,15 +278,20 @@ func _create() -> void:
 		error.text = profile.storage_error if not profile.storage_error.is_empty() else "无法立下命籍"
 		error.show()
 
-class Halo extends Control:
-	var tint := Color("#ead087")
+class PortraitFrame extends Control:
+	var tint := Color("#c4a582")
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		resized.connect(queue_redraw)
 
 	func _draw() -> void:
-		var origin := Vector2(size.x * 0.5, size.y * 0.36)
-		for i in range(11, 0, -1):
-			draw_circle(origin, float(i) * 16.0, Color(tint, 0.061))
-		draw_arc(origin, minf(size.x * 0.44, 157.0), 0.0, TAU, 72, Color(tint, 0.83), 1.8, true)
-		draw_arc(origin, minf(size.x * 0.47, 171.0), 0.0, TAU, 72, Color(tint, 0.42), 1.0, true)
+		var corner := PackedVector2Array([Vector2(0, 17), Vector2.ZERO, Vector2(23, 0),
+			Vector2(23, 4), Vector2(5, 4), Vector2(5, 12)])
+		for sign_x in [1.0, -1.0]:
+			var origin := Vector2(5.0 if sign_x > 0.0 else size.x - 5.0, 5.0)
+			draw_set_transform(origin, 0.0, Vector2(sign_x, 1.0))
+			draw_polyline(corner, Color(tint, 0.76), 1.0, true)
 
 
 func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bool = true) -> void:
@@ -321,11 +327,14 @@ func _build_gallery() -> void:
 	list.add_theme_constant_override("v_separation", 8)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
+	var gallery_light := ShaderMaterial.new()
+	gallery_light.shader = PORTRAIT_LIGHT
 	for i in range(Roster.NAMES.size()):
 		var entry := _card(list)
 		var frame: Control = entry.get_parent()
 		frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var art: TextureRect = ui._image(Roster.PORTRAITS[i])
+		art.material = gallery_light
 		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		art.custom_minimum_size.y = 146
 		entry.add_child(art)

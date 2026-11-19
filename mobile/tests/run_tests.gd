@@ -11,6 +11,7 @@ const Appearance = preload("res://scripts/appearance.gd")
 const Motion = preload("res://scripts/motion.gd")
 const Roster = preload("res://scripts/roster.gd")
 const Gear = preload("res://scripts/gear.gd")
+const Combat = preload("res://scripts/combat.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -18,7 +19,8 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_motion]
+		_test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_motion, _test_blade_flurry,
+		_test_control_modes]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -243,6 +245,64 @@ func _test_motion() -> bool:
 	var walking := Motion.walk(1.2)
 	var standing := Motion.idle(0.4)
 	_check(not Vector2(walking.shift).is_equal_approx(Vector2(standing.shift)), "走位与吐纳不是同一个姿态")
+	return true
+
+func _test_blade_flurry() -> bool:
+	var run := Combat.new()
+	for form in ["long_blade", "dual_blades"]:
+		run.reset(1, {}, form, true)
+		var enemy := run.enemies[0]
+		enemy.spawn = 0.0
+		enemy.cooldown = 10.0
+		enemy.stats.speed = 0.0
+		enemy.pos = Combat.HOME + Vector2(70, 0)
+		var dual: bool = form == "dual_blades"
+		var loss := roundi(run.hero.damage * 0.89)
+		if dual:
+			loss += roundi(roundi(run.hero.damage * 0.62) * 0.89)
+		run.attack()
+		for i in range(24):
+			run.step(1.0 / 60.0)
+		_check(run.combo_hits == (4 if dual else 3), "%s 每道刃光均单独判定" % form)
+		_check(enemy.max_hp - enemy.hp == loss, "%s 一轮连斩保持伤害预算" % form)
+		_check(run.hits == (2 if dual else 1), "%s 装备触发按原有命中次数结算" % form)
+		run.step(Combat.COMBO_WINDOW)
+		_check(run.combo_hits == 0, "连击计数超时清空")
+
+	run.reset(1, {}, "long_blade", true)
+	run.attack()
+	run.step(0.28)
+	run.attack()
+	run.step(0.11)
+	_check(run.motion == &"attack" and is_zero_approx(run.motion_time), "收招前点按会接上下一轮普攻")
+	run.attack()
+	run.retreat()
+	run.step(0.40)
+	_check(run.motion.is_empty() and is_zero_approx(run.attack_buffer_left), "后撤取消待续普攻")
+	return true
+
+func _test_control_modes() -> bool:
+	var run := Combat.new()
+	run.reset(1, {}, "long_blade", true)
+	var enemy := run.enemies[0]
+	enemy.spawn = 0.0
+	enemy.cooldown = 30.0
+	enemy.stats.speed = 0.0
+	enemy.pos = Combat.HOME + Vector2(160, 0)
+	for tick in range(60):
+		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.ASSISTED)
+	_check(run.position.x > Combat.HOME.x and run.combo_hits > 0, "自动普攻追敌并实际伤害目标")
+	_check(is_zero_approx(run.skill_left) and is_zero_approx(run.tactic_left), "自动普攻保留手动施法")
+	var x_before := run.position.x
+	run.step(1.0 / 60.0, Vector2.LEFT, false, Combat.ControlMode.ASSISTED)
+	_check(run.position.x < x_before, "手动走位优先于自动接敌")
+	for tick in range(32):
+		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)
+	_check(run.skill_left > 0.0 or run.tactic_left > 0.0, "全自动会释放技能")
+	enemy.windup = 0.20
+	enemy.strike_at = run.position
+	run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)
+	_check(run.dodge_left > 0.0 and run.retreat_left > 0.0, "全自动会在层主红圈命中前后撤")
 	return true
 
 func _weapon(materials: Dictionary, process: Array = ["forge_fine"]) -> Dictionary:

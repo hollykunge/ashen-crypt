@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#182e2a">
+  <meta name="theme-color" content="#151315">
   <title>余烬地牢</title>
   <link rel="icon" href="mobile/art/immortals/seal.png">
   <link rel="stylesheet" href="styles.css">
@@ -59,12 +59,16 @@
         <div class="battle-counts">
           <span>击杀 <strong id="kills">0</strong></span>
           <span>灵砂 <strong id="ash">0</strong></span>
-          <button id="pause" class="utility" type="button">暂停 <kbd>Esc</kbd></button>
         </div>
       </div>
       <p class="mission-line"><span id="objective"></span><span>余敌 <strong id="remaining">0</strong></span></p>
+      <div class="battle-tools">
+        <button id="fight-mode" class="utility" type="button">自动普攻</button>
+        <button id="fight-speed" class="utility" type="button">1×</button>
+        <button id="pause" class="utility" type="button">暂停 <kbd>Esc</kbd></button>
+      </div>
       <div class="playfield">
-        <canvas id="arena" width="1100" height="660" aria-label="战斗场地"></canvas>
+        <canvas id="arena" width="1320" height="625" tabindex="0" aria-label="战斗场地"></canvas>
         <p id="callout" class="callout" aria-live="polite"></p>
         <div id="overlay" class="overlay" hidden>
           <div class="result" role="dialog" aria-modal="true" aria-labelledby="result-title">
@@ -77,10 +81,13 @@
       </div>
       <div class="battle-bottom">
         <div class="vitals">
-          <div class="vitals-label"><strong id="player-class"></strong><span id="health-text"></span></div>
-          <div id="health" class="meter health" role="progressbar" aria-label="生命"><span></span></div>
-          <div class="vitals-label level"><span id="level"></span><span id="xp-text"></span></div>
-          <div id="xp" class="meter xp" role="progressbar" aria-label="经验"><span></span></div>
+          <img id="battle-portrait" alt="" draggable="false">
+          <div class="vitals-readout">
+            <div class="vitals-label"><strong id="player-class"></strong><span id="health-text"></span></div>
+            <div id="health" class="meter health" role="progressbar" aria-label="生命"><span></span></div>
+            <div class="vitals-label level"><span id="level"></span><span id="xp-text"></span></div>
+            <div id="xp" class="meter xp" role="progressbar" aria-label="经验"><span></span></div>
+          </div>
         </div>
         <div class="battle-actions">
           <button id="attack" class="action" type="button"><kbd>J</kbd><span>普攻</span></button>
@@ -92,8 +99,8 @@
   </main>
 
   <footer hidden>
-    <span id="keyboard-help"><kbd>A / D</kbd> 后退 / 前进 <span class="divider">/</span> <kbd>W / S</kbd> 小步侧移 <span class="divider">/</span> <kbd>鼠标 / J</kbd> 普攻 <span class="divider">/</span> <kbd>Q</kbd> 技能 <span class="divider">/</span> <kbd>空格</kbd> 后撤</span>
-    <span id="touch-help">轻触地面短步进退，用下方按钮攻击或后撤</span>
+    <span id="keyboard-help"><kbd>WASD</kbd> 走位 <span class="divider">/</span> <kbd>J</kbd> 普攻 <span class="divider">/</span> <kbd>Q</kbd> 技能 <span class="divider">/</span> <kbd>空格</kbd> 后撤 <span class="divider">/</span> <kbd>M</kbd> 切换操作 <span class="divider">/</span> <kbd>V</kbd> 倍速</span>
+    <span id="touch-help">点技能牌出招，点地面调整站位</span>
   </footer>
 </body>
 </html>

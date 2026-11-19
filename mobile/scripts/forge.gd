@@ -546,7 +546,7 @@ func show_derivation(item: Dictionary, encounter_ling: String = "") -> void:
 
 func _build_derivation() -> void:
 	detail_cover = ColorRect.new()
-	detail_cover.color = Color(0.02, 0.05, 0.045, 0.83)
+	detail_cover.color = Color(ui.NIGHT, 0.83)
 	ui.add_child(detail_cover)
 	ui._fill(detail_cover)
 	var inset := MarginContainer.new()
