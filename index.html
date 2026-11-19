@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181524">
+  <title>余烬地牢</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2373573a' d='M16 0 32 16 16 32 0 16Z'/%3E%3Cpath fill='%23e3bc7c' d='M16 5 19 13 27 16 19 19 16 27 13 19 5 16 13 13Z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wordmark"><span class="sigil" aria-hidden="true"></span>余烬地牢</div>
+    <button id="sound" class="utility" type="button" aria-pressed="false">音效关闭</button>
+  </header>
+
+  <main>
+    <section id="selection" class="selection" aria-labelledby="selection-title">
+      <div class="camp" aria-hidden="true"></div>
+      <div class="shroud" aria-hidden="true"></div>
+      <div class="sparks" aria-hidden="true"></div>
+      <div class="selection-heading">
+        <p class="overline"><i></i> 暮岭营地 <i></i></p>
+        <h1 id="selection-title">选择你的角色</h1>
+      </div>
+
+      <div class="selection-controls">
+        <div class="classes" role="group" aria-label="角色职业">
+          <button type="button" class="class-choice" data-class="knight" aria-pressed="true">
+            <span class="class-mark" aria-hidden="true"></span>
+            <span class="sprite-stand"><img src="assets/pixel/heroes/ready-0.webp" alt="" draggable="false"></span>
+            <span class="class-caption"><span class="class-title">守墓剑士</span><span class="class-role">近战 · 重甲</span></span>
+          </button>
+          <button type="button" class="class-choice" data-class="ranger" aria-pressed="false">
+            <span class="class-mark" aria-hidden="true"></span>
+            <span class="sprite-stand"><img src="assets/pixel/heroes/ready-1-v2.webp" alt="" draggable="false"></span>
+            <span class="class-caption"><span class="class-title">灰林游侠</span><span class="class-role">远程 · 敏捷</span></span>
+          </button>
+          <button type="button" class="class-choice" data-class="mage" aria-pressed="false">
+            <span class="class-mark" aria-hidden="true"></span>
+            <span class="sprite-stand"><img src="assets/pixel/heroes/ready-2-v2.webp" alt="" draggable="false"></span>
+            <span class="class-caption"><span class="class-title">余火术士</span><span class="class-role">法术 · 范围</span></span>
+          </button>
+        </div>
+        <p id="class-detail" aria-live="polite">挥剑横扫近敌，用破墓斩击退身边的怪物。</p>
+        <button id="start" type="button" class="primary">踏入地牢 <span class="command-arrow" aria-hidden="true"></span></button>
+      </div>
+    </section>
+
+    <section id="battle" class="battle" aria-label="废弃石墓战斗" hidden>
+      <div class="battle-top">
+        <div>
+          <span class="overline">废弃石墓</span>
+          <h1 id="wave">第 1 / 5 波</h1>
+        </div>
+        <div class="battle-counts">
+          <span>击杀 <strong id="kills">0</strong></span>
+          <span>余烬 <strong id="ash">0</strong></span>
+          <button id="pause" class="utility" type="button">暂停 <kbd>Esc</kbd></button>
+        </div>
+      </div>
+      <div class="playfield">
+        <canvas id="arena" width="1100" height="660" aria-label="战斗场地"></canvas>
+        <p id="callout" class="callout" aria-live="polite"></p>
+        <div id="overlay" class="overlay" hidden>
+          <div class="result" role="dialog" aria-modal="true" aria-labelledby="result-title">
+            <h2 id="result-title"></h2>
+            <p id="result-details"></p>
+            <button id="continue" class="primary" type="button"></button>
+            <button id="leave" class="utility" type="button">返回选角</button>
+          </div>
+        </div>
+      </div>
+      <div class="battle-bottom">
+        <div class="vitals">
+          <div class="vitals-label"><strong id="player-class"></strong><span id="health-text"></span></div>
+          <div id="health" class="meter health" role="progressbar" aria-label="生命"><span></span></div>
+          <div class="vitals-label level"><span id="level"></span><span id="xp-text"></span></div>
+          <div id="xp" class="meter xp" role="progressbar" aria-label="经验"><span></span></div>
+        </div>
+        <div class="battle-actions">
+          <button id="attack" class="action" type="button"><kbd>J</kbd><span>普攻</span></button>
+          <button id="skill" class="action" type="button"><kbd>Q</kbd><span>技能</span></button>
+          <button id="dash" class="action" type="button"><kbd>空格</kbd><span>后撤</span></button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="keyboard-help"><kbd>A / D</kbd> 后退 / 前进 <span class="divider">/</span> <kbd>W / S</kbd> 小步侧移 <span class="divider">/</span> <kbd>鼠标 / J</kbd> 普攻 <span class="divider">/</span> <kbd>Q</kbd> 技能 <span class="divider">/</span> <kbd>空格</kbd> 后撤</span>
+    <span id="touch-help">轻触地面短步进退，用下方按钮攻击或后撤</span>
+  </footer>
+</body>
+</html>

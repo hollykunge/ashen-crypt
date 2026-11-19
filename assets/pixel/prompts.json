@@ -1,0 +1,28 @@
+{
+  "tool": "OpenAI built-in ImageGen",
+  "files": [
+    {
+      "files": [
+        "camp.webp"
+      ],
+      "prompt": "Use case: stylized-concept. Make an original beautifully hand-pixeled 16-bit Japanese fantasy RPG wide 16:9 game backdrop for an adventurer selection area. Three empty subtle circular stone platforms at x=24%,50%,76% y=70% of frame, all on the same raised terrace of an abandoned abbey in a blue-violet mountain valley. The terrace opens across the whole bottom half, rim lit by amber torch sconces, pixel moss and a few red leaves. Visible depth layers: rocky cobbled platform, rusty iron railings and broken stone pillars mainly at the far sides, medieval abbey silhouette and pine-covered ridges in the distance, indigo and dusty peach dusk sky. A single warm crescent moon high right. Desaturated dark blue at edges, clear lively local colors and warmth in the midground, unobtrusive dark top-center sky with space for interface lettering. GENUINE crisp 1990s 16-bit pixel graphics, deliberate visible square pixel clusters, drawn as though at 416x234 pixels enlarged nearest-neighbor; use highly polished terraced shading and a distinct game palette. No blur, no smooth gradients, no photorealism, no vector, no characters, no monsters, no existing IP, no UI, no writing, no borders."
+    },
+    {
+      "files": [
+        "crypt.webp"
+      ],
+      "prompt": "Use case: stylized-concept. Create an original 16-bit JRPG action arena stage backdrop, wide landscape about 5:3. A moody moonlit stone crypt overgrown with violet vines and moss, under a fixed slightly top-down three-quarter overhead camera. Full rectangular single room. Distinct architecture along extreme edges only: thin foreground balustrade at bottom 9%, ornately pixel-drawn arches, tiny amber braziers and aquamarine stained-glass doors bounded to top 21%, short side walls at x=2%-7% and x=93%-98%. The central region must be entirely EMPTY uninterrupted bluish-indigo and mute plum-gray slate floor for game combat, playable on x=9%-91% y=23%-88%, with a faint peach ring inlaid in the exact center and tiny scattered cracks. Restrained blue-violet color atmosphere, bright coral amber flame and aquamarine accents at perimeter, medium luminous midtones that show hard pixel texture. Genuinely crisp 16-bit game pixel art backdrop, cluster shading drawn as if at low 400x240 then nearest-neighbor expanded. No antialiasing look, no gradients, no characters, no game UI, no scene text, no symbols that look like letters. The central floor must look flat and the left and right screen edges are symmetric."
+    },
+    {
+      "files": [
+        "fighter-0.webp",
+        "fighter-1.webp",
+        "fighter-2.webp",
+        "fighter-3.webp",
+        "fighter-4.webp",
+        "fighter-5.webp"
+      ],
+      "prompt": "Use case: stylized-concept. Create an authentic transparent PNG retro JRPG video game sprite sheet, no background. Exactly SIX individual original 16-bit SNES/GBA-inspired fantasy creatures in an evenly spaced 3 columns by 2 rows layout. Centers x=1/6, 1/2, 5/6 and y=1/4, 3/4, with generous clear transparent gaps between each subject. Top row: (1) CHIBI adventurer knight with red scarf jutting left, dark cobalt plate armor, spiky apricot hair with a split fringe, carrying a silver broadsword; (2) CHIBI adventurer ranger with moss hood and long pale braid, turquoise tunic, tan boots, golden shortbow; (3) CHIBI apprentice mage with indigo pointed cloth hat, lilac hair and dusky purple coat, tiny lantern staff with a golden crystal. Bottom row: (4) pearl-bone skeleton with violet scarf and short curved sword; (5) quadruped dark magenta and lavender grave beast with orange eyes and angular claws; (6) original ancient aubergine and charcoal tomb golem with massive stone fists, pointed crown and glowing turquoise fissures. Every sprite in 3/4 facing front-right, larger expressive heads roughly 40% of sprite height, low cute stout proportions and whole figure visible with weapons and feet. True hard rectangular pixel clusters, hand-built contours, each figure drawn as if at about 48 pixels tall then nearest-neighbor scaled, limited color shades and excited contrasting value clusters. Polished recognizable silhouettes, no text, frame, border, lettering, texture, shadows, halo or scenery. Alpha transparency outside each fighter."
+    }
+  ]
+}
