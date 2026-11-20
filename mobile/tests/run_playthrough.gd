@@ -270,7 +270,7 @@ func _test_continuous_route() -> bool:
 	game.challenge_button.pressed.emit()
 	_take_edict(game)
 	if not _check(game.state == &"boss" and game.run.continuous and game.run.wave_index == 0
-			and game.run.enemies.size() == 1 and not game.run.enemies[0].boss
+			and game.run.enemies.size() == game.Combat.WAVE_SIZES[0] and not game.run.enemies[0].boss
 			and game.stop_route_button.visible, "点击开始连战进入精怪波次"):
 		return false
 	game.control_mode = game.Combat.ControlMode.MANUAL
@@ -284,7 +284,8 @@ func _test_continuous_route() -> bool:
 	_check(game.run.position.x > arrival_x and game.run.hp == game.run.max_hp - 10 and game.run.mana < game.run.max_mana,
 		"手动模式也会跑图，血量和灵力沿用同一场战斗")
 	_ticks(game, 48)
-	_check(game.run.wave_index == 1 and game.run.enemies.size() == 2 and not game.run.boss_wave(), "到达后刷新第二波")
+	_check(game.run.wave_index == 1 and game.run.enemies.size() == game.Combat.WAVE_SIZES[1]
+		and not game.run.boss_wave(), "到达后刷新第二波")
 	_clear_wave(game)
 	_ticks(game, 53)
 	_check(game.run.wave_index == 2 and game.run.boss_wave() and game.run.enemies[0].boss, "第二波结束后遭遇层主")

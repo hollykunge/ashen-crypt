@@ -43,7 +43,19 @@ const BLADE_SLICES := {
 }
 const ATTACK_BUFFER := 0.16
 const COMBO_WINDOW := 1.25
-const WAVE_SIZES := [1, 2, 1]
+# 连战每层三波：两波成群的小怪，最后一波是层主。
+const WAVE_SIZES := [5, 7, 1]
+# 小怪成群：单只的血量、伤害和个头都比层主小得多，一轮连斩正好清掉贴身的一排。
+# 血量与伤害是相对同层「散怪」公式的倍率；drop 把挂机每只怪的掉落折回去，材料流水不因怪多而涨。
+const MINION := {"hp": 0.55, "damage": 0.60, "size": 48.0, "radius": 13.0, "drop": 0.56, "charge": 1.5}
+# 怪群按三路纵深、一列一列地从前方压上来。
+const HORDE_ROWS := [0.0, -66.0, 66.0]
+const HORDE_COLUMN := 88.0
+const FARM_HORDE := 5
+# 小怪隔着一路纵深也能出手，所以被围住时两侧的也会咬人；离得远时小跑着压上来，一群怪几乎同时到。
+const FLANK_DEPTH := 72.0
+const CHARGE_DISTANCE := 170.0
+const FARM_SPAWN_INTERVAL := 0.5
 const WAVE_SPACING := 176.0
 const RUN_SPEED := 228.0
 const ENEMY_ATTACK_WINDUP := 0.22
@@ -360,9 +372,9 @@ func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = f
 		_ring(position, Color("#a4db99"), 62.0)
 		_pulse(&"revive", position, 1.0)
 	spawn_in = maxf(0.0, spawn_in - delta)
-	if spawn_in == 0.0 and enemies.size() < 3:
+	if spawn_in == 0.0 and enemies.size() < FARM_HORDE:
 		_spawn_enemy()
-		spawn_in = 1.15
+		spawn_in = FARM_SPAWN_INTERVAL
 
 func _strike_padding(enemy: Dictionary) -> float:
 	return maxf(float(enemy.stats.radius) * 0.55, float(enemy.body.x) - 23.0)
@@ -456,26 +468,33 @@ func _spawn_wave() -> void:
 		_spawn_enemy(0.62)
 	else:
 		for slot in range(WAVE_SIZES[wave_index]):
-			_spawn_enemy(0.24 + slot * 0.13)
+			_spawn_enemy(0.22 + slot * 0.07)
 
 func _spawn_enemy(delay: float = 0.38) -> void:
 	var strong := boss_wave()
 	var tribulation := strong and not Gear.Realm.jie_ling_of(dungeon_layer).is_empty()
 	var growth := float(dungeon_layer - 1)
-	var scale_hp := (67.0 + growth * 2.2) if not strong else (245.0 + growth * 11.0)
-	var scale_damage := 7.5 + growth * 0.36 if not strong else 35.0 + growth * 1.25
+	var scale_hp := (67.0 + growth * 2.2) * float(MINION.hp) if not strong else (245.0 + growth * 11.0)
+	var scale_damage := (7.5 + growth * 0.36) * float(MINION.damage) if not strong else 35.0 + growth * 1.25
 	if tribulation:
 		scale_hp *= 1.60
 		scale_damage *= 1.24
-	var max_health := roundi(scale_hp * float(archetype.vitality))
-	var offset := Vector2(196.0, 0.0) if strong else Vector2(138.0 + float(serial_counter % 3) * 19.0,
-		(float(serial_counter % 3) - 1.0) * 54.0)
-	if challenging and not strong:
-		offset = Vector2(155.0 + enemies.size() * 37.0, enemies.size() * 58.0)
-	var stats := {"radius": 29.0 if strong else 15.0, "size": 118.0 if tribulation else (107.0 if strong else 57.0),
-		"speed": float(archetype.speed) * (0.83 if strong else 1.0), "damage": roundi(scale_damage * float(archetype.force))}
+	var max_health := maxi(1, roundi(scale_hp * float(archetype.vitality)))
+	var offset := Vector2(196.0, 0.0)
+	if not strong:
+		# 连战按波内次序排位；挂机的怪陆续补进来，按出生序号轮着占三路。
+		var slot := enemies.size() if challenging else serial_counter % (HORDE_ROWS.size() * 2)
+		var row := slot % HORDE_ROWS.size()
+		offset = Vector2(150.0 + floorf(slot / float(HORDE_ROWS.size())) * HORDE_COLUMN + (0.0 if row == 0 else 24.0),
+			HORDE_ROWS[row])
+	# 同一种怪挤在一起，个头略有参差才不像复制出来的。只影响画面，身位仍按标准个头算。
+	var base_size := 118.0 if tribulation else (107.0 if strong else float(MINION.size))
+	var stats := {"radius": 29.0 if strong else float(MINION.radius),
+		"size": base_size if strong else base_size * (0.92 + 0.08 * float(serial_counter % 3)),
+		"speed": float(archetype.speed) * (0.83 if strong else 1.0),
+		"damage": maxi(1, roundi(scale_damage * float(archetype.force)))}
 	var danger_radius := float(archetype.radius) * (1.23 if tribulation else 1.0)
-	var body := Vector2(float(stats.size) * ENEMY_BODY_WIDTHS[archetype.art], 35.0 if strong else 31.0)
+	var body := Vector2(base_size * ENEMY_BODY_WIDTHS[archetype.art], 35.0 if strong else 31.0)
 	var preferred := HOME + offset + Vector2(section_x, 0.0)
 	enemies.append({"serial": serial_counter, "pos": preferred, "art": archetype.art, "hp": max_health, "body": body,
 		"max_hp": max_health, "stats": stats, "boss": strong, "spawn": delay, "hit": 0.0,
@@ -703,7 +722,8 @@ func _damage_enemy(enemy: Dictionary, damage: int, force: float, critical: bool 
 	if kill_heal > 0:
 		_heal(float(kill_heal))
 	if not challenging:
-		var amount := Gear.roll_farm_quantity(loot_rng, kills == 1, _stat("material_drop_multiplier", 1.0))
+		var amount := Gear.roll_farm_quantity(loot_rng, kills == 1,
+			_stat("material_drop_multiplier", 1.0) * float(MINION.drop))
 		if amount > 0:
 			drops.append({"pos": enemy.pos, "material": encounter_stem, "quantity": amount,
 				"age": 0.0, "collected": false})
@@ -796,15 +816,18 @@ func _step_enemies(delta: float) -> void:
 		var stats: Dictionary = enemy.stats
 		var gap: Vector2 = enemy.pos - position
 		var contact := _enemy_contact_distance(enemy)
-		var near := absf(gap.x) <= contact + ENEMY_MELEE_MARGIN and absf(gap.y) <= 46.0
+		var abreast := absf(gap.x) <= contact + ENEMY_MELEE_MARGIN
+		var near := abreast and absf(gap.y) <= 46.0
+		# 小怪贴上来就咬，包括侧翼。层主的红圈招式不看这个（任何方向都放），engaged 只决定它还往不往前走。
+		var engaged := near and _basic_attack_reaches(enemy) if enemy.boss else abreast and absf(gap.y) <= FLANK_DEPTH
 		enemy.cooldown -= delta
 		enemy.hit = maxf(0.0, enemy.hit - delta)
 		enemy.slow = maxf(0.0, enemy.slow - delta)
 		enemy.stagger = maxf(0.0, enemy.stagger - delta)
 		enemy.attack_recovery = maxf(0.0, enemy.attack_recovery - delta)
-		var attacking := _step_boss_skill(enemy, delta, gap.length()) if enemy.boss else _step_enemy_attack(enemy, delta, near)
+		var attacking := _step_boss_skill(enemy, delta, gap.length()) if enemy.boss else _step_enemy_attack(enemy, delta, engaged)
 		enemy.moving = false
-		if not (near and _basic_attack_reaches(enemy)) and not attacking and enemy.attack_recovery <= 0.0 and enemy.stagger <= 0.0:
+		if not engaged and not attacking and enemy.attack_recovery <= 0.0 and enemy.stagger <= 0.0:
 			var speed: float = stats.speed * (0.55 if enemy.slow > 0.0 else 1.0)
 			var side := -1.0 if gap.x < 0.0 else 1.0
 			var destination := position + Vector2((contact + 2.0) * side, 0.0)
@@ -821,7 +844,7 @@ func _step_enemies(delta: float) -> void:
 
 func _step_enemy_attack(enemy: Dictionary, delta: float, near: bool) -> bool:
 	if enemy.attack_windup <= 0.0:
-		if not near or not _basic_attack_reaches(enemy) or enemy.stagger > 0.0 or enemy.cooldown > ENEMY_ATTACK_WINDUP:
+		if not near or enemy.stagger > 0.0 or enemy.cooldown > ENEMY_ATTACK_WINDUP:
 			return false
 		enemy.attack_windup = ENEMY_ATTACK_WINDUP
 		return true
@@ -833,6 +856,8 @@ func _step_enemy_attack(enemy: Dictionary, delta: float, near: bool) -> bool:
 			_damage_player(enemy.stats.damage, enemy)
 	return true
 
+			if not enemy.boss and gap.length() > CHARGE_DISTANCE:
+				speed *= float(MINION.charge)
 func _step_boss_skill(enemy: Dictionary, delta: float, gap: float) -> bool:
 	if enemy.windup <= 0.0:
 		if gap < maxf(float(enemy.strike_radius) + 49.0, _enemy_contact_distance(enemy) + 26.0) and enemy.cooldown <= 0.0 and enemy.stagger <= 0.0:

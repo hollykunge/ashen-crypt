@@ -26,7 +26,7 @@ var _failures := 0
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
 		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
-		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates]
+		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -116,6 +116,8 @@ func _test_body_spacing() -> bool:
 
 	run.reset(1, {}, "long_blade", true, "", true)
 	var front := run.enemies[0]
+	# 连战第一波是一群小怪；这里只留一只当前排，单验「后来者不挤占、不推人」。
+	run.enemies.resize(1)
 	front.spawn = 0.0
 	front.pos = run.position + Vector2(run._enemy_contact_distance(front) + 10.0, 0.0)
 	front.cooldown = 20.0
@@ -607,4 +609,75 @@ func _test_plates() -> bool:
 	_check(SideArt.plate_for(3).key == "drought" and SideArt.plate_for(25).key == "mine"
 		and SideArt.plate_for(57).key == "court", "层号对上地域长卷")
 	_check(SideArt._plate_cache.size() == 1, "长卷只常驻当前一张")
+	return true
+
+func _test_horde() -> bool:
+	# 连战：前两波成群的小怪，最后一波一个层主。
+	_check(Combat.WAVE_SIZES[0] >= 5 and Combat.WAVE_SIZES[1] >= 5 and Combat.WAVE_SIZES[-1] == 1, "小怪成群，层主独战")
+	var run := Combat.new()
+	run.combat_rng.seed = 11
+	run.reset(1, {}, "long_blade", true, "", true)
+	_check(run.enemies.size() == Combat.WAVE_SIZES[0], "第一波一次放出整群")
+	var boss_run := Combat.new()
+	boss_run.reset(1, {}, "long_blade", true)
+	var boss: Dictionary = boss_run.enemies[0]
+	for foe in run.enemies:
+		_check(not foe.boss and foe.max_hp * 4 < boss.max_hp and foe.stats.damage * 3 < boss.stats.damage
+			and foe.stats.size < boss.stats.size, "小怪的血量、伤害、个头都远小于层主")
+	# 一轮普攻的总伤害打得掉大半只小怪：带上装备就是一轮清一排。
+	_check(run.enemies[0].max_hp <= roundi(float(run.hero.damage) * 1.25), "空手两轮、有装备一轮清掉一只小怪")
+
+	# 整群落位后互不重叠，也不压在主角身上。
+	for _tick in range(150):
+		run._step_enemies(1.0 / 60.0)
+	var crowded := false
+	for i in range(run.enemies.size()):
+		var a: Dictionary = run.enemies[i]
+		crowded = crowded or a.spawn > 0.0 or Combat._bodies_overlap(a.pos, run.position,
+			Vector2(a.body) + Combat.PLAYER_BODY + Combat.BODY_MARGIN - Vector2(0.01, 0.01))
+		for j in range(i + 1, run.enemies.size()):
+			var b: Dictionary = run.enemies[j]
+			crowded = crowded or Combat._bodies_overlap(a.pos, b.pos,
+				Vector2(a.body) + Vector2(b.body) + Combat.BODY_MARGIN - Vector2(0.01, 0.01))
+	_check(not crowded, "怪群全部落位且保留各自的体积")
+	var rows := {}
+	for foe in run.enemies:
+		rows[roundi(foe.pos.y / 20.0)] = true
+	_check(rows.size() >= 3, "怪群分三路纵深压上来，而不是排成一列")
+
+	# 侧翼的小怪也会咬人。
+	run.reset(1, {}, "long_blade", true, "", true)
+	run.enemies.resize(1)
+	var flanker: Dictionary = run.enemies[0]
+	flanker.spawn = 0.0
+	flanker.cooldown = 0.0
+	flanker.pos = run.position + Vector2(run._enemy_contact_distance(flanker), 64.0)
+	var before := run.hp
+	run._step_enemies(0.01)
+	run._step_enemies(Combat.ENEMY_ATTACK_WINDUP)
+	_check(run.hp < before, "隔一路纵深的小怪也能咬到")
+
+	# 挂机：场上同时最多 FARM_HORDE 只。
+	var farm := Combat.new()
+	farm.combat_rng.seed = 5
+	farm.loot_rng.seed = 5
+	farm.reset(1, {}, "long_blade", false)
+	var peak := 0
+	for _tick in range(60 * 20):
+		farm.step(1.0 / 60.0)
+		peak = maxi(peak, farm.enemies.size())
+	_check(peak > 3 and peak <= Combat.FARM_HORDE, "挂机场上成群但不超过上限（峰值 %d）" % peak)
+	_check(farm.kills >= 20, "挂机二十秒击退二十只以上")
+
+	# 全自动空手打第一层的两波小怪，打得完而且死不了。
+	var auto := Combat.new()
+	auto.combat_rng.seed = 21
+	auto.reset(1, {}, "long_blade", true, "", true)
+	var ticks := 0
+	while auto.result == &"" and auto.wave_index < 2 and ticks < 60 * 60:
+		auto.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)
+		ticks += 1
+	_check(auto.wave_index == 2 and auto.result != &"defeat" and auto.kills == Combat.WAVE_SIZES[0] + Combat.WAVE_SIZES[1],
+		"全自动清完两波怪群（%.1f 秒，余血 %d/%d）" % [ticks / 60.0, auto.hp, auto.max_hp])
+	_check(auto.hp * 2 > auto.max_hp, "两波怪群下来余血过半")
 	return true
