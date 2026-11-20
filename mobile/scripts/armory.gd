@@ -95,7 +95,6 @@ func _build_outfit() -> void:
 		if side[0] == "charm":
 			stage = DisplayFigure.new()
 			stage.mouse_filter = MOUSE_FILTER_IGNORE
-			stage.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			stage.custom_minimum_size.x = 148
 			stage.clip_contents = true
 			board.add_child(stage)

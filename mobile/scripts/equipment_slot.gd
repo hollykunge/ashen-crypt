@@ -3,6 +3,9 @@ extends Button
 const Gear = preload("res://scripts/gear.gd")
 const Roster = preload("res://scripts/roster.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
+const HeldWeapon = preload("res://scripts/held_weapon.gd")
+const WeaponDesign = preload("res://scripts/weapon_design.gd")
+const Appearance = preload("res://scripts/appearance.gd")
 
 const GOOD := Color("#b0d193")
 const BAD := Color("#ffaca0")
@@ -18,6 +21,9 @@ var simple := false
 var highlighted := false
 var caption := ""
 var _icon: Texture2D
+# 零件拼的兵器直接画在格子里；原画兵器仍用形制图标。
+var _design := {}
+var _form := ""
 var _edge := BORDER
 var _tint := INK
 var _fortune := ""
@@ -57,8 +63,13 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		title += " · %s · %s%s · 阴阳 %+.2f" % [derived.name, _fortune, _god, _polarity]
 	else:
 		title += " · 空槽"
+	_design = {}
+	_form = form
 	if slot == "weapon" and occupied and ForgeArt.FORM_ICONS.has(form):
 		_icon = ForgeArt.weapon_icon(form)
+		var design := WeaponDesign.pick(derived, form, Appearance.amount_of(derived))
+		if not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
+			_design = design
 	else:
 		_icon = ForgeArt.texture(icon_index)
 	tooltip_text = title
@@ -74,7 +85,7 @@ func _draw() -> void:
 	draw_style_box(_plate(PLATE.lightened(0.08) if is_hovered() else PLATE, 3), bounds)
 	if _icon != null:
 		var inset := 2.0 if compact else 4.0
-		draw_texture_rect(_icon, bounds.grow(-inset), false, Color(1, 1, 1, 1.0 if occupied else 0.18))
+		_draw_icon(bounds.grow(-inset), Color(1, 1, 1, 1.0 if occupied else 0.18))
 	if occupied:
 		draw_style_box(_plate(Color.TRANSPARENT, 3, _edge, 2), bounds)
 		var corner := 3.0 if compact else 5.0
@@ -117,7 +128,7 @@ func _draw_item() -> void:
 	var side := minf(art_height, size.x - 4)
 	if _icon:
 		var rect := Rect2(Vector2((size.x - side) * 0.5, (art_height - side) * 0.5 + 1), Vector2.ONE * side)
-		draw_texture_rect(_icon, rect, false, Color.WHITE if occupied else Color(0.72, 0.68, 0.62, 0.34))
+		_draw_icon(rect, Color.WHITE if occupied else Color(0.72, 0.68, 0.62, 0.34))
 	draw_rect(bounds.grow(-0.5), edge, false, 1)
 	if occupied:
 		draw_line(Vector2(2, 1.5), Vector2(size.x - 2, 1.5), _edge, 2)
@@ -126,6 +137,11 @@ func _draw_item() -> void:
 	if not caption.is_empty():
 		draw_string(get_theme_default_font(), Vector2(0, size.y - 3), (caption.left(4) + "…" if caption.length() > 5 else caption),
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, caption_size, INK if occupied else Color("#b6a492"))
+
+func _draw_icon(rect: Rect2, ink: Color) -> void:
+	if not _design.is_empty() and HeldWeapon.draw_icon(self, _form, _design, rect.grow(-rect.size.x * 0.06), ink):
+		return
+	draw_texture_rect(_icon, rect, false, ink)
 
 func _draw_tag(title: String, rect: Rect2, fill: Color, ink: Color, pixels: int) -> void:
 	if title.is_empty():

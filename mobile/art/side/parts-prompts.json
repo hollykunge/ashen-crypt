@@ -1,0 +1,162 @@
+{
+  "tool": "OpenAI ImageGen（内置）",
+  "notes": "放进 art/side/source/parts/<零件名>.png 再跑 python art/side/pack_parts.py，原画就顶替脚本画的同名零件。透明底、竖放、尖朝上、接口在底边正中；脚本会抠边、按 length 缩放、转灰度，游戏按五行再染色。length、half_width 是素材空间单位，只作比例参考。",
+  "assets": {
+    "parts/liuye.png": {
+      "kind": "blade",
+      "length": 82.0,
+      "half_width": 6.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: willow-leaf sabre blade (柳叶刀): single-edged, gently curved toward the spine near the tip, edge on the right side, no hilt. Proportions: about 0.15 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/yanling.png": {
+      "kind": "blade",
+      "length": 80.0,
+      "half_width": 5.5,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: goose-feather sabre blade (雁翎刀): straight for most of its length, the last third sweeping back to a sharp point, edge on the right, no hilt. Proportions: about 0.14 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/guitou.png": {
+      "kind": "blade",
+      "length": 76.0,
+      "half_width": 9.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: heavy broad cleaver blade (鬼头刀): widening toward a clipped squared tip, three small rings set along the spine on the left, edge on the right, no hilt. Proportions: about 0.24 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/jian.png": {
+      "kind": "blade",
+      "length": 84.0,
+      "half_width": 3.6,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: straight double-edged jian blade with a raised central ridge, slight taper, no hilt. Proportions: about 0.09 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/qixing.png": {
+      "kind": "blade",
+      "length": 84.0,
+      "half_width": 3.6,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: straight double-edged jian blade with seven small inlaid star dots along the ridge (Big Dipper), no hilt. Proportions: about 0.09 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/bolang.png": {
+      "kind": "blade",
+      "length": 84.0,
+      "half_width": 4.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: wavy flame-shaped double-edged blade (波刃), even undulations along both edges, no hilt. Proportions: about 0.10 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/ruyi.png": {
+      "kind": "guard",
+      "length": 7.8,
+      "half_width": 12.5,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: ruyi-cloud sword guard seen from the side, curling down at both ends, a small round gem socket in the centre. Proportions: about 3.21 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/disc.png": {
+      "kind": "guard",
+      "length": 6.6,
+      "half_width": 9.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: round disc sword guard seen at a slight angle, thick rim. Proportions: about 2.73 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/bar.png": {
+      "kind": "guard",
+      "length": 5.2,
+      "half_width": 13.4,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: slim straight crossbar sword guard with ball finials at both ends. Proportions: about 5.15 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/crescent.png": {
+      "kind": "guard",
+      "length": 5.0,
+      "half_width": 12.5,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: crescent-moon sword guard with both horns curving upward toward the blade. Proportions: about 5.00 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/cord.png": {
+      "kind": "grip",
+      "length": 18.0,
+      "half_width": 2.9,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: sword grip tightly wrapped in diagonal cord. Proportions: about 0.32 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/bands.png": {
+      "kind": "grip",
+      "length": 18.0,
+      "half_width": 3.1,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: sword grip with evenly spaced raised metal bands like bamboo nodes. Proportions: about 0.34 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/ray.png": {
+      "kind": "grip",
+      "length": 18.0,
+      "half_width": 3.2,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: sword grip covered in pebbled ray-skin with a metal ferrule at each end. Proportions: about 0.36 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/hex.png": {
+      "kind": "pommel",
+      "length": 7.0,
+      "half_width": 5.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: faceted hexagonal sword pommel cap. Proportions: about 1.43 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/ring.png": {
+      "kind": "pommel",
+      "length": 14.4,
+      "half_width": 5.4,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: ring pommel (环首) — a short neck ending in an open round ring. Proportions: about 0.75 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/knob.png": {
+      "kind": "pommel",
+      "length": 9.3,
+      "half_width": 3.7,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: round ball pommel on a short neck. Proportions: about 0.80 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/cloud.png": {
+      "kind": "pommel",
+      "length": 10.2,
+      "half_width": 5.8,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: ruyi-cloud shaped pommel made of three rounded lobes. Proportions: about 1.14 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/leaf.png": {
+      "kind": "head",
+      "length": 56.0,
+      "half_width": 6.2,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: leaf-shaped spearhead with a socketed collar and two binding bands at the bottom. Proportions: about 0.22 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/snake.png": {
+      "kind": "head",
+      "length": 60.0,
+      "half_width": 6.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: serpentine wavy spearhead (蛇矛) with a socketed collar at the bottom. Proportions: about 0.20 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/ji.png": {
+      "kind": "head",
+      "length": 54.0,
+      "half_width": 13.5,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: halberd head (戟): straight spear point with a single crescent side blade on the right, socketed collar at the bottom. Proportions: about 0.50 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/gua.png": {
+      "kind": "head",
+      "length": 46.0,
+      "half_width": 15.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: melon-shaped ribbed hammer head (瓜锤) with a small top finial and a socket collar at the bottom. Proportions: about 0.65 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/fang.png": {
+      "kind": "head",
+      "length": 43.0,
+      "half_width": 13.8,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: square block hammer head with banded edges and a grid of rivet studs, socket collar at the bottom. Proportions: about 0.64 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/orb.png": {
+      "kind": "head",
+      "length": 36.0,
+      "half_width": 9.5,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: staff head of four curved claws cupping a smooth round orb, socket collar at the bottom (orb left plain white, the game tints it). Proportions: about 0.53 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/moon.png": {
+      "kind": "head",
+      "length": 31.0,
+      "half_width": 14.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: monk's spade staff head: crescent-moon blade with both horns pointing up on a short neck and socket collar. Proportions: about 0.90 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/bone.png": {
+      "kind": "wand",
+      "length": 61.0,
+      "half_width": 5.6,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: short bone wand: knuckled animal bone shaft, a small claw at the top holding a round bead, cord wrap near the bottom. Proportions: about 0.18 wide for 1 tall (including any side features); tall portrait canvas."
+    },
+    "parts/ruyi_wand.png": {
+      "kind": "wand",
+      "length": 56.0,
+      "half_width": 9.0,
+      "prompt": "Use case: game-asset. A single NEW ORIGINAL ancient-Chinese weapon part for a 2D side-view action RPG, hand-painted polished 2D game art matching dark Chinese folklore, crisp silhouette, readable at small size. Draw ONLY this one part, standing perfectly vertical, tip or top pointing straight UP, attachment end at the BOTTOM centre, centred horizontally, filling the frame height with a small margin, on a fully transparent background. Neutral materials (polished steel, pale brass, undyed cord) — the game recolours it per element, so no strong colour casts, no glow, no text, no hand, no other parts, no cast shadow. Part: ruyi sceptre wand: gently S-curved shaft with a three-lobed cloud head at the top. Proportions: about 0.32 wide for 1 tall (including any side features); tall portrait canvas."
+    }
+  }
+}

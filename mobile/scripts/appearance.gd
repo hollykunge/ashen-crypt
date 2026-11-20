@@ -17,6 +17,7 @@ extends RefCounted
 
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Loadout = preload("res://scripts/loadout.gd")
+const WeaponDesign = preload("res://scripts/weapon_design.gd")
 
 # 袍色比图标色深一档，才压得住工笔立绘；刃光则要亮过立绘才看得见。
 const ROBE_TINTS := {
@@ -107,6 +108,8 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 	look.halo = _halo_rings(patterns)
 	look.halo_color = _halo_color(patterns, look)
 	look.marks = _marks(patterns)
+	var weapon: Dictionary = entries.get("weapon", {})
+	look.design = WeaponDesign.pick(weapon, weapon_form, amount_of(weapon))
 	return look
 
 # 没有装备时的素身外观，创角直后与读档失败都走这里。

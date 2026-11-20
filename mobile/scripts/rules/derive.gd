@@ -13,7 +13,8 @@ static func derive(item: Dictionary, forge_level: int,
 	var slot: String = item.get("slot", "weapon")
 	var result := {
 		"stats": {}, "triggers": [], "clash": {}, "wuxing": {}, "yin_yang": 0.0, "purity": 0.0,
-		"budget": 0.0, "jingyu": {}, "q": 1.0, "shi": 1.0, "f": 1.0, "name": item.get("name", ""), "steps": []
+		"budget": 0.0, "jingyu": {}, "q": 1.0, "shi": 1.0, "f": 1.0, "name": item.get("name", ""), "steps": [],
+		"uid": item.get("uid", "")
 	}
 	if not Forge.FORM_MATRIX.has(slot) or not Forge.FORGE_TIERS.has(forge_level):
 		return result

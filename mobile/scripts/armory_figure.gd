@@ -1,35 +1,40 @@
 extends Control
 
-const HeldWeapon = preload("res://scripts/held_weapon.gd")
-const Figure = preload("res://scripts/figure.gd")
-const Rig = preload("res://scripts/rig.gd")
-const Appearance = preload("res://scripts/appearance.gd")
+# 行装页正中的人物：用正面半身像，不用横版战斗贴图。
+# 像按高度铺满，头顶对齐上沿，左右多出来的裁掉；两侧和底边用 portrait_light 的柔边淡出。
+# 底色按日干五行微微偏色，和立命籍那张像一致。
 
-const WornSprites = preload("res://scripts/worn_sprites.gd")
+const SideArt = preload("res://scripts/side_art.gd")
+const Roster = preload("res://scripts/roster.gd")
+const WuXing = preload("res://scripts/rules/wuxing.gd")
+const PORTRAIT_LIGHT = preload("res://scripts/portrait_light.gdshader")
+# 半身像的脸在原画上大约这个横向位置，窄框裁两侧时以它为中心。
+const FACE_X := 0.53
 
-var sprite: Texture2D
-var look := {}
-var female := false
+var portrait: Texture2D
+var tint := Color.WHITE
 
-func display(config: Dictionary, person: Dictionary, form: String) -> void:
-	look = Appearance.build(config.entries, config.patterns, form)
-	female = person.get("gender") == "female"
-	sprite = WornSprites.texture(female, look)
+func _init() -> void:
+	var light := ShaderMaterial.new()
+	light.shader = PORTRAIT_LIGHT
+	light.set_shader_parameter("soften_edges", true)
+	light.set_shader_parameter("fade_bottom", 0.22)
+	material = light
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+
+func display(_config: Dictionary, person: Dictionary, _form: String) -> void:
+	var female: bool = person.get("gender") == "female"
+	portrait = SideArt.PORTRAITS[int(female)]
+	var stem: String = person.get("day_stem", "")
+	if not stem.is_empty():
+		tint = Roster.ELEMENT_TINTS[WuXing.stem_element(stem)].lerp(Color.WHITE, 0.67)
 	queue_redraw()
 
 func _draw() -> void:
-	if look.is_empty() or size.x < 1 or size.y < 1:
+	if portrait == null or size.x < 1 or size.y < 1:
 		return
-	# 五种持械站姿使用同一取景比例，切换武器时脚底保持在同一位置。
-	var bounds := Rect2(-32, -88, 76, 93)
-	var factor := minf((size.y - 6.0) / bounds.size.y, (size.x - 6.0) / bounds.size.x)
-	if factor <= 0.0:
-		return
-	var foot := size * 0.5 - bounds.get_center() * factor
-	var rig := Rig.new(foot, factor, 1.0, 69.0, 52.0)
-	var halo_rig := Rig.new(foot, minf(factor, size.x / 100.0))
-	Figure.halo(self, halo_rig, look, 0.8)
-	draw_set_transform(foot, 0.0, Vector2.ONE * factor)
-	HeldWeapon.draw_actor(self, sprite, int(female), 0, look)
-	draw_set_transform(Vector2.ZERO)
-	Figure.charms(self, rig, look, 0.8)
+	var art := portrait.get_size()
+	var factor := maxf(size.x / art.x, size.y / art.y)
+	var shown := size / factor
+	var left := clampf(art.x * FACE_X - shown.x * 0.5, 0.0, art.x - shown.x)
+	draw_texture_rect_region(portrait, Rect2(Vector2.ZERO, size), Rect2(Vector2(left, 0.0), shown), tint)

@@ -57,7 +57,7 @@
 
 ## Godot 手机版
 
-用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。立下命籍后点击「入山」进入山门，点「行装」查看穿戴和背包，点背包物品预览本层换装后的属性。锻造入口在行装右上角。手机版支持横屏和竖屏。
+用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。立下命籍后点击「入山」进入山门，点「行装」查看穿戴和背包（正中是人物的正面半身像），点背包物品预览本层换装后的属性。锻造入口在行装右上角。手机版支持横屏和竖屏。
 
 点「开始连战」或「本层告示」会先看到**本层告示**：这是什么地方、正在遭什么灾、仙界派你来做什么，以及在身的规矩和违规的代价。三条路 —— **接敕**进战斗；**驻留行善**不进层，救这个地方（换材料、下一层蒙荫、随侍士气，渡过木劫之后要赔一个境界）；**抗敕**要到炼神才做得到。
 
@@ -69,11 +69,15 @@
 
 底图跟着地方走：六个地域各有一条长卷（陇右旱、河东疫、太行矿、朔方兵、江淮涝、上界），每条由四幅拼成、约 7800 像素宽，一个地域的十层沿长卷从左走到右，天劫那层在最右端。各地域另有自己的远景雾色、前景天气（热尘、灰烬、煤尘、斜雨、云絮）与脚下阴影色。长卷按需加载，只常驻当前一张。出图规格、生成脚本与拼接工具见 [mobile/art/side/plates](mobile/art/side/plates)。
 
+长卷之外还有三层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**水面**：主角站位往下就是水，[water.gdshader](mobile/scripts/water.gdshader) 把长卷倒映进去，人和精怪再按脚底各画一份淡倒影，水的浓度和水色按地域给（江淮最浓，上界是玉石地面的反光，陇右旱地没有水）。水和倒影都画在人物之下，站进浅水的精怪和地上的预警圈不会被盖住。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
+
 男女修行人各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
 
 换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。
 
-手持兵器有八种形制：长刃、长剑、双刀、长枪、重锤、长弓、法杖、短杖。兵器原画由 [pack_weapons.py](mobile/art/side/pack_weapons.py) 从法器原画里抠出（长剑是脚本按同一套配色画的），握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器单手垂在身侧：刀剑刃尖斜指前方地面，锤头垂到脚边，杖和枪竖着拄地，弓和短杖斜提。长剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；短杖是法杖的轻便版，出手快、射程近。炉坊与行装里的形制图标出自同一批原画。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
+手持兵器有八种形制：长刃、长剑、双刀、长枪、重锤、长弓、法杖、短杖。兵器原画由 [pack_weapons.py](mobile/art/side/pack_weapons.py) 从法器原画里抠出（长剑是脚本按同一套配色画的），握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器握在靠镜头的右手（人物朝右，身前那只拳是远侧的左手），单手垂在身侧：刀剑刃尖斜指前方地面，锤头垂到脚边，杖和枪竖着拄地，弓和短杖斜提。长剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；短杖是法杖的轻便版，出手快、射程近。炉坊与行装里的形制图标出自同一批原画。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
+
+每件兵器有自己的样子：刀剑由刃、护手、握柄、柄首加一挂穗子拼成，长柄兵器换杆头和杆色，短杖整根换。[weapon_design.gd](mobile/scripts/weapon_design.gd) 按这件装备的主行挑刃形或杆头、按次行挑护手和穗色、按阴阳定钢色深浅和缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎五行的几样里定下一样，所以同一件装备永远是同一个样子，两把同行的刀也未必一样。原画兵器也是选项之一，按它的配色只在两行里出现；弓目前只有原画。行装、背包和炉坊的兵器格画的就是拼好的这一件。零件由 [pack_parts.py](mobile/art/side/pack_parts.py) 画成灰度出图，游戏里按五行乘色；把原画零件放进 `art/side/source/parts/<零件名>.png` 再跑一遍脚本，就会顶替同名的脚本零件，出图规格见 [parts-prompts.json](mobile/art/side/parts-prompts.json)。
 
 精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
 
@@ -92,6 +96,7 @@ godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
 godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 30 attack 0.45
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 godot --path mobile --resolution 900x1946 --script res://tests/_poses.gd -- poses.png 0,5 huo   # 八种兵器在指定几格上的持械姿态
+godot --path mobile --resolution 1800x1800 --script res://tests/_weapons.gd -- weapons.png 5 7   # 每种形制随手打几把，看零件拼出来的样子
 python mobile/art/side/pack_frames.py --preview out    # 重出人物图集与染色图层，另存五行染色对照图
 python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标
 python mobile/art/side/pack_monsters.py --preview out  # 把精怪的像素图集平滑放大
