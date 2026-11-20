@@ -153,12 +153,17 @@ static func block_of(layer: int) -> Dictionary:
 	var index := clampi(floori((maxi(1, layer) - 1) / float(LAYERS_PER_BLOCK)), 0, BLOCKS.size() - 1)
 	return BLOCKS[index]
 
-# 地点 = 该层条目 + 所属层段的共有字段。越界回落到最后一段的末条。
+# 地点 = 该层条目 + 所属层段的共有字段。越界回落到两端。
+# 显式逐键拼出来：BLOCKS 与 PLACES 是 const，取用时是只读的，不要就地改。
 static func place_of(layer: int) -> Dictionary:
 	var index := clampi(maxi(1, layer) - 1, 0, PLACES.size() - 1)
-	var place: Dictionary = BLOCKS[clampi(floori(index / float(LAYERS_PER_BLOCK)), 0, BLOCKS.size() - 1)].duplicate()
-	place.merge(PLACES[index], true)
-	place["layer"] = index + 1
+	var block: Dictionary = BLOCKS[clampi(floori(index / float(LAYERS_PER_BLOCK)), 0, BLOCKS.size() - 1)]
+	var entry: Dictionary = PLACES[index]
+	var place := {"layer": index + 1}
+	for key in block:
+		place[key] = block[key]
+	for key in entry:
+		place[key] = entry[key]
 	return place
 
 # 行善得到的 T3 谢礼；待诏期没有行善，返回空串。

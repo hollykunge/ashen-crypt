@@ -688,21 +688,28 @@ func _challenge() -> void:
 		return
 	if state == &"farm" and (profile.challenge_wait() > 0 or Time.get_unix_time_from_system() < retry_until):
 		return
-	# 先看这是什么地方、仙界派你来做什么，再决定接敕、驻留还是抗敕。
+	# 连战途中不打断：敕令在起点就接过了，中途只在天劫层停下（渡劫告示）。
+	# 要驻留行善就得先停下连战 —— 这正是「继续爬」和「留下来救人」的取舍。
 	if state == &"next_layer":
-		_enter_farm()
+		_accept_edict()
+		return
+	# 从挂机主动进层：先看这是什么地方、仙界派你来做什么。
 	turnover.dismiss()
 	_show_place_notice()
 
-# 接敕：地点告示之后，天劫层再过一道渡劫告示。
+# 接敕：天劫层再过一道渡劫告示，其余直接进战斗。
 func _accept_edict() -> void:
 	place_notice.hide()
 	var tribulation := Gear.Realm.jie_ling_of(profile.layer())
 	if tribulation.is_empty():
-		battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 		_start_encounter(true, true)
 		return
+	# 渡劫前先落回挂机，这样告示上的境遇对比和「调整装备」都按本层算。
+	if state == &"next_layer":
+		_enter_farm()
+	turnover.dismiss()
 	state = &"jie_notice"
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
 	tribulation_notice.present(profile, tribulation)
 
 # 驻留行善：层数不前进，换回复、材料、下一层的减益豁免与随侍士气。
@@ -712,10 +719,10 @@ func _aid_place() -> void:
 		loot_line.text = profile.storage_error
 		_close_place_notice()
 		return
-	_close_place_notice()
-	loot_line.text = "%s · %s" % [place.name, place.aid]
-	# 重入挂机，让谢礼进的材料和下一层的减益豁免立刻反映到场上。
+	# 重入挂机，让谢礼进的材料和下一层的蒙荫立刻反映到场上；它会顺手收起告示。
+	# 文案必须放在之后 —— _start_encounter 会重写材料流水那一行。
 	_enter_farm()
+	loot_line.text = "%s · %s" % [place.name, place.aid]
 
 func _refuse_edict() -> void:
 	var place := profile.place()
@@ -790,7 +797,8 @@ func _close_forge() -> void:
 	_enter_farm()
 	if forge_return_to_notice:
 		forge_return_to_notice = false
-		_challenge()
+		# 从渡劫告示进的炉坊，回来还该是渡劫告示 —— 不要再过一遍地点告示。
+		_accept_edict()
 
 func _finish_challenge(outcome: StringName) -> void:
 	if outcome == &"defeat":

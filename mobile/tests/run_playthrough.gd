@@ -2,6 +2,7 @@ extends SceneTree
 
 const Main = preload("res://main.tscn")
 const Gear = preload("res://scripts/gear.gd")
+const Places = preload("res://scripts/rules/places.gd")
 var save_path := "user://test-playthrough-" + Crypto.new().generate_random_bytes(6).hex_encode() + ".json"
 var failures := 0
 
@@ -367,7 +368,7 @@ func _test_relief() -> bool:
 	# 一、炼气未成，规矩未立：行善不要代价。这是教学段，就是要让玩家觉得救人划算。
 	_set_layer(game, 5)
 	var stem: String = game.profile.ling()
-	var gift: String = game.Gear.Places.relief_gift(5)
+	var gift: String = Places.relief_gift(5)
 	var stem_before: int = game.profile.stock(stem)
 	var gift_before: int = game.profile.stock(gift)
 	var forge_before: int = game.profile.furnace_level()
@@ -381,7 +382,7 @@ func _test_relief() -> bool:
 			"可以驻留行善并回到挂机"):
 		return false
 	_check(game.profile.layer() == 5, "行善不推进层数")
-	_check(game.profile.stock(stem) == stem_before + game.Gear.AID_MATERIALS, "本地人送同干材料")
+	_check(game.profile.stock(stem) == stem_before + Gear.AID_MATERIALS, "本地人送同干材料")
 	_check(game.profile.stock(gift) == gift_before + 1, "本地人另送一件 T3")
 	_check(game.profile.furnace_level() == forge_before, "炼气未成，行善不掉炉温")
 	_check(game.profile.narrative().aided_layers == [5] and int(game.profile.narrative().mortals_saved) == 1,

@@ -260,7 +260,7 @@ func _test_rules() -> bool:
 
 	# 境界 −1 要真的掉一档炉温，而层数不退。
 	profile.state.character.layer = 21
-	var before_realm := profile.realm().name
+	var before_realm: String = profile.realm().name
 	var before_forge := profile.furnace_level()
 	var before_sockets := profile.socket_limit()
 	Gear._apply_rule(profile.state, "no_aid", 21)
