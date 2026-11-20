@@ -63,7 +63,7 @@ static func derive(item: Dictionary, forge_level: int,
 	result.steps.append({"id": "interactions", "wuxing": weights.duplicate(), "chain": chain,
 		"zhoutian": zhou, "loss": interactions.loss, "clash_share": interactions.share})
 
-	var environment := _environment(weights, ling)
+	var environment := _environment(weights, ling, bool(character.get("relief", false)))
 	var s := WuXing.shi(y, ling)
 	var f := _affinity(weights, character)
 	var contextual: float = f * environment.q * s
@@ -210,7 +210,8 @@ static func _settle(weights: Dictionary, harmonize: bool, zhou: bool) -> Diction
 	return {"weights": _normalize(suppressed), "loss": loss,
 		"share": strongest * float(PARAMS.harmonize_share), "source": source}
 
-static func _environment(weights: Dictionary, ling: String) -> Dictionary:
+# relief 为真时死位按囚位计 —— 驻留行善换来的下一层减益豁免（docs/story.md §1.2）。
+static func _environment(weights: Dictionary, ling: String, relief: bool = false) -> Dictionary:
 	var element := WuXing.stem_element(ling)
 	if element.is_empty():
 		return {"jingyu": {}, "q": 1.0}
@@ -218,6 +219,8 @@ static func _environment(weights: Dictionary, ling: String) -> Dictionary:
 	var q := 0.0
 	for key in WuXing.WUXING:
 		var state := WuXing.jingyu(key, element)
+		if relief and state == "si":
+			state = "qiu"
 		states[key] = WuXing.JINGYU_NAMES[state]
 		q += float(weights.get(key, 0.0)) * float(WuXing.JINGYU[state])
 	return {"jingyu": states, "q": q}
@@ -293,8 +296,11 @@ static func _name(item: Dictionary, slot: String, weights: Dictionary, dominant:
 		prefix += parts.taiji + "·"
 	var body := ""
 	if purity >= float(parts.pure_min):
-		var stem := WuXing.stem_for(dominant, y)
-		body = WuXing.STEM_NAMES[WuXing.STEMS.find(stem)] + "·" + parts.pure + WuXing.ELEMENT_NAMES[dominant]
+		# 名字里只写阴阳与行，不写天干 —— 天干是内部索引，玩家不该靠认字读装备。
+		body = parts.pure
+		if not WuXing.is_taiji(y):
+			body += "阳" if y > 0.0 else "阴"
+		body += WuXing.ELEMENT_NAMES[dominant]
 	elif not zhou:
 		var ordered := weights.keys()
 		ordered.sort_custom(func(left: String, right: String) -> bool: return weights[left] > weights[right])
@@ -307,7 +313,7 @@ static func _name(item: Dictionary, slot: String, weights: Dictionary, dominant:
 	var suffix := "·" + String(triggers[0].action.name) if not triggers.is_empty() else ""
 	return prefix + body + form + suffix
 
-# 产出新的装备输入。合炉混合成品行向量，磨损沿双方较高值累积。
+# 产出新的装备输入。熔合混合成品行向量，磨损沿双方较高值累积。
 static func merge_items(a: Dictionary, b: Dictionary, forge_level: int, sockets: Array = []) -> Dictionary:
 	var first := derive(a, forge_level)
 	var second := derive(b, forge_level)

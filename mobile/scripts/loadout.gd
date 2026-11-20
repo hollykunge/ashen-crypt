@@ -6,17 +6,17 @@ const Bazi = preload("res://scripts/rules/bazi.gd")
 const Origins = preload("res://scripts/rules/origins.gd")
 
 const STAT_NAMES := {
-	"attack": "物理攻击", "crit": "暴击", "lifesteal": "吸血", "venom": "缠毒", "impact": "冲击", "chill": "冰缓",
+	"attack": "物理攻击", "crit": "暴击", "lifesteal": "吸血", "venom": "中毒", "impact": "冲击", "chill": "冰冻减速",
 	"attack_speed": "攻速", "burn": "灼烧", "armor_break": "破甲", "pressure": "重压", "armor": "减伤",
-	"deflect": "反锐", "hp": "生命上限", "regeneration": "再生", "mana": "灵力上限", "dodge": "闪避",
-	"fire_resist": "烬抗", "scorch_armor": "焚甲", "shield": "护盾", "mitigation": "化劲", "crit_damage": "暴击伤害",
-	"healing": "治疗效果", "spread": "蔓延", "cooldown": "冷却缩减", "mana_regen": "灵力回复",
-	"skill_damage": "技能伤害", "ignite": "引燃", "stability": "稳固", "thorns": "荆棘", "block": "格挡",
-	"keen_sight": "锐察", "vitality": "生息", "elemental_power": "元素强度", "burn_damage": "燃伤加成",
-	"encumbrance": "负重", "penetration": "穿甲", "kill_heal": "击杀回血", "drain": "汲取", "move_speed": "移速",
-	"slow_power": "减速强度", "ignite_cap": "点燃上限", "energy_absorb": "吸能", "keen_step": "锐步",
-	"run_heal": "奔行回血", "dodge_cooldown": "后撤冷却", "dash_distance": "冲刺距离", "fire_trail": "燃迹",
-	"knockback_resist": "抗击退", "stomp": "践地"
+	"deflect": "反击", "hp": "生命上限", "regeneration": "生命再生", "mana": "灵力上限", "dodge": "闪避",
+	"fire_resist": "抗火", "scorch_armor": "反烧", "shield": "护盾", "mitigation": "免伤", "crit_damage": "暴击伤害",
+	"healing": "治疗效果", "spread": "治疗扩散", "cooldown": "冷却缩减", "mana_regen": "灵力回复",
+	"skill_damage": "技能伤害", "ignite": "引燃", "stability": "抗打断", "thorns": "荆棘", "block": "格挡",
+	"keen_sight": "视野", "vitality": "体质", "elemental_power": "元素强度", "burn_damage": "燃伤加成",
+	"encumbrance": "负重", "penetration": "穿甲", "kill_heal": "击杀回血", "drain": "吸取生命", "move_speed": "移速",
+	"slow_power": "减速强度", "ignite_cap": "点燃上限", "energy_absorb": "吸取灵力", "keen_step": "稳步",
+	"run_heal": "奔跑回血", "dodge_cooldown": "后撤冷却", "dash_distance": "冲刺距离", "fire_trail": "火焰足迹",
+	"knockback_resist": "抗击退", "stomp": "踩踏"
 }
 const GROUP_NAMES := {"bi": "比劫", "yin": "印", "shishang": "食伤", "cai": "财", "guansha": "官杀"}
 
@@ -189,7 +189,7 @@ static func bonuses(loadout: Dictionary, person: Dictionary, layer: int) -> Dict
 	stats.material_drop_multiplier = (1.0 + float(talent.get("material_drop_bonus", 0.0))) * float(
 		Origins.ORIGINS.get(person.get("origin", ""), {}).get("material_drop_multiplier", 1.0))
 	if person.get("origin", "") == "official":
-		stats.companions = Origins.companions(person.day_stem, layer)
+		stats.companions = Origins.companions(person.day_stem, layer, bool(person.get("relief", false)))
 		if stats.companions == 0:
 			stats.attack_multiplier *= Origins.LONE_BONUS
 	if patterns.has("chunyang"):

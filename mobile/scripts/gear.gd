@@ -8,6 +8,7 @@ const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Bazi = preload("res://scripts/rules/bazi.gd")
 const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
+const Places = preload("res://scripts/rules/places.gd")
 const Loadout = preload("res://scripts/loadout.gd")
 
 const SAVE_PATH := "user://forge-profile.json"
@@ -152,14 +153,26 @@ func layer() -> int:
 func ling() -> String:
 	return WuXing.ling_of(layer())
 
+# 境界一律现算：层数推出的档位，加上规矩欠下的 realm_offset（≤ 0）。
+func realm_index() -> int:
+	var earned := floori((layer() - 1) / 10.0)
+	var offset := int(character().get("realm_offset", 0))
+	return clampi(earned + offset, 0, Realm.REALMS.size())
+
 func realm() -> Dictionary:
-	var index := floori((layer() - 1) / 10.0)
+	var index := realm_index()
 	return Realm.REALMS[index] if index < Realm.REALMS.size() else Realm.WAITING
 
+# 已渡过的天劫数 —— 规矩按这个解锁，和当前炉温档位是同一个数。
+func realms_cleared() -> int:
+	return realm_index()
+
+func place() -> Dictionary:
+	return Places.place_of(layer())
+
 func layer_caption() -> String:
-	var year := Bazi.year_of(layer())
-	return "第 %d 层 · %s%s年 · %s · 阳寿 %d" % [layer(), stem_name(year[0]),
-		WuXing.BRANCHES[year[1]].name, realm().name, Realm.lifespan(floori((layer() - 1) / 10.0))]
+	return "第 %d 层 · %s · 地气 %s · %s" % [layer(), place().name,
+		ling_caption(ling()), realm().name]
 
 static func ling_caption(stem: String) -> String:
 	return stem_name(stem) + String(WuXing.ELEMENT_NAMES[WuXing.stem_element(stem)])
@@ -176,11 +189,17 @@ func advance_layer(rewards: Dictionary = {}) -> bool:
 	if not has_character():
 		return false
 	var next := state.duplicate(true)
-	next.character.layer = layer() + 1
-	var completed := floori(layer() / 10.0)
-	next.character.realm = mini(completed + 1, Realm.REALMS.size())
-	next.character.lifespan = Realm.lifespan(completed)
+	var left := layer()
+	next.character.layer = left + 1
 	next.erase("challenge_retry_at")
+	# 蒙荫只覆盖紧接的一层，改派也只加重紧接的那一道敕；过了就擦掉，别在存档里留陈迹。
+	if int(next.get("relief_layer", 0)) <= left:
+		next.erase("relief_layer")
+	next.erase("harder_edict")
+	# 路过而没救的，记在账上。只写不读（docs/story.md §6）。
+	var place: Dictionary = Places.place_of(left)
+	if int(place.get("toll", 0)) > 0 and not _narrative(next).aided_layers.has(left):
+		_bump(next, "mortals_lost", int(place.toll))
 	for id in rewards:
 		if Materials.MATERIALS.has(id):
 			next.materials[id] = mini(999999, stock(id) + _quantity(rewards[id]))
@@ -193,11 +212,9 @@ static func _credit_stipend(next: Dictionary) -> void:
 	var period: int = official.stipend_period
 	if person.origin != "official" or (int(person.layer) - 1) % period != 0:
 		return
-	var sequence := Bazi.luck_sequence(Bazi.month_pillar_index(person.month_branch), person.gender, 60)
-	if sequence.is_empty():
-		return
-	var index := floori((int(person.layer) - 1) / float(period)) % sequence.size()
-	var stem: String = sequence[index][0]
+	# 俸禄随境界发放，领的是本境界朝元之气的同干材料；待诏期沿用还虚。
+	var index := mini(floori((int(person.layer) - 1) / float(period)), Realm.REALMS.size() - 1)
+	var stem: String = WuXing.stem_for(Realm.REALMS[index].jie, 1.0)
 	for id in Materials.MATERIALS:
 		var source: Dictionary = Materials.MATERIALS[id]
 		if source.stem == stem and source.tier in official.stipend_tiers:
@@ -207,8 +224,128 @@ static func _credit_stipend(next: Dictionary) -> void:
 	var count := ceili(9.0 / float(Materials.MATERIALS[stem].purity))
 	next.materials[stem] = int(next.materials.get(stem, 0)) + count
 
+# ── 规矩、驻留行善与叙事记录 ────────────────────────────────────────
+
+const AID_MATERIALS := 4
+
+# 第 i 条规矩在渡过第 i 个天劫之后才立，所以看已渡劫数而不是层数。
+func rule_unlocked(key: String) -> bool:
+	var rule: Dictionary = Realm.RULES.get(key, {})
+	return not rule.is_empty() and realms_cleared() >= int(rule.realm)
+
+func unlocked_rules() -> Array[String]:
+	var keys: Array[String] = []
+	for key in Realm.RULES:
+		if rule_unlocked(key):
+			keys.append(String(key))
+	return keys
+
+func narrative() -> Dictionary:
+	var record = character().get("narrative")
+	return record if record is Dictionary else {}
+
+func jie_threshold_bonus() -> float:
+	return float(character().get("jie_threshold_bonus", 0.0))
+
+# 旧档可能缺字段或留着旧键，取用前补齐到当前形状。
+static func _narrative(next: Dictionary) -> Dictionary:
+	var person: Dictionary = next.character
+	var saved = person.get("narrative")
+	var record := Realm.new_narrative()
+	if saved is Dictionary:
+		var broken: Dictionary = record.rules_broken
+		if saved.get("rules_broken") is Dictionary:
+			broken.merge(saved.rules_broken, true)
+		record.merge(saved, true)
+		record["rules_broken"] = broken
+	person["narrative"] = record
+	return record
+
+static func _bump(next: Dictionary, field: String, amount: int) -> void:
+	var record := _narrative(next)
+	record[field] = int(record.get(field, 0)) + amount
+
+# 施加一条规矩的代价并记下违规层数。只改 next，由调用方提交。
+static func _apply_rule(next: Dictionary, key: String, at_layer: int) -> void:
+	if not Realm.RULES.has(key):
+		return
+	var record := _narrative(next)
+	if key == "sever":
+		record.rules_broken["sever"] = true
+	else:
+		var layers: Array = record.rules_broken.get(key, [])
+		if not layers.has(at_layer):
+			layers.append(at_layer)
+		record.rules_broken[key] = layers
+	var penalty: Dictionary = Realm.RULES[key].get("penalty", {})
+	if penalty.has("realm_delta"):
+		# 境界最多退到未成炼气，再退就没有意义了。
+		var earned := floori((at_layer - 1) / 10.0)
+		next.character["realm_offset"] = maxi(-earned,
+			int(next.character.get("realm_offset", 0)) + int(penalty.realm_delta))
+	if penalty.has("next_jie_threshold_bonus"):
+		var owed := float(next.character.get("jie_threshold_bonus", 0.0))
+		next.character["jie_threshold_bonus"] = owed + float(penalty.next_jie_threshold_bonus)
+	if penalty.get("harder_edict", false):
+		next["harder_edict"] = true
+
+func break_rule(key: String) -> bool:
+	if not has_character() or not Realm.RULES.has(key):
+		return false
+	var next := state.duplicate(true)
+	_apply_rule(next, key, layer())
+	return _commit(next)
+
+# 驻留本层行善：层数不前进，换实打实的好处。渡过木劫之后这是违反第一条规矩。
+func aid_layer() -> bool:
+	if not has_character() or not Places.can_aid(layer()):
+		return false
+	var left := layer()
+	var next := state.duplicate(true)
+	var record := _narrative(next)
+	var aided: Array = record.get("aided_layers", [])
+	if not aided.has(left):
+		aided.append(left)
+		record["mortals_saved"] = int(record.get("mortals_saved", 0)) + 1
+	record["aided_layers"] = aided
+	# 本地人的谢礼：本层地气同干材料，外加一件该地域的 T3。
+	var stem := WuXing.ling_of(left)
+	next.materials[stem] = mini(999999, int(next.materials.get(stem, 0)) + AID_MATERIALS)
+	var gift := Places.relief_gift(left)
+	if Materials.MATERIALS.has(gift):
+		next.materials[gift] = mini(999999, int(next.materials.get(gift, 0)) + 1)
+	# 下一层的减益豁免与随侍士气。
+	next["relief_layer"] = left + 1
+	if rule_unlocked("no_aid"):
+		_apply_rule(next, "no_aid", left)
+	return _commit(next)
+
+# 抗敕：这一层不打，敕令改派更重者。炼神之后是违反第四条规矩。
+func refuse_edict() -> bool:
+	if not has_character():
+		return false
+	var next := state.duplicate(true)
+	var record := _narrative(next)
+	var refused: Array = record.get("edicts_refused", [])
+	if not refused.has(layer()):
+		refused.append(layer())
+	record["edicts_refused"] = refused
+	next["harder_edict"] = true
+	if rule_unlocked("no_refuse"):
+		_apply_rule(next, "no_refuse", layer())
+	return _commit(next)
+
+func harder_edict() -> bool:
+	return bool(state.get("harder_edict", false))
+
+# 行善换来的下一层减益豁免：死位按囚位计。
+func relief_pending() -> bool:
+	return int(state.get("relief_layer", 0)) == layer()
+
+# 炉温跟境界走，不跟层数走 —— 否则规矩的「境界 −1」不花任何代价（ascension.md §2：
+# 境界只做一件事，抬高炉温上限）。干净存档上两者数值一致，只有欠着 realm_offset 时才分开。
 func furnace_level() -> int:
-	return mini(realm().forge_cap, 1 + floori((layer() - 1) / 10.0) + int(hour_talent().get("forge_level", 0)))
+	return mini(realm().forge_cap, 1 + realm_index() + int(hour_talent().get("forge_level", 0)))
 
 func material_slots() -> int:
 	return mini(12, int(Rules.FORGE_TIERS[furnace_level()].slots) + int(hour_talent().get("material_slots", 0)))
@@ -242,11 +379,20 @@ func equipped(slot: String) -> String:
 func items() -> Array:
 	return state.items.values()
 
+# 求值用的角色上下文：角色本身，加上行善换来的那一层减益豁免与随侍士气。
+func person_context() -> Dictionary:
+	var person := character().duplicate()
+	if relief_pending():
+		person["relief"] = true
+	return person
+
 func describe(item_input: Dictionary, contextual: bool = false, encounter_ling: String = "") -> Dictionary:
 	var temperature := int(item_input.get("forge_level", furnace_level()))
 	var resolved := _resolve_sources(item_input)
 	var active_ling := ling() if encounter_ling.is_empty() else encounter_ling
-	return Derive.derive(resolved, temperature, active_ling, character()) if contextual else Derive.derive(resolved, temperature)
+	if not contextual:
+		return Derive.derive(resolved, temperature)
+	return Derive.derive(resolved, temperature, active_ling, person_context())
 
 func _resolve_sources(input: Dictionary) -> Dictionary:
 	if not input.has("merge_sources"):
@@ -270,7 +416,7 @@ func loadout(override_item: Dictionary = {}, contextual: bool = true, encounter_
 	return Loadout.summarize(entries, character(), ling() if encounter_ling.is_empty() else encounter_ling)
 
 func bonuses(encounter_ling: String = "") -> Dictionary:
-	return Loadout.bonuses(loadout({}, true, encounter_ling), character(), layer())
+	return Loadout.bonuses(loadout({}, true, encounter_ling), person_context(), layer())
 
 func toggle_equip(uid: String) -> bool:
 	var input := item(uid)

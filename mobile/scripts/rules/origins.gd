@@ -17,6 +17,7 @@ const ORIGINS := {
 		"blocked": ["shop", "summon_companions", "hire"], "unlocks": []}
 }
 const COMPANION_COUNT := {"guansha": 3, "yin": 2, "bi": 1, "shishang": 1, "cai": 0}
+const COMPANION_MAX := 3
 const COMPANION_DPS_RATIO := 0.38
 const LONE_BONUS := 1.25
 const SILVER_PRICES := {
@@ -25,6 +26,9 @@ const SILVER_PRICES := {
 }
 const SILVER_BUY_CAP := 6
 
-static func companions(day_stem: String, layer: int) -> int:
+# 随侍数看本层地气相对日干的十神；十层走满十干，所以各日干的分布完全一致。
+# morale 为真时 +1（上限不变）—— 上一层驻留行善换来的士气。
+static func companions(day_stem: String, layer: int, morale: bool = false) -> int:
 	var group := Bazi.element_group(WuXing.stem_element(day_stem), WuXing.stem_element(WuXing.ling_of(layer)))
-	return COMPANION_COUNT.get(group, 0)
+	var count: int = COMPANION_COUNT.get(group, 0)
+	return mini(COMPANION_MAX, count + 1) if morale else count

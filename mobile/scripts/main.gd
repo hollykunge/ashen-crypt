@@ -13,6 +13,7 @@ const Appearance = preload("res://scripts/appearance.gd")
 const Stick = preload("res://scripts/stick.gd")
 const Turnover = preload("res://scripts/layer_turnover.gd")
 const TribulationNotice = preload("res://scripts/tribulation_notice.gd")
+const PlaceNotice = preload("res://scripts/place_notice.gd")
 const SideArt = preload("res://scripts/side_art.gd")
 const CAMP = preload("res://art/immortals/ruined-shrine-flagstones.webp")
 const FORGE_BG = preload("res://art/immortals/soot-furnace-flagstones.webp")
@@ -86,6 +87,7 @@ var boss_health: Gothic.Meter
 var boss_hint: Label
 var gear_slots := {}
 var tribulation_notice: TribulationNotice
+var place_notice: PlaceNotice
 var forge_return_to_notice := false
 var turnover: Turnover
 var retry_until := 0.0
@@ -187,7 +189,7 @@ func _build_battle() -> void:
 	stage_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	battle_header.add_child(stage_info)
 
-	# 层数与流年并进标题行右侧，顶栏少一整条，把高度让给战场。
+	# 层数与地气并进标题行右侧，顶栏少一整条，把高度让给战场。
 	var info := _hud_card(stage_info, 9, 0.79)
 	battle_info = info.get_parent()
 	battle_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -271,6 +273,10 @@ func _build_battle() -> void:
 	forge_button.custom_minimum_size.x = 89
 	forge_button.pressed.connect(_open_forge)
 	farm_actions.add_child(forge_button)
+	var notice_button := _button("本层告示", false, 53.0)
+	notice_button.custom_minimum_size.x = 89
+	notice_button.pressed.connect(_show_place_notice)
+	farm_actions.add_child(notice_button)
 	challenge_button = _button("", true, 53.0)
 	challenge_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	challenge_button.add_theme_font_size_override("font_size", 16)
@@ -373,6 +379,13 @@ func _build_overlay() -> void:
 	tribulation_notice.challenge_requested.connect(_start_encounter.bind(true, true))
 	tribulation_notice.stay_requested.connect(_close_notice)
 
+	place_notice = preload("res://place_notice.tscn").instantiate()
+	add_child(place_notice)
+	place_notice.configure(self)
+	place_notice.accept_requested.connect(_accept_edict)
+	place_notice.aid_requested.connect(_aid_place)
+	place_notice.refuse_requested.connect(_refuse_edict)
+
 	turnover = Turnover.new()
 	turnover.ui = self
 	_fill(turnover)
@@ -392,7 +405,7 @@ func _physics_process(delta: float) -> void:
 		if next_layer_left == 0.0:
 			_challenge()
 		return
-	elif state in [&"farm", &"jie_notice"]:
+	elif state in [&"farm", &"jie_notice", &"place_notice"]:
 		run.step(delta)
 	elif state == &"boss":
 		if run.result == &"victory":
@@ -442,6 +455,7 @@ func _input(event: InputEvent) -> void:
 					else:
 						_close_forge()
 				&"jie_notice": _close_notice()
+				&"place_notice": _close_place_notice()
 				&"boss", &"next_layer":
 					if not run.continuous:
 						return
@@ -532,6 +546,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 		run.collect_pending_materials()
 	_clear_input()
 	tribulation_notice.hide()
+	place_notice.hide()
 	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 	turnover.dismiss()
 	var person := profile.character()
@@ -547,7 +562,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	var ling := profile.ling() if tribulation.is_empty() else tribulation
 	if ling != profile.ling():
 		outfit = profile.loadout({}, true, ling)
-	var bonuses := Gear.Loadout.bonuses(outfit, person, profile.layer())
+	var bonuses := Gear.Loadout.bonuses(outfit, profile.person_context(), profile.layer())
 	# 六个槽位的五行与阴阳同时决定数值和外观：换一件装备，场上的人就跟着换一身。
 	field.look = Appearance.build(outfit.entries, outfit.patterns, form)
 	run.trail_color = field.look.trail
@@ -557,8 +572,14 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 		run.reset(profile.layer(), bonuses, form, challenge, ling, continuous_route)
 	state = &"boss" if challenge else &"farm"
 	battle_context.text = profile.layer_caption()
-	encounter_label.text = "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(ling)] if not tribulation.is_empty() else (
-		run.archetype.name + " · 层主" if challenge else "挂机刷怪")
+	# 抬头三路：渡劫 / 层主 / 挂机。挂机时报这个地方正在遭的灾。
+	if not tribulation.is_empty():
+		encounter_label.text = "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(ling)]
+	elif challenge:
+		encounter_label.text = run.archetype.name + " · 层主"
+	else:
+		var calamity := String(profile.place().get("calamity", ""))
+		encounter_label.text = calamity + "灾" if not calamity.is_empty() else "挂机刷怪"
 	ling_label.text = Gear.ling_caption(ling) + "当令"
 	ling_label.add_theme_color_override("font_color", Gear.MATERIAL_COLORS[Gear.WuXing.stem_element(ling)])
 	_set_loadout_slots(outfit.entries, person, challenge)
@@ -612,6 +633,8 @@ func _update_battle() -> void:
 	if state != &"boss":
 		farm_health.set_amount(run.hp, run.max_hp)
 		farm_status.text = "生命 %d/%d   ·   本层击退 %d" % [run.hp, run.max_hp, run.kills]
+		if profile.relief_pending():
+			farm_status.text += "   ·   蒙荫（死位按囚位）"
 		var wait := maxi(profile.challenge_wait(), ceili(retry_until - Time.get_unix_time_from_system()))
 		challenge_button.text = ("调息 %d 秒\n" % wait + challenge_caption) if wait > 0 else challenge_caption
 		return
@@ -665,16 +688,56 @@ func _challenge() -> void:
 		return
 	if state == &"farm" and (profile.challenge_wait() > 0 or Time.get_unix_time_from_system() < retry_until):
 		return
-	var tribulation := Gear.Realm.jie_ling_of(profile.layer())
-	if tribulation.is_empty():
-		_start_encounter(true, true)
-		return
+	# 先看这是什么地方、仙界派你来做什么，再决定接敕、驻留还是抗敕。
 	if state == &"next_layer":
 		_enter_farm()
 	turnover.dismiss()
+	_show_place_notice()
+
+# 接敕：地点告示之后，天劫层再过一道渡劫告示。
+func _accept_edict() -> void:
+	place_notice.hide()
+	var tribulation := Gear.Realm.jie_ling_of(profile.layer())
+	if tribulation.is_empty():
+		battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+		_start_encounter(true, true)
+		return
 	state = &"jie_notice"
-	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
 	tribulation_notice.present(profile, tribulation)
+
+# 驻留行善：层数不前进，换回复、材料、下一层的减益豁免与随侍士气。
+func _aid_place() -> void:
+	var place := profile.place()
+	if not profile.aid_layer():
+		loot_line.text = profile.storage_error
+		_close_place_notice()
+		return
+	_close_place_notice()
+	loot_line.text = "%s · %s" % [place.name, place.aid]
+	# 重入挂机，让谢礼进的材料和下一层的减益豁免立刻反映到场上。
+	_enter_farm()
+
+func _refuse_edict() -> void:
+	var place := profile.place()
+	if not profile.refuse_edict():
+		loot_line.text = profile.storage_error
+		_close_place_notice()
+		return
+	_close_place_notice()
+	loot_line.text = "抗敕 · %s" % place.name
+
+func _show_place_notice() -> void:
+	if not profile.has_character():
+		return
+	turnover.dismiss()
+	state = &"place_notice"
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	place_notice.present(profile)
+
+func _close_place_notice() -> void:
+	place_notice.hide()
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+	state = &"farm"
 
 func _close_notice() -> void:
 	tribulation_notice.hide()

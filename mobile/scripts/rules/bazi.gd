@@ -2,21 +2,8 @@ extends RefCounted
 
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const BRANCHES := WuXing.BRANCHES
-const SIXTY := [
-	["jia", "zi"], ["yi", "chou"], ["bing", "yin"], ["ding", "mao"], ["wu", "chen"],
-	["ji", "si"], ["geng", "wu"], ["xin", "wei"], ["ren", "shen"], ["gui", "you"],
-	["jia", "xu"], ["yi", "hai"], ["bing", "zi"], ["ding", "chou"], ["wu", "yin"],
-	["ji", "mao"], ["geng", "chen"], ["xin", "si"], ["ren", "wu"], ["gui", "wei"],
-	["jia", "shen"], ["yi", "you"], ["bing", "xu"], ["ding", "hai"], ["wu", "zi"],
-	["ji", "chou"], ["geng", "yin"], ["xin", "mao"], ["ren", "chen"], ["gui", "si"],
-	["jia", "wu"], ["yi", "wei"], ["bing", "shen"], ["ding", "you"], ["wu", "xu"],
-	["ji", "hai"], ["geng", "zi"], ["xin", "chou"], ["ren", "yin"], ["gui", "mao"],
-	["jia", "chen"], ["yi", "si"], ["bing", "wu"], ["ding", "wei"], ["wu", "shen"],
-	["ji", "you"], ["geng", "xu"], ["xin", "hai"], ["ren", "zi"], ["gui", "chou"],
-	["jia", "yin"], ["yi", "mao"], ["bing", "chen"], ["ding", "si"], ["wu", "wu"],
-	["ji", "wei"], ["geng", "shen"], ["xin", "you"], ["ren", "xu"], ["gui", "hai"]
-]
-const YEAR_PILLAR := SIXTY[0]
+# 所有人共用的本命柱，不代表年份，只为身强度提供一份固定的干支底色。
+const BASE_PILLAR := ["jia", "zi"]
 const HOUR_TALENTS := {
 	"zi": {"forge_level": 1}, "chou": {"material_slots": 1}, "yin": {"starting_equipment_stem": "jia"},
 	"mao": {"material_drop_bonus": 0.10}, "chen": {"unlocks": ["quench"]}, "si": {"unlocks": ["harmonize"]},
@@ -51,24 +38,13 @@ const GOD_EFFECTS := {
 	"zhengyin": {"name": "正印", "healing_bonus": 0.20, "shield_bonus": 0.20, "mana_regen_bonus": 0.15},
 	"pianyin": {"name": "偏印", "cooldown_bonus": -0.12, "mana_bonus": 0.15, "incoming_healing_bonus": -0.15}
 }
-const YEAR_GODS := {
+# 本层地气相对日干的十神，决定这一层的遭遇类型。
+const LING_GODS := {
 	"bi": {"name": "比劫", "more_same_element_foes": true},
 	"shishang": {"name": "食伤", "more_foes": true, "fragile_foes": true},
 	"cai": {"name": "财", "more_drops": true, "treasure_foes": true},
 	"guansha": {"name": "官杀", "elite_foes": true, "foe_armor_break": true},
 	"yin": {"name": "印", "healer_foes": true, "higher_material_tier": true}
-}
-const LUCK_PATTERNS := {
-	"bijian": {"name": "自立", "same_element_fit_bonus": 0.10, "camp_supplies": false},
-	"jiecai": {"name": "争夺", "drop_multiplier": 2.0, "stock_loss_per_layer": 0.10},
-	"shishen": {"name": "食禄", "dot_bonus": 0.25, "forge_level_cap": 1},
-	"shangguan": {"name": "伤官", "crit_damage_bonus": 0.30, "foe_crit_bonus": 0.15},
-	"zhengcai": {"name": "正财", "material_drop_bonus": 0.40, "foe_hp_bonus": 0.20},
-	"piancai": {"name": "偏财", "drop_multiplier_range": [0.0, 3.0], "relic_core_drops": true},
-	"zhengguan": {"name": "正官", "armor_bonus": 0.15, "forbidden_processes": ["forge_rough"]},
-	"qisha": {"name": "七杀", "foe_attack_bonus": 0.30, "kill_reward_multiplier": 2.0, "early_boss": true},
-	"zhengyin": {"name": "正印", "passive_healing": true, "material_drop_bonus": -0.25},
-	"pianyin": {"name": "偏印", "extra_sockets": 1, "extra_processes": 2, "recovery_multiplier": 0.50}
 }
 
 static func element_group(day_element: String, other_element: String) -> String:
@@ -101,7 +77,7 @@ static func body_strength(day_stem: String, month_branch: String, hour_branch: S
 	if day_element.is_empty() or month.is_empty() or hour.is_empty():
 		return 0.0
 	var strength: float = MONTH_STRENGTH[element_group(day_element, month.element)]
-	for element in [WuXing.stem_element(YEAR_PILLAR[0]), BRANCHES[YEAR_PILLAR[1]].element,
+	for element in [WuXing.stem_element(BASE_PILLAR[0]), BRANCHES[BASE_PILLAR[1]].element,
 			WuXing.stem_element(hour_stem(day_stem, hour_branch)), hour.element]:
 		strength += float(PILLAR_STRENGTH[element_group(day_element, element)])
 	return clampf(strength, -1.0, 1.0)
@@ -120,24 +96,3 @@ static func affinity(weights: Dictionary, day_stem: String, strength: float) -> 
 		result += weight * lerpf(1.0, endpoints[element_group(day_element, element)], absf(s))
 	# 五行均分遵循契合守恒，其余装备吃中和补偿。
 	return 1.0 if uniform else result * (1.0 + ZHONGHE_K * (1.0 - absf(s)))
-
-static func year_of(layer: int) -> Array:
-	return SIXTY[posmod(layer - 1, SIXTY.size())].duplicate() if layer > 0 else []
-
-# 固定甲子年按甲己年丙寅起月，顺数至选定月支。
-static func month_pillar_index(month_branch: String) -> int:
-	var branch_index := WuXing.BRANCH_ORDER.find(month_branch)
-	if branch_index < 0:
-		return -1
-	var yin_index := WuXing.BRANCH_ORDER.find("yin")
-	return SIXTY.find(["bing", "yin"]) + posmod(branch_index - yin_index, BRANCHES.size())
-
-# k 从 0 起，男女共用月柱起点。
-static func luck_sequence(month_index: int, gender: String, count: int = 6) -> Array[Array]:
-	var sequence: Array[Array] = []
-	if month_index < 0 or month_index >= SIXTY.size() or gender not in ["male", "female"]:
-		return sequence
-	var direction := 1 if gender == "male" else -1
-	for k in range(count):
-		sequence.append(SIXTY[posmod(month_index + direction * k, SIXTY.size())].duplicate())
-	return sequence

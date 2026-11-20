@@ -19,8 +19,10 @@ func _run() -> void:
 	_check(_test_armory() == true, "角色装备的对比和换装流程完整执行")
 	_check(_test_tribulation() == true, "天劫流程完整执行")
 	_check(_test_continuous_route() == true, "连战流程完整执行")
+	_check(_test_relief() == true, "驻留行善与抗敕流程完整执行")
 	for path in [save_path, save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
-			save_path + ".armory", save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp"]:
+			save_path + ".armory", save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp",
+			save_path + ".relief", save_path + ".relief.tmp"]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 	print("实玩流程：%d 项失败" % failures)
@@ -48,7 +50,7 @@ func _play(game) -> bool:
 	_ticks(game, 340)
 	if not _check(game.state == &"farm" and game.run.result.is_empty() and game.profile.layer() == 1
 			and game.profile.stock("jia") > 0 and game.profile.stock("geng") == stock_before
-			and game.loot_line.text.contains("甲木心") and not game.boss_controls.visible,
+			and game.loot_line.text.contains("硬木心") and not game.boss_controls.visible,
 			"无输入持续刷甲年材料，不推进、不结算"):
 		return false
 	var farm_position: Vector2 = game.run.position
@@ -113,9 +115,12 @@ func _play(game) -> bool:
 		and game.run.encounter_stem == "yi" and not game.boss_controls.visible,
 		"六个槽位演出使用前后推导，下一层装备与当令已刷新")
 	_ticks(game, 400)
-	_check(game.profile.stock("yi") > 0 and game.loot_line.text.contains("乙藤筋"), "新层继续自动掉落")
+	_check(game.profile.stock("yi") > 0 and game.loot_line.text.contains("藤筋"), "新层继续自动掉落")
 	game.challenge_button.pressed.emit()
-	if not _check(game.state == &"boss", "可再次冲层"):
+	if not _check(game.state == &"place_notice" and game.place_notice.is_visible_in_tree(),
+			"点击连战先看本层告示"):
+		return false
+	if not _check(_take_edict(game) and game.state == &"boss", "可再次冲层"):
 		return false
 	var before_loss: Dictionary = game.profile.state.materials.duplicate()
 	for _tick in range(2100):
@@ -204,6 +209,7 @@ func _test_tribulation() -> bool:
 	game.profile.toggle_equip(water.uid)
 	game._enter_farm()
 	game.challenge_button.pressed.emit()
+	_take_edict(game)
 	for _wave in range(3):
 		_clear_wave(game)
 		if game.run.advancing:
@@ -217,7 +223,7 @@ func _test_tribulation() -> bool:
 		return false
 	_check(notice.get_node("%Description").text.contains("水行落囚位") and notice.table.get_child_count() == 6
 		and notice.table.get_child(4).text == "旺  1.30" and notice.table.get_child(5).text == "囚  0.85",
-		"火劫告示显示已装备水系武器的流年和渡劫倍率")
+		"火劫告示显示已装备水系武器的本层地气和渡劫倍率")
 	_press(game, "调整装备")
 	_check(game.state == &"forge" and game.forge.preview_ling == "bing", "备劫炉坊按丙火当令预演")
 	game.forge.armory.outfit_slots.weapon.pressed.emit()
@@ -231,8 +237,9 @@ func _test_tribulation() -> bool:
 	game.forge.armory.bag_items[water.uid].pressed.emit()
 	_check(_press(game, "装备"), "挂机回炉可重新穿上水系武器")
 	game.forge.close_requested.emit()
-	_check(game.state == &"farm" and _press(game, "准备渡劫 · 第20层") and notice.is_visible_in_tree(),
-		"普通回炉返回挂机，主动挑战也会先看到备战告示")
+	_check(game.state == &"farm" and _press(game, "准备渡劫 · 第20层")
+		and game.state == &"place_notice" and _take_edict(game) and notice.is_visible_in_tree(),
+		"普通回炉返回挂机，主动挑战先看地点告示再看备战告示")
 	_press(game, "迎接天劫")
 	if not _check(game.state == &"boss" and game.run.encounter_stem == "bing"
 			and is_equal_approx(game.profile.describe(water, true, "bing").q, 0.85)
@@ -245,8 +252,7 @@ func _test_tribulation() -> bool:
 		if game.run.advancing:
 			_ticks(game, 55)
 	_check(game.state == &"next_layer" and game.profile.layer() == 21 and game.profile.realm().name == "结丹"
-		and game.profile.character().lifespan == 110 and game.encounter_label.text.contains("破境"),
-		"渡劫成功才增加境界与阳寿")
+		and game.encounter_label.text.contains("破境"), "渡劫成功才破境")
 	_ticks(game, 42)
 	_check(game.state == &"boss" and game.run.dungeon_layer == 21 and game.run.wave_index == 0,
 		"破境后自动进入下一层")
@@ -261,6 +267,7 @@ func _test_continuous_route() -> bool:
 	if not _check(_press(game, "入山"), "可创建连战测试角色"):
 		return false
 	game.challenge_button.pressed.emit()
+	_take_edict(game)
 	if not _check(game.state == &"boss" and game.run.continuous and game.run.wave_index == 0
 			and game.run.enemies.size() == 1 and not game.run.enemies[0].boss
 			and game.stop_route_button.visible, "点击开始连战进入精怪波次"):
@@ -332,7 +339,7 @@ func _test_migration() -> bool:
 	steam.materials = {"bing": 2, "gui": 2}
 	steam.process.append("harmonize")
 	if not _check(profile.craft(steam) and profile.describe(profile.item(steam.uid)).clash.get("id") == "steam",
-			"调和产出蒸汽相激"):
+			"调和产出蒸汽反应"):
 		return false
 	_check(is_equal_approx(float(profile.state.residue), 2.0), "溢出残渣按穷人出身全额返还")
 	var blade := Gear.new_draft()
@@ -341,12 +348,108 @@ func _test_migration() -> bool:
 		return false
 	var combined := profile.merge_items(steam.uid, blade.uid)
 	if not _check(not combined.is_empty() and profile.item(blade.uid).is_empty() and profile.item(steam.uid).is_empty(),
-			"合炉消耗两个源装备并写出新成品"):
+			"熔合消耗两个源装备并写出新成品"):
 		return false
-	_check(profile.rotate_item(combined) and int(profile.item(combined).wear) == 1, "穷人的合炉成品轮转不额外磨损")
+	_check(profile.rotate_item(combined) and int(profile.item(combined).wear) == 1, "穷人的熔合成品轮转不额外磨损")
 	profile.load_profile()
-	_check(float(profile.describe(profile.item(combined)).budget) > 0.0, "合炉配方重读后仍可推导")
+	_check(float(profile.describe(profile.item(combined)).budget) > 0.0, "熔合配方重读后仍可推导")
 	return true
+
+# 驻留行善、违规的代价、抗敕。对应 docs/story.md §1.2 与 §2.1。
+func _test_relief() -> bool:
+	var game = Main.instantiate()
+	game.profile.save_path = save_path + ".relief"
+	root.add_child(game)
+	game.set_physics_process(false)
+	if not _check(_press(game, "入山"), "可创建行善测试角色"):
+		return false
+
+	# 一、炼气未成，规矩未立：行善不要代价。这是教学段，就是要让玩家觉得救人划算。
+	_set_layer(game, 5)
+	var stem: String = game.profile.ling()
+	var gift: String = game.Gear.Places.relief_gift(5)
+	var stem_before: int = game.profile.stock(stem)
+	var gift_before: int = game.profile.stock(gift)
+	var forge_before: int = game.profile.furnace_level()
+	game._show_place_notice()
+	if not _check(game.state == &"place_notice" and game.place_notice.is_visible_in_tree(),
+			"挂机时可调出本层告示"):
+		return false
+	if not _check(not game.place_notice.get_node("%Cost").visible, "规矩未立则不写代价"):
+		return false
+	if not _check(_press_prefix(game.place_notice, "驻留") and game.state == &"farm",
+			"可以驻留行善并回到挂机"):
+		return false
+	_check(game.profile.layer() == 5, "行善不推进层数")
+	_check(game.profile.stock(stem) == stem_before + game.Gear.AID_MATERIALS, "本地人送同干材料")
+	_check(game.profile.stock(gift) == gift_before + 1, "本地人另送一件 T3")
+	_check(game.profile.furnace_level() == forge_before, "炼气未成，行善不掉炉温")
+	_check(game.profile.narrative().aided_layers == [5] and int(game.profile.narrative().mortals_saved) == 1,
+		"行善记进叙事记录")
+	_check(game.profile.narrative().rules_broken.no_aid.is_empty(), "规矩未立则不算违规")
+	_check(not game.profile.relief_pending(), "蒙荫覆盖的是下一层，不是本层")
+	_set_layer(game, 6)
+	_check(game.profile.relief_pending(), "下一层蒙荫生效")
+
+	# 二、渡过木劫之后：同一个选择开始要代价，而且代价在确认前就写明。
+	_set_layer(game, 12)
+	var realm_before: String = game.profile.realm().name
+	forge_before = game.profile.furnace_level()
+	game._show_place_notice()
+	_check(game.place_notice.get_node("%Cost").visible
+		and game.place_notice.get_node("%Cost").text.contains("境界 −1"), "告示在确认前写明境界 −1")
+	if not _check(_press_prefix(game.place_notice, "驻留"), "第 12 层仍可选择行善"):
+		return false
+	_check(game.profile.layer() == 12, "违规行善也不退层数")
+	_check(game.profile.realm().name != realm_before, "违规行善退一个境界")
+	_check(game.profile.furnace_level() == forge_before - 1, "退境界连带掉一档炉温")
+	_check(game.profile.narrative().rules_broken.no_aid == [12], "违规层数记下来了")
+
+	# 三、天劫那一层已经是灾的终局，没有行善这个选项；抗敕也还没有身份。
+	_set_layer(game, 20)
+	game._show_place_notice()
+	_check(not game.place_notice.get_node("%Aid").visible, "天劫层没有行善按钮")
+	_check(not game.place_notice.get_node("%Refuse").visible, "炼神之前没有抗敕的身份")
+	game._close_place_notice()
+
+	# 四、炼神之后才抗得了敕。先把上面欠的境界补回来，单独验这条路。
+	var cleared: Dictionary = game.profile.state.duplicate(true)
+	cleared.character.realm_offset = 0
+	game.profile._commit(cleared)
+	_set_layer(game, 41)
+	game._show_place_notice()
+	if not _check(game.place_notice.get_node("%Refuse").visible, "炼神之后出现抗敕"):
+		return false
+	var toll: int = int(game.profile.place().toll)
+	if not _check(_press(game.place_notice, "抗敕") and game.state == &"farm", "可以抗敕并回到挂机"):
+		return false
+	_check(game.profile.narrative().edicts_refused == [41], "抗敕记进叙事记录")
+	_check(game.profile.harder_edict(), "抗敕后敕令改派更重者")
+	game._show_place_notice()
+	_check(game.place_notice.get_node("%Sight").text.contains(str(roundi(toll * 1.5))),
+		"改派后的告示报更重的待救人数")
+	game.queue_free()
+	return true
+
+# 直接落在某一层，用来验证规矩在不同境界下的解锁与代价。
+func _set_layer(game, layer: int) -> void:
+	var next: Dictionary = game.profile.state.duplicate(true)
+	next.character.layer = layer
+	game.profile._commit(next)
+	game._enter_farm()
+
+# 地点告示上的「接敕」。按钮文案固定，驻留那个按钮带着当地的行善内容所以要另找。
+func _take_edict(game) -> bool:
+	return _press(game.place_notice, "接敕")
+
+func _press_prefix(node: Node, prefix: String) -> bool:
+	if node is Button and node.text.begins_with(prefix) and node.is_visible_in_tree() and not node.disabled:
+		node.pressed.emit()
+		return true
+	for child in node.get_children():
+		if _press_prefix(child, prefix):
+			return true
+	return false
 
 func _press(node: Node, title: String) -> bool:
 	if node is Button and node.text == title and node.is_visible_in_tree() and not node.disabled:

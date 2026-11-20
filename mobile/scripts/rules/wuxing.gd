@@ -31,11 +31,9 @@ const YINYANG := {"cross": 1.20, "same": 0.88, "taiji": 1.00}
 const TAIJI_LIMIT := 0.15
 const FEED_HEAL_RATIO := 0.15
 
+# 本层地气：层数每过十层换一遍天干，与年份无关。
 static func ling_of(layer: int) -> String:
 	return STEMS[posmod(layer - 1, STEMS.size())] if layer > 0 else ""
-
-static func branch_of(layer: int) -> String:
-	return BRANCH_ORDER[posmod(layer - 1, BRANCH_ORDER.size())] if layer > 0 else ""
 
 static func stem_element(stem: String) -> String:
 	var index := STEMS.find(stem)

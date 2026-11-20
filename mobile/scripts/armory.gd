@@ -437,7 +437,7 @@ func _show_patterns() -> void:
 	var rows := PackedStringArray([Loadout.pattern_names(config.patterns), ""])
 	for element in WuXing.WUXING:
 		rows.append("%s行    %s%%" % [WuXing.ELEMENT_NAMES[element], String.num(float(config.weights[element]) * 100.0, 1)])
-	rows.append("\n残渣 %s   ·   遗物核 %d" % [String.num(profile.state.residue, 2), profile.stock("relic_core")])
+	rows.append("\n残渣 %s   ·   首领核心 %d" % [String.num(profile.state.residue, 2), profile.stock("relic_core")])
 	forge.show_report("五行格局", "\n".join(rows))
 
 func _management(input: Dictionary) -> void:
@@ -468,7 +468,7 @@ func _management(input: Dictionary) -> void:
 				forge._message(profile.storage_error)))
 	var others := profile.items().filter(func(entry: Dictionary) -> bool: return entry.slot == input.slot and entry.uid != input.uid)
 	if profile.process_unlocked("merge") and not others.is_empty():
-		detail_body.add_child(forge._button("合炉", 40, func() -> void:
+		detail_body.add_child(forge._button("熔合", 40, func() -> void:
 			merging = not merging
 			merge_armed = false
 			refresh()))
@@ -520,8 +520,8 @@ func _merge_options(input: Dictionary, items: Array) -> void:
 	if draft_item.is_empty():
 		return
 	var result := profile.describe(draft_item)
-	detail_body.add_child(forge._text("合炉预览  %s\n预算 %.1f  ·  磨损 %d" % [result.name, result.budget, draft_item.wear], 12, ui.GOLD))
-	var merge_button: Button = forge._button("确认消耗两件成品" if merge_armed else "合炉打造", 35, func() -> void:
+	detail_body.add_child(forge._text("熔合预览  %s\n预算 %.1f  ·  磨损 %d" % [result.name, result.budget, draft_item.wear], 12, ui.GOLD))
+	var merge_button: Button = forge._button("确认消耗两件成品" if merge_armed else "熔合打造", 35, func() -> void:
 		if not merge_armed:
 			merge_armed = true
 			refresh()
@@ -531,7 +531,7 @@ func _merge_options(input: Dictionary, items: Array) -> void:
 			forge._message(profile.storage_error)
 			return
 		inspect(new_uid)
-		forge._message("合炉完成"))
+		forge._message("熔合完成"))
 	detail_body.add_child(merge_button)
 
 func _merge_socket(stem: String) -> void:

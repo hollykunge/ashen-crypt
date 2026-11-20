@@ -16,6 +16,7 @@ const Roster = preload("res://scripts/roster.gd")
 const Gear = preload("res://scripts/gear.gd")
 const Combat = preload("res://scripts/combat.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
+const Places = preload("res://scripts/rules/places.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -23,7 +24,7 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
+		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
 		_test_control_modes, _test_monster_motion, _test_body_spacing]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
@@ -163,18 +164,16 @@ func _test_bazi() -> bool:
 	for index in range(WuXing.STEMS.size()):
 		_check(Bazi.ten_god("jia", WuXing.STEMS[index]) == jia_gods[index], "甲日干的生克与阴阳方向")
 	_check(Bazi.hour_stem("geng", "zi") == "bing" and Bazi.hour_stem("gui", "hai") == "gui", "五鼠遁")
-	_near(Bazi.body_strength("jia", "shen", "zi"), 0.10, "身强度年柱、月令与时柱")
+	_near(Bazi.body_strength("jia", "shen", "zi"), 0.10, "身强度本命柱、月令与时柱")
 	_near(Bazi.body_strength("jia", "mao", "zi"), 1.0, "身强度上限")
 	_near(Bazi.body_strength("geng", "zi", "zi"), -1.0, "身强度下限")
 	var seen := {}
-	for layer in range(1, 61):
-		var pillar := Bazi.year_of(layer)
-		_check(pillar == [WuXing.ling_of(layer), WuXing.branch_of(layer)], "第 %d 层流年" % layer)
-		seen[pillar] = true
-	_check(seen.size() == 60 and Bazi.year_of(61) == Bazi.year_of(1), "六十甲子归周")
-	_check(Bazi.SIXTY[Bazi.month_pillar_index("mao")] == ["ding", "mao"], "甲子年的卯月月柱")
-	_check(Bazi.luck_sequence(0, "male", 3) == [["jia", "zi"], ["yi", "chou"], ["bing", "yin"]], "男顺大运")
-	_check(Bazi.luck_sequence(0, "female", 3) == [["jia", "zi"], ["gui", "hai"], ["ren", "xu"]], "女逆大运")
+	for layer in range(1, 11):
+		seen[WuXing.ling_of(layer)] = true
+	_check(seen.size() == WuXing.STEMS.size(), "十层走满十干地气")
+	_check(WuXing.ling_of(11) == WuXing.ling_of(1) and WuXing.ling_of(60) == WuXing.ling_of(10),
+		"地气每十层归周")
+	_check(Bazi.LING_GODS.size() == 5, "地气十神的五组遭遇")
 	return true
 
 func _test_neutral_equipment() -> bool:
@@ -183,13 +182,13 @@ func _test_neutral_equipment() -> bool:
 		for strength in [-1.0, -0.5, 0.0, 0.5, 1.0]:
 			for ling in WuXing.STEMS:
 				var derived := Derive.derive(item, 3, ling, {"day_stem": day, "s": strength})
-				_near(derived.f, 1.0, "周天契合")
-				_near(derived.q, 1.0, "周天境遇")
+				_near(derived.f, 1.0, "均衡契合")
+				_near(derived.q, 1.0, "均衡境遇")
 				_near(derived.shi, 1.0, "太极势")
 	var neutral := Derive.derive(item, 3)
 	for target in WuXing.WUXING:
 		var multiplier := WuXing.weighted_clash(neutral.wuxing, target) * WuXing.yin_yang(neutral.yin_yang, 1.0)
-		_near(multiplier, 1.0, "周天太极对%s的生克" % target)
+		_near(multiplier, 1.0, "均衡太极对%s的生克" % target)
 	for element in PURE_MATERIALS:
 		var pure := _weapon({PURE_MATERIALS[element]: 4})
 		var mean_q := 0.0
@@ -198,8 +197,8 @@ func _test_neutral_equipment() -> bool:
 			var derived := Derive.derive(pure, 3, ling)
 			mean_q += float(derived.q) / WuXing.STEMS.size()
 			mean_shi += float(derived.shi) / WuXing.STEMS.size()
-		_near(mean_q, 1.0, "%s行大运平均 Q" % element)
-		_near(mean_shi, 1.0, "%s行大运平均势" % element)
+		_near(mean_q, 1.0, "%s行十层平均 Q" % element)
+		_near(mean_shi, 1.0, "%s行十层平均势" % element)
 	return true
 
 func _test_companions() -> bool:
@@ -214,6 +213,79 @@ func _test_companions() -> bool:
 		_near(_sum(distribution) / distribution.size(), 1.40, "%s日干的随侍数均值" % day)
 	return true
 
+func _test_places() -> bool:
+	_check(Places.PLACES.size() == 60, "六十层每层一个地方")
+	_check(Places.BLOCKS.size() == 6, "六个十层段")
+	var names := {}
+	for layer in range(1, 61):
+		var place := Places.place_of(layer)
+		_check(int(place.layer) == layer, "第 %d 层的地点标回本层" % layer)
+		_check(not String(place.name).is_empty(), "第 %d 层有地名" % layer)
+		_check(not String(place.sight).is_empty(), "第 %d 层有灾情陈述" % layer)
+		_check(not String(place.edict).is_empty(), "第 %d 层有敕令" % layer)
+		_check(not String(place.region).is_empty(), "第 %d 层有地域" % layer)
+		_check(not String(place.plate).is_empty(), "第 %d 层有底图分组" % layer)
+		names[String(place.name)] = true
+	_check(names.size() == 60, "六十个地名互不重复")
+	# 前五十层能行善，天劫那一层除外 —— 焦原、沉渊这些已经是灾的终局，救不回来了。
+	for layer in range(1, 51):
+		var tribulation_layer := layer % 10 == 0
+		_check(Places.can_aid(layer) != tribulation_layer,
+			"第 %d 层%s驻留行善" % [layer, "不该能" if tribulation_layer else "该能"])
+		_check(int(Places.place_of(layer).toll) > 0, "第 %d 层有待救者" % layer)
+	# 待诏期替上界办事，没有可救的人，也不记伤亡。
+	for layer in range(51, 61):
+		_check(not Places.can_aid(layer), "第 %d 层（待诏）无行善" % layer)
+		_check(int(Places.place_of(layer).toll) == 0, "第 %d 层（待诏）不记伤亡" % layer)
+	for index in range(5):
+		var gift := Places.relief_gift(index * 10 + 1)
+		_check(Materials.MATERIALS.has(gift), "第 %d 段的 T3 谢礼是真材料" % (index + 1))
+	_check(Places.relief_gift(55).is_empty(), "待诏期没有谢礼")
+	# 越界回落，不崩。
+	_check(Places.place_of(0).layer == 1 and Places.place_of(999).layer == 60, "层数越界回落到两端")
+	return true
+
+func _test_rules() -> bool:
+	# 规矩在渡过对应天劫之后才立：第 i 条要 realms_cleared() >= i。
+	var profile := Gear.new("user://test-rules.json")
+	profile.state.character = Realm.new_profile("male", "geng", "mao", "si", "commoner")
+	_check(profile.realm_index() == 0 and not profile.rule_unlocked("no_aid"), "炼气未成则第一条规矩未立")
+	profile.state.character.layer = 11
+	_check(profile.realm_index() == 1 and profile.rule_unlocked("no_aid"), "渡过木劫后第一条规矩生效")
+	_check(not profile.rule_unlocked("no_calamity"), "第二条规矩要到筑基")
+	profile.state.character.layer = 21
+	_check(profile.unlocked_rules().size() == 2, "第 21 层在身两条规矩")
+	profile.state.character.layer = 60
+	_check(profile.unlocked_rules().size() == 5, "第 60 层五条规矩俱在")
+
+	# 境界 −1 要真的掉一档炉温，而层数不退。
+	profile.state.character.layer = 21
+	var before_realm := profile.realm().name
+	var before_forge := profile.furnace_level()
+	var before_sockets := profile.socket_limit()
+	Gear._apply_rule(profile.state, "no_aid", 21)
+	_check(profile.layer() == 21, "违规不退层数")
+	_check(profile.realm_index() == 1 and profile.realm().name != before_realm, "违规退一个境界")
+	_check(profile.furnace_level() == before_forge - 1, "退境界连带掉一档炉温")
+	_check(profile.socket_limit() <= before_sockets, "退境界不会凭空多出镶嵌槽")
+	_check(profile.narrative().rules_broken.no_aid == [21], "违规层数记进存档")
+
+	# 境界最多退到未成炼气，offset 不无限累积。
+	for _i in range(6):
+		Gear._apply_rule(profile.state, "no_aid", 21)
+	_check(profile.realm_index() == 0, "境界退到底就不再退")
+	_check(int(profile.state.character.realm_offset) == -2, "offset 夹在已挣得的境界数上")
+
+	# 门槛加成按规矩累加（目前只写不读，渡劫门槛尚未在战斗里生效）。
+	Gear._apply_rule(profile.state, "no_calamity", 25)
+	_near(profile.jie_threshold_bonus(), 0.10, "逆天灾抬高下一劫门槛")
+	_check(profile.narrative().rules_broken.no_calamity == [25], "逆天灾也记层数")
+
+	# sever 是布尔，不是层数列表。
+	Gear._apply_rule(profile.state, "sever", 60)
+	_check(profile.narrative().rules_broken.sever == true, "尽忘人间记为布尔")
+	return true
+
 func _test_tribulations() -> bool:
 	var neutral := _weapon({"taiji_pill": 4})
 	for realm in Realm.REALMS:
@@ -223,14 +295,13 @@ func _test_tribulations() -> bool:
 		var clash := WuXing.weighted_clash(derived.wuxing, realm.jie)
 		var polarity := WuXing.yin_yang(derived.yin_yang, WuXing.stem_polarity(ling))
 		var baseline: float = derived.q * derived.shi * derived.f * clash * polarity
-		_near(baseline, 1.0, "%s的周天实战基准" % realm.name)
-		_near(Realm.JIE_THRESHOLD, baseline * 0.95, "%s的门槛随周天基准计算" % realm.name)
-		_check(Realm.JIE_THRESHOLD < baseline, "%s的周天通路" % realm.name)
-	_near(Realm.lifespan(0), 70.0, "凡人阳寿")
-	_near(Realm.lifespan(5), 170.0, "五境界阳寿")
-	_near(Realm.jie_threshold(2.0), 1.9, "门槛按给定周天基准缩放")
+		_near(baseline, 1.0, "%s的均衡实战基准" % realm.name)
+		_near(Realm.JIE_THRESHOLD, baseline * 0.95, "%s的门槛随均衡基准计算" % realm.name)
+		_check(Realm.JIE_THRESHOLD < baseline, "%s的均衡通路" % realm.name)
+	_near(Realm.jie_threshold(2.0), 1.9, "门槛按给定均衡基准缩放")
 	var profile := Realm.new_profile("female", "jia", "mao", "zi", "merchant")
-	_check(profile.version == 4 and profile.silver == 2000 and profile.lifespan == 70, "规则档案版本及初始值")
+	_check(profile.version == 4 and profile.silver == 2000 and profile.layer == 1
+		and profile.narrative.rules_broken.has("no_calamity"), "规则档案版本及初始值")
 	return true
 
 func _test_forge_examples() -> bool:
@@ -242,11 +313,11 @@ func _test_forge_examples() -> bool:
 
 	var clash := Derive.derive(_weapon({"gui": 6, "bing": 6}, ["forge_fine", "harmonize"]), 3)
 	_example_stat(clash, "impact", 7.0, "§9.2 冲击")
-	_example_stat(clash, "chill", 6.0, "§9.2 冰缓")
+	_example_stat(clash, "chill", 6.0, "§9.2 冰冻减速")
 	_example_stat(clash, "attack_speed", 2.0, "§9.2 攻速点")
 	_example_stat(clash, "burn", 4.0, "§9.2 灼烧")
-	_check(clash.clash.get("id") == "steam", "§9.2 蒸汽相激")
-	_near(clash.clash.get("strength", -1.0), 36.0, "§9.2 相激强度", 0.05)
+	_check(clash.clash.get("id") == "steam", "§9.2 蒸汽反应")
+	_near(clash.clash.get("strength", -1.0), 36.0, "§9.2 反应强度", 0.05)
 	_near(clash.steps[0].residue, 7.2, "溢出纯度返还 60%")
 
 	var pure := Derive.derive(_weapon({"geng_jing": 4}), 3)
@@ -265,7 +336,7 @@ func _test_forge_rules() -> bool:
 			_near(_sum(material.wuxing.values()), 1.0, "%s行向量归一化" % material.name)
 	var raw_clash := Derive.derive(_weapon({"gui": 6, "bing": 6}), 3)
 	_near(raw_clash.budget, 43.2 * 0.875, "蛮干相克耗散")
-	_check(raw_clash.clash.is_empty(), "蛮干与相激互斥")
+	_check(raw_clash.clash.is_empty(), "蛮干与反应互斥")
 	var crafted := _weapon({"geng_jing": 4})
 	crafted.sockets = ["jia", "jia", "ding", "bing"]
 	var before := crafted.duplicate(true)
@@ -285,9 +356,9 @@ func _test_forge_rules() -> bool:
 	_check(Derive.derive(rough, 3) == Derive.derive(rough.duplicate(true), 3), "粗锻数值受稳定 UID 决定")
 	var merged := Derive.merge_items(_weapon({"jia": 4}), _weapon({"bing": 4}), 3)
 	var combined := Derive.derive(merged, 3)
-	_near(combined.budget, 18.0 + 0.45 * 10.8, "合炉预算")
-	_near(combined.wuxing.mu, 10.8 / 28.8, "合炉行向量按预算加权")
-	_check(merged.wear == 1, "合炉磨损")
+	_near(combined.budget, 18.0 + 0.45 * 10.8, "熔合预算")
+	_near(combined.wuxing.mu, 10.8 / 28.8, "熔合行向量按预算加权")
+	_check(merged.wear == 1, "熔合磨损")
 	_near(Bazi.affinity({"mu": 1.0}, "jia", 0.0), 1.14, "中和补偿")
 	_near(Forge.stat_value("attack_speed", 21.3), 21.3 / 81.3, "攻速软上限曲线")
 	return true

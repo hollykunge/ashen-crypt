@@ -380,7 +380,7 @@ func _refresh_preview(result: Dictionary, count: int) -> void:
 		var hinted := draft.duplicate(true)
 		hinted.process.append("harmonize")
 		var signature: Dictionary = profile.describe(hinted).clash
-		effect = "耗散 %.1f%% · 调和可化为%s相激" % [float(interactions.loss) * 100.0, signature.get("name", "")]
+		effect = "耗散 %.1f%% · 调和可化为%s反应" % [float(interactions.loss) * 100.0, signature.get("name", "")]
 	preview_effect.text = effect
 	preview_effect.visible = not effect.is_empty()
 	preview_effect.add_theme_color_override("font_color", BAD if float(interactions.get("loss", 0.0)) > 0.0 else GOOD)
@@ -506,7 +506,7 @@ func _explain(data: Dictionary, slot: String) -> String:
 	var lines := PackedStringArray([
 		"投料 %.1f · 炉温上限 %.0f · 工艺后预算 %.2f" % [charge.purity, charge.cap, charge.base_budget],
 		"生链 %d · 耗散 %.1f%% · 基础残渣 %.2f" % [relation.chain, relation.loss * 100, charge.residue],
-		"属性预算 %.2f · 相激 %.2f · 镶嵌 %.2f" % [split.stat_budget, split.clash_budget, split.socket_budget],
+		"属性预算 %.2f · 反应 %.2f · 镶嵌 %.2f" % [split.stat_budget, split.clash_budget, split.socket_budget],
 		"品质 %.3f = 纯度 %.3f × 锐度 %.2f × 生链 / 太极 %.2f × 工艺 %.2f" % [quality, m.m, m.a, m.b, m.roll],
 		"实战 %.3f = 境遇 Q %.2f × 时势 S %.2f × 契合 F %.2f" % [context_factor, m.q, m.shi, m.f]
 	])
@@ -554,7 +554,7 @@ func _zhoutian_hint(loadout: Dictionary) -> String:
 	for element in WuXing.WUXING:
 		if loadout.weights[element] < Rules.PATTERNS.zhoutian.min_weight:
 			low.append(WuXing.ELEMENT_NAMES[element])
-	return "补%s行，向周天靠拢" % low[0] if low.size() == 1 else ""
+	return "补%s行，向均衡靠拢" % low[0] if low.size() == 1 else ""
 
 func _stat_lines(stats: Dictionary, compact: bool = false) -> String:
 	var lines := PackedStringArray()
@@ -578,11 +578,11 @@ func _effect_text(result: Dictionary) -> String:
 		effects.append("%s · %s %.1f" % [trigger.condition, trigger.action.name, trigger.strength])
 	var clash: Dictionary = result.clash
 	if not clash.is_empty():
-		var effect := "%s相激 · 强度 %.1f" % [clash.name, clash.strength]
+		var effect := "%s反应 · 强度 %.1f" % [clash.name, clash.strength]
 		if clash.id == "steam":
-			effect = "蒸汽相激 %.0f%% · 范围伤害 %.0f" % [clash.chance * 100.0, clash.strength * clash.aoe_damage_scale]
+			effect = "蒸汽反应 %.0f%% · 范围伤害 %.0f" % [clash.chance * 100.0, clash.strength * clash.aoe_damage_scale]
 		elif clash.id == "root":
-			effect = "根裂相激 %.0f%% · 定身 %.1f 秒" % [clash.chance * 100.0, clash.root_seconds]
+			effect = "缠根反应 %.0f%% · 定身 %.1f 秒" % [clash.chance * 100.0, clash.root_seconds]
 		effects.append(effect)
 	return "\n".join(effects)
 
