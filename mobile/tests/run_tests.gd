@@ -428,6 +428,7 @@ func _test_weapon_grips() -> bool:
 	var art_cell := Vector2(atlas.get_size()) / HeldWeapon.ATLAS_GRID
 	_check(HeldWeapon.FORMS.size() == Gear.WEAPON_FORMS.size(), "每种形制都有手持原画")
 	for form in Gear.WEAPON_FORMS:
+		_check(HeldWeapon.body_frame(form, 0) == 0 and HeldWeapon.IDLE.has(form), "%s 待机用直立的那一格，并有自己的垂手握法" % form)
 		var spec: Dictionary = HeldWeapon.FORMS[form]
 		var column := Vector2(int(spec.cell) % int(HeldWeapon.ATLAS_GRID.x), floori(int(spec.cell) / HeldWeapon.ATLAS_GRID.x))
 		var grip := Vector2i((column + Vector2(spec.grip) / 128.0) * art_cell)
@@ -455,8 +456,6 @@ func _test_weapon_grips() -> bool:
 					hands = [HeldWeapon.blade_hand(sex, pose)]
 				if form == "dual_blades":
 					hands.append(HeldWeapon.blade_hand(sex, pose, true))
-				if form in ["hammer", "spear"] and frame == 0:
-					hands.append(HeldWeapon.SUPPORT[sex][pose])
 				for hand: Vector2 in hands:
 					_check(body.get_pixelv(source + Vector2i(hand * SideArt.TEXEL)).a > 0.5,
 						"%s 第 %d 帧握点落在人物手上" % [form, frame])
