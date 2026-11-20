@@ -1,40 +1,35 @@
 extends Control
 
-# 行装页正中的人物：用正面半身像，不用横版战斗贴图。
-# 像按高度铺满，头顶对齐上沿，左右多出来的裁掉；两侧和底边用 portrait_light 的柔边淡出。
+# 行装页正中的人物：正面全身像，从头顶到靴底一整个人，不用横版战斗贴图，也不裁成半身。
+# 原画（art/side/source/fullbody）按人物设定的四面图里的正面那一个出的，透明底；
+# 这里按格子的高宽等比放进去，脚踩在格子底边，左右居中。
 # 底色按日干五行微微偏色，和立命籍那张像一致。
 
-const SideArt = preload("res://scripts/side_art.gd")
 const Roster = preload("res://scripts/roster.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
-const PORTRAIT_LIGHT = preload("res://scripts/portrait_light.gdshader")
-# 半身像的脸在原画上大约这个横向位置，窄框裁两侧时以它为中心。
-const FACE_X := 0.53
+const FULL_BODY := [preload("res://art/side/fullbody-male.webp"), preload("res://art/side/fullbody-female.webp")]
+# 头顶和脚下各留这么一点空（占格子高度的比例）。
+const MARGIN := 0.03
 
-var portrait: Texture2D
+var figure: Texture2D
 var tint := Color.WHITE
 
 func _init() -> void:
-	var light := ShaderMaterial.new()
-	light.shader = PORTRAIT_LIGHT
-	light.set_shader_parameter("soften_edges", true)
-	light.set_shader_parameter("fade_bottom", 0.22)
-	material = light
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 func display(_config: Dictionary, person: Dictionary, _form: String) -> void:
-	var female: bool = person.get("gender") == "female"
-	portrait = SideArt.PORTRAITS[int(female)]
+	figure = FULL_BODY[int(person.get("gender") == "female")]
 	var stem: String = person.get("day_stem", "")
 	if not stem.is_empty():
-		tint = Roster.ELEMENT_TINTS[WuXing.stem_element(stem)].lerp(Color.WHITE, 0.67)
+		tint = Roster.ELEMENT_TINTS[WuXing.stem_element(stem)].lerp(Color.WHITE, 0.8)
 	queue_redraw()
 
 func _draw() -> void:
-	if portrait == null or size.x < 1 or size.y < 1:
+	if figure == null or size.x < 1 or size.y < 1:
 		return
-	var art := portrait.get_size()
-	var factor := maxf(size.x / art.x, size.y / art.y)
-	var shown := size / factor
-	var left := clampf(art.x * FACE_X - shown.x * 0.5, 0.0, art.x - shown.x)
-	draw_texture_rect_region(portrait, Rect2(Vector2.ZERO, size), Rect2(Vector2(left, 0.0), shown), tint)
+	var art := figure.get_size()
+	var room := Vector2(size.x, size.y * (1.0 - MARGIN * 2.0))
+	var factor := minf(room.x / art.x, room.y / art.y)
+	var shown := art * factor
+	var at := Vector2((size.x - shown.x) * 0.5, size.y * (1.0 - MARGIN) - shown.y)
+	draw_texture_rect(figure, Rect2(at, shown), false, tint)
