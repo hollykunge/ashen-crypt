@@ -87,14 +87,15 @@ func _play(game) -> bool:
 	if not _check(game.state == &"boss" and game.boss_controls.visible and game.run.enemies.size() == 1
 			and game.run.archetype.name == "藤巨妖", "冲层后进入藤巨妖的手操战"):
 		return false
-	_check(game.mode_button.text == "自动普攻" and not game.manual_movement.visible, "挑战默认原地自动普攻")
-	_check(_press(game, "1×") and game.battle_speed == 2, "战斗按钮切至两倍速")
+	_check(game.mode_button.accessibility_name == "自动普攻" and not game.manual_movement.visible, "挑战默认原地自动普攻")
+	_check(game.mode_button.text.is_empty() and game.speed_button.text.is_empty(), "战斗工具按钮只画图标不写字")
+	_check(_press_named(game, "1×") and game.battle_speed == 2, "战斗按钮切至两倍速")
 	var spawn_before: float = game.run.enemies[0].spawn
 	game._physics_process(1.0 / 60.0)
 	_check(is_equal_approx(game.run.enemies[0].spawn, spawn_before - 2.0 / 60.0), "两倍速推进两个固定战斗步")
-	_check(_press(game, "2×") and _press(game, "3×") and game.battle_speed == 1, "倍速可循环回正常")
-	_check(_press(game, "自动普攻") and game.mode_button.text == "全自动", "可切至自动施法")
-	_check(_press(game, "全自动") and game.mode_button.text == "手动" and game.manual_movement.visible,
+	_check(_press_named(game, "2×") and _press_named(game, "3×") and game.battle_speed == 1, "倍速可循环回正常")
+	_check(_press_named(game, "自动普攻") and game.mode_button.accessibility_name == "全自动", "可切至自动施法")
+	_check(_press_named(game, "全自动") and game.mode_button.accessibility_name == "手动" and game.manual_movement.visible,
 		"手动模式恢复走位按钮")
 	_ticks(game, 120)
 	_check(game.run.enemies[0].hp == game.run.enemies[0].max_hp and game.run.skill_left == 0.0, "手动模式保留走位和出招控制")
@@ -253,7 +254,7 @@ func _test_tribulation() -> bool:
 		if game.run.advancing:
 			_ticks(game, 55)
 	_check(game.state == &"next_layer" and game.profile.layer() == 21 and game.profile.realm().name == "结丹"
-		and game.encounter_label.text.contains("破境"), "渡劫成功才破境")
+		and game.banner_title.text == "破境" and game.banner_sub.text == "结丹", "渡劫成功才破境")
 	_ticks(game, 42)
 	_check(game.state == &"boss" and game.run.dungeon_layer == 21 and game.run.wave_index == 0,
 		"破境后自动进入下一层")
@@ -278,7 +279,7 @@ func _test_continuous_route() -> bool:
 	game.run.mana = 30.0
 	_clear_wave(game)
 	var arrival_x: float = game.run.position.x
-	_check(game.run.advancing and game.encounter_label.text == "前往下一波" and game.profile.layer() == 1,
+	_check(game.run.advancing and game.strip.advancing and game.strip.foes == 0 and game.profile.layer() == 1,
 		"普通波全清后向前推进")
 	_ticks(game, 10)
 	_check(game.run.position.x > arrival_x and game.run.hp == game.run.max_hp - 10 and game.run.mana < game.run.max_mana,
@@ -302,7 +303,7 @@ func _test_continuous_route() -> bool:
 	_ticks(game, 27)
 	_check(game.state == &"boss" and game.run.dungeon_layer == 2 and game.run.wave_index == 0
 		and game.run.continuous, "层主战之后自动开始下一层第一波")
-	_check(_press(game, "停止连战") and game.state == &"farm" and game.profile.layer() == 2, "中途停止可回到当前层挂机")
+	_check(_press_named(game, "停止连战") and game.state == &"farm" and game.profile.layer() == 2, "中途停止可回到当前层挂机")
 	_ticks(game, 60)
 	_check(game.state == &"farm" and game.profile.layer() == 2, "停止后不会继续自动挑战")
 	game.queue_free()
@@ -459,6 +460,16 @@ func _press(node: Node, title: String) -> bool:
 		return true
 	for child in node.get_children():
 		if _press(child, title):
+			return true
+	return false
+
+# 只画图标的按钮按读屏名字找。
+func _press_named(node: Node, title: String) -> bool:
+	if node is Button and node.accessibility_name == title and node.is_visible_in_tree() and not node.disabled:
+		node.pressed.emit()
+		return true
+	for child in node.get_children():
+		if _press_named(child, title):
 			return true
 	return false
 

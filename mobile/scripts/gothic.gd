@@ -214,6 +214,31 @@ class Glyph extends Control:
 			&"slash":
 				_path([Vector2(7, 5), Vector2(14, 14), Vector2(26, 9), Vector2(19, 20), Vector2(8, 26)], 2.0)
 				_path([Vector2(4, 16), Vector2(8, 20), Vector2(13, 22)], 1.25)
+			# 战斗操作三档：手动是一枚摇杆；自动普攻是一把剑绕一圈；全自动再添一颗法术星。
+			&"manual":
+				draw_arc(Vector2(15, 17), 10.0, 0.0, TAU, 28, Color(ink, 0.55), 1.4, true)
+				draw_line(Vector2(15, 17), Vector2(19, 10), ink, 2.2, true)
+				draw_circle(Vector2(19.5, 9.0), 3.6, ink, true, -1.0, true)
+			&"assist", &"auto":
+				_path([Vector2(9, 21), Vector2(20, 10)], 2.4)
+				_path([Vector2(7, 16), Vector2(14, 23)], 1.8)
+				draw_arc(Vector2(15, 15), 12.0, -2.2, 2.0, 24, Color(ink, 0.7), 1.3, true)
+				_path([Vector2(5.5, 7.5), Vector2(8.0, 6.0), Vector2(8.6, 9.1)], 1.3)
+				if symbol == &"auto":
+					var star := Vector2(23, 7)
+					for k in range(4):
+						var direction := Vector2.from_angle(k * PI * 0.5)
+						draw_line(star - direction * 4.0, star + direction * 4.0, ink, 1.2, true)
+					draw_circle(star, 1.6, ink, true, -1.0, true)
+			# 战斗速度：一、二、三个三角。
+			&"speed1", &"speed2", &"speed3":
+				var count := int(String(symbol).right(1))
+				var step := 7.0
+				var left := 15.0 - (count * step + 3.0) * 0.5
+				for k in range(count):
+					var x := left + k * step
+					draw_colored_polygon(PackedVector2Array([Vector2(x, 9), Vector2(x + 10, 15), Vector2(x, 21)]),
+						Color(ink, 0.55 + 0.45 * float(k + 1) / count))
 			_:
 				draw_colored_polygon(PackedVector2Array([Vector2(11, 19), Vector2(22, 5), Vector2(27, 3), Vector2(25, 10), Vector2(15, 22)]), ink)
 				_path([Vector2(8, 17), Vector2(17, 24)], 2.0)

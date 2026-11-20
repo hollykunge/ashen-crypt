@@ -15,6 +15,7 @@ const Turnover = preload("res://scripts/layer_turnover.gd")
 const TribulationNotice = preload("res://scripts/tribulation_notice.gd")
 const PlaceNotice = preload("res://scripts/place_notice.gd")
 const SideArt = preload("res://scripts/side_art.gd")
+const BattleStrip = preload("res://scripts/battle_strip.gd")
 const CAMP = preload("res://art/immortals/ruined-shrine-flagstones.webp")
 const FORGE_BG = preload("res://art/immortals/soot-furnace-flagstones.webp")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
@@ -43,7 +44,6 @@ var state: StringName = &"selection"
 var touches: Dictionary = {}
 var action_buttons: Dictionary = {}
 var action_glyphs: Dictionary = {}
-var cooldown_labels: Dictionary = {}
 var cooldown_sweeps: Dictionary = {}
 var cooldown_totals: Dictionary = {}
 var sound_buttons: Array[Button] = []
@@ -100,6 +100,14 @@ var mana_value: Label
 var field: Arena
 var stick: Stick
 var gear_card: Node
+# 战斗时顶上只留 strip（日暮月三波、余敌小点、层主血条），过层和层主登场用 banner 在正中写一行大字，停一会儿就淡掉。
+var strip: BattleStrip
+var banner: VBoxContainer
+var banner_title: Label
+var banner_sub: Label
+var banner_fade: Tween
+var hint_time := 0.0
+var boss_announced := false
 
 func _ready() -> void:
 	original_design_size = get_window().content_scale_size
@@ -224,6 +232,11 @@ func _build_battle() -> void:
 	farm_status = _label("", 11, MUTED)
 	farm_readout.add_child(farm_status)
 
+	strip = BattleStrip.new()
+	strip.waves = Combat.WAVE_SIZES.size()
+	strip.hide()
+	stage_info.add_child(strip)
+
 	boss_readout = _vbox(5)
 	info.add_child(boss_readout)
 	boss_health = _meter(Color("#c65c4c"), 9, 5)
@@ -238,16 +251,13 @@ func _build_battle() -> void:
 	battle_header.add_child(switches)
 	battle_tools = _hbox(6)
 	switches.add_child(battle_tools)
-	mode_button = _button("", false, 44.0)
-	mode_button.custom_minimum_size.x = 96
+	mode_button = _icon_button(&"assist", "", false, Vector2(44, 44))
 	mode_button.pressed.connect(_cycle_control_mode)
 	battle_tools.add_child(mode_button)
-	speed_button = _button("1×", false, 44.0)
-	speed_button.custom_minimum_size.x = 52
+	speed_button = _icon_button(&"speed1", "", false, Vector2(44, 44))
 	speed_button.pressed.connect(_cycle_battle_speed)
 	battle_tools.add_child(speed_button)
-	stop_route_button = _button("停止连战", false, 44.0)
-	stop_route_button.add_theme_font_size_override("font_size", 13)
+	stop_route_button = _icon_button(&"leave", "停止连战", false, Vector2(44, 44))
 	stop_route_button.pressed.connect(_stop_route)
 	stop_route_button.hide()
 	battle_tools.add_child(stop_route_button)
@@ -267,6 +277,20 @@ func _build_battle() -> void:
 	var spring := _space(1)
 	spring.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	battle.add_child(spring)
+	banner = _vbox(2)
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.alignment = BoxContainer.ALIGNMENT_CENTER
+	banner_title = _label("", 40, Color("#f2d9a6"))
+	banner_sub = _label("", 20, GOLD)
+	for line in [banner_title, banner_sub]:
+		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		line.add_theme_constant_override("outline_size", 8)
+		line.add_theme_color_override("font_outline_color", Color(NIGHT, 0.85))
+		banner.add_child(line)
+	spring.add_child(banner)
+	banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	banner.offset_top = 28.0
+	banner.hide()
 	farm_actions = _hbox(7)
 	battle.add_child(farm_actions)
 	var forge_button := _button("行装", false, 53.0)
@@ -294,6 +318,8 @@ func _build_battle() -> void:
 	var hud := _hbox(7)
 	boss_controls.add_child(hud)
 	var identity := _hud_card(hud, 6, 0.88)
+	# 生命、灵力平时只看两条，按住头像这一块才报数。
+	identity.get_parent().gui_input.connect(_hold_vitals)
 	var portrait_row := _hbox(6)
 	identity.add_child(portrait_row)
 	battle_portrait = _image(SideArt.PORTRAITS[0])
@@ -305,10 +331,12 @@ func _build_battle() -> void:
 	vitals.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	portrait_row.add_child(vitals)
 	life_value = _label("", 11, INK)
+	life_value.hide()
 	vitals.add_child(life_value)
 	life_meter = _meter(Color("#be6251"), 5)
 	vitals.add_child(life_meter)
 	mana_value = _label("", 11, INK)
+	mana_value.hide()
 	vitals.add_child(mana_value)
 	mana_meter = _meter(Color("#79a7a6"), 5)
 	vitals.add_child(mana_meter)
@@ -341,13 +369,40 @@ func _cycle_battle_speed() -> void:
 	battle_speed = battle_speed % 3 + 1
 	_update_control_labels()
 
+# 按钮上不写字，名字留给读屏和长按提示。
 func _update_control_labels() -> void:
-	mode_button.text = ["手动", "自动普攻", "全自动"][control_mode]
-	_describe(mode_button, mode_button.text + " · 切换战斗操作")
+	_set_icon(mode_button, [&"manual", &"assist", &"auto"][control_mode])
+	_describe(mode_button, ["手动", "自动普攻", "全自动"][control_mode])
 	_restyle(mode_button, control_mode == Combat.ControlMode.AUTOMATIC)
-	speed_button.text = "%d×" % battle_speed
-	_describe(speed_button, "战斗速度 " + speed_button.text)
+	_set_icon(speed_button, StringName("speed%d" % battle_speed))
+	_describe(speed_button, "%d×" % battle_speed)
 	manual_movement.visible = control_mode == Combat.ControlMode.MANUAL
+
+func _hold_vitals(event: InputEvent) -> void:
+	var pressed := false
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		pressed = event.pressed
+	elif event is InputEventScreenTouch:
+		pressed = event.pressed
+	else:
+		return
+	life_value.visible = pressed
+	mana_value.visible = pressed
+
+# 正中一行大字，淡入、停一下、淡出。只在过层、层主登场这种时刻用。
+func _announce(title: String, sub := "") -> void:
+	banner_title.text = title
+	banner_sub.text = sub
+	banner_sub.visible = not sub.is_empty()
+	if banner_fade != null:
+		banner_fade.kill()
+	banner.modulate.a = 0.0
+	banner.show()
+	banner_fade = create_tween()
+	banner_fade.tween_property(banner, "modulate:a", 1.0, 0.25)
+	banner_fade.tween_interval(1.3)
+	banner_fade.tween_property(banner, "modulate:a", 0.0, 0.6)
+	banner_fade.tween_callback(banner.hide)
 
 func _update_retinue() -> void:
 	var wide := size.x >= size.y * 1.17
@@ -571,6 +626,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 		run.refresh_equipment(bonuses, form)
 	else:
 		run.reset(profile.layer(), bonuses, form, challenge, ling, continuous_route)
+		boss_announced = false
 	state = &"boss" if challenge else &"farm"
 	battle_context.text = profile.layer_caption()
 	# 抬头三路：渡劫 / 层主 / 挂机。挂机时报这个地方正在遭的灾。
@@ -590,6 +646,13 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	boss_readout.visible = challenge
 	boss_controls.visible = challenge
 	battle_tools.visible = challenge
+	battle_info.visible = not challenge
+	strip.visible = challenge
+	strip.single = challenge and not run.continuous
+	_layout_header()
+	# 连战开场报层数和地名；单场冲层一上来就是层主，由层主登场那一下报。
+	if challenge and run.continuous:
+		_announce("第 %d 层" % profile.layer(), String(profile.place().get("name", "")))
 	_update_retinue()
 	stop_route_button.visible = challenge and run.continuous
 	gear_card.visible = not challenge
@@ -641,31 +704,32 @@ func _update_battle() -> void:
 		challenge_button.text = ("调息 %d 秒\n" % wait + challenge_caption) if wait > 0 else challenge_caption
 		return
 	var enemy: Dictionary = run.enemies[0] if not run.enemies.is_empty() else {}
-	if run.continuous:
-		var wave := "第 %d / %d 波" % [run.wave_index + 1, Combat.WAVE_SIZES.size()]
-		if run.advancing:
-			encounter_label.text = "前往下一波"
-			boss_health.set_amount(0.0, 1.0)
-			boss_hint.text = "%s已清 · 向前进发" % wave
-			boss_hint.add_theme_color_override("font_color", GOLD)
-		elif run.boss_wave():
-			var tribulation := Gear.Realm.jie_ling_of(run.dungeon_layer)
-			var title: String = run.archetype.name + " · 层主" if tribulation.is_empty() else (
-				"%s劫 · 层主" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(tribulation)])
-			encounter_label.text = title
-		else:
-			encounter_label.text = wave
+	strip.current = run.wave_index
+	strip.advancing = run.advancing
+	var living := 0
+	var total_health := 0
+	var remaining_health := 0
+	for foe in run.enemies:
+		total_health += int(foe.max_hp)
+		remaining_health += int(foe.hp)
+		if foe.hp > 0:
+			living += 1
+	var boss_up := run.boss_wave() and not enemy.is_empty()
+	strip.boss_ratio = float(remaining_health) / maxf(total_health, 1) if boss_up else -1.0
+	strip.foes_total = 0 if run.boss_wave() else int(Combat.WAVE_SIZES[run.wave_index])
+	strip.foes = 0 if run.advancing else living
 	if not enemy.is_empty():
-		var total_health := 0
-		var remaining_health := 0
-		for foe in run.enemies:
-			total_health += int(foe.max_hp)
-			remaining_health += int(foe.hp)
 		boss_health.set_amount(remaining_health, total_health)
-		var preparing: bool = enemy.windup > 0.0
-		boss_hint.text = "%s · 后撤避开红圈" % run.archetype.skill if preparing else (
-			"层主生命 %d / %d" % [enemy.hp, enemy.max_hp] if run.boss_wave() else "余敌 %d" % run.enemies.size())
-		boss_hint.add_theme_color_override("font_color", Color("#ffaca0") if preparing else MUTED)
+	# 层主蓄力时不报字：地上有红圈，后撤键跟着一明一暗。
+	var preparing: bool = not enemy.is_empty() and enemy.windup > 0.0
+	strip.warning = preparing and boss_up
+	hint_time = fposmod(hint_time + get_physics_process_delta_time() * 7.0, TAU) if preparing else 0.0
+	action_buttons[&"retreat"].self_modulate = Color.WHITE.lerp(Color("#ff8f7a"), 0.5 + 0.5 * sin(hint_time)) if preparing else Color.WHITE
+	if run.boss_wave() and not boss_announced and not enemy.is_empty() and enemy.spawn > 0.0:
+		boss_announced = true
+		var tribulation := Gear.Realm.jie_ling_of(run.dungeon_layer)
+		_announce(run.archetype.name if tribulation.is_empty() else "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(tribulation)],
+			"层主")
 	life_meter.set_amount(run.hp, run.max_hp)
 	mana_meter.set_amount(run.mana, run.max_mana)
 	life_value.text = "生命 %d" % run.hp
@@ -678,7 +742,6 @@ func _update_battle() -> void:
 func _cooldown(action: StringName, left: float, out_of_mana: bool) -> void:
 	var button: Button = action_buttons[action]
 	button.disabled = run.advancing or left > 0.0 or out_of_mana
-	cooldown_labels[action].text = str(ceili(left)) if left > 0.0 else ""
 	action_glyphs[action].modulate.a = 0.42 if button.disabled else 1.0
 	# 转一圈的时长按本次冷却的峰值记，读条才不会跳。
 	var total := maxf(float(cooldown_totals.get(action, 0.0)), left)
@@ -830,11 +893,8 @@ func _finish_challenge(outcome: StringName) -> void:
 		run.motion = &""
 		run.facing = 0.0
 		run.stride = 0.0
-		encounter_label.text = "第 %d 层已通关" % old_layer
 		if is_breakthrough:
-			encounter_label.text += " · 破境"
-		boss_hint.text = "即将进入第 %d 层" % profile.layer()
-		boss_hint.add_theme_color_override("font_color", GOLD)
+			_announce("破境", String(profile.realm().name))
 		boss_health.set_amount(0.0, 1.0)
 		for action in [&"attack", &"skill", &"tactic", &"retreat"]:
 			action_buttons[action].disabled = true
@@ -877,7 +937,7 @@ func _adapt_safe_area() -> void:
 	safe.add_theme_constant_override("margin_left", left)
 	safe.add_theme_constant_override("margin_right", right)
 	var wide := size.x >= size.y * 1.17
-	battle_header.columns = 2 if wide else 1
+	_layout_header()
 	battle_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if wide else Control.SIZE_FILL
 	battle_info.custom_minimum_size.x = 340.0 if wide else 0.0
 	gear_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
@@ -889,6 +949,10 @@ func _adapt_safe_area() -> void:
 	selection.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
 	selection.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
 	_fit_forge()
+
+# 战斗时顶栏很窄，竖屏也和工具按钮并排；挂机那张信息卡竖屏时独占一行。
+func _layout_header() -> void:
+	battle_header.columns = 2 if size.x >= size.y * 1.17 or strip.visible else 1
 
 func _fit_forge() -> void:
 	if forge == null:
@@ -927,20 +991,12 @@ func _add_action(row: HBoxContainer, action: StringName, title: String, primary:
 	if skill_slot:
 		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var glyph: Gothic.Glyph = tile.get_node("Glyph")
-		glyph.offset_left = -21
-		glyph.offset_right = 21
-		glyph.offset_top = -29
-		glyph.offset_bottom = 10
+		# 招式只画图，不写名字；冷却靠转圈的读条，不报秒数。
+		glyph.offset_left = -22
+		glyph.offset_right = 22
+		glyph.offset_top = -22
+		glyph.offset_bottom = 22
 		tile.clip_contents = true
-		var caption := _label(title, 12, INK)
-		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		caption.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		caption.add_theme_constant_override("outline_size", 4)
-		caption.add_theme_color_override("font_outline_color", NIGHT)
-		tile.add_child(caption)
-		_fill(caption)
-		caption.offset_bottom = -4.0
 	tile.toggle_mode = true
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(tile)
@@ -951,17 +1007,6 @@ func _add_action(row: HBoxContainer, action: StringName, title: String, primary:
 		tile.add_child(sweep)
 		_fill(sweep)
 		cooldown_sweeps[action] = sweep
-		var counter := _label("", 12, INK)
-		counter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		counter.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		counter.add_theme_constant_override("outline_size", 5)
-		counter.add_theme_color_override("font_outline_color", NIGHT)
-		tile.add_child(counter)
-		_fill(counter)
-		counter.offset_right = -5
-		counter.offset_bottom = -3
-		cooldown_labels[action] = counter
 
 func _sound_button() -> Button:
 	var tile := _icon_button(&"mute", "开启音效", false, Vector2(44, 44))
