@@ -71,6 +71,8 @@
 
 长卷之外还有三层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**水面**：主角站位往下就是水，[water.gdshader](mobile/scripts/water.gdshader) 把长卷倒映进去，人和精怪再按脚底各画一份淡倒影，水的浓度和水色按地域给（江淮最浓，上界是玉石地面的反光，陇右旱地没有水）。水和倒影都画在人物之下，站进浅水的精怪和地上的预警圈不会被盖住。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
 
+长卷之外还有三层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**水面**：主角站位往下就是水，[water.gdshader](mobile/scripts/water.gdshader) 把长卷倒映进去，人和精怪再按脚底各画一份淡倒影，水的浓度和水色按地域给（江淮最浓，上界是玉石地面的反光，陇右旱地没有水）。水和倒影都画在人物之下，站进浅水的精怪和地上的预警圈不会被盖住。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
+
 男女修行人各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
 
 换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。

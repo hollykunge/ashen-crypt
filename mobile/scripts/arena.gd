@@ -29,6 +29,16 @@ const LANDSCAPE_BATTLE_ZOOM := 1.22
 const PORTRAIT_BATTLE_FLOOR := 0.765
 const PORTRAIT_BATTLE_CENTER_X := 493.0
 const SNOW_HAZE = preload("res://scripts/snow_haze.gdshader")
+const ATMOSPHERE = preload("res://scripts/atmosphere.gdshader")
+const WATER = preload("res://scripts/water.gdshader")
+# 挂机时一整天的长度（秒）。前一半是白天，再走过黄昏入夜，最后经过拂晓回到白天。
+const DAY_LENGTH := 300.0
+# 天色每秒最多变多少。连战换波时跑图那几秒，正好从一段天色走到下一段。
+const DAYLIGHT_PACE := 0.22
+# 最前面那层剪影相对镜头的速度：长卷走 1，它走 1.6。
+const NEAR_PARALLAX := 1.6
+# 水线在主角站位以下多远（战斗坐标）。
+const WATER_GAP := 6.0
 
 var run: Combat
 var portrait_id := 0
@@ -76,6 +86,18 @@ var backdrop := TextureRect.new()
 var fog := GradientTexture2D.new()
 var cut_in_left := 0.0
 var cut_in_name := ""
+# 天色：0 白天，0.5 黄昏，1 入夜。连战第一波是白天，第二波黄昏，层主在夜里；挂机按 DAY_LENGTH 一天一轮。
+var daylight := 0.0
+var day_clock := 0.0
+var light := ShaderMaterial.new()
+var atmosphere := ColorRect.new()
+var ripple := ShaderMaterial.new()
+var water := ColorRect.new()
+var near := Control.new()
+# 人和精怪在水里的倒影。画在水面之上、人物之下，只在水线以下露出来（clip_contents）。
+# 倒影用的是上一帧记下的站位（mirrors），差一帧看不出来。
+var reflections := Control.new()
+var mirrors: Array[Dictionary] = []
 
 func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
@@ -88,6 +110,31 @@ func _ready() -> void:
 	haze.set_shader_parameter("floor_line", SideArt.SNOW_FLOOR)
 	backdrop.material = haze
 	add_child(backdrop)
+	# 子节点的先后就是画的先后：长卷、水面（都在本层的人物之下），然后是人物，再是最前面的剪影，最后一层天光。
+	ripple.shader = WATER
+	water.material = ripple
+	water.show_behind_parent = true
+	water.mouse_filter = MOUSE_FILTER_IGNORE
+	water.set_anchors_preset(PRESET_FULL_RECT)
+	add_child(water)
+	reflections.show_behind_parent = true
+	reflections.clip_contents = true
+	reflections.mouse_filter = MOUSE_FILTER_IGNORE
+	reflections.draw.connect(_draw_reflections)
+	add_child(reflections)
+	near.mouse_filter = MOUSE_FILTER_IGNORE
+	near.set_anchors_preset(PRESET_FULL_RECT)
+	near.draw.connect(_draw_near)
+	add_child(near)
+	# 画面一帧只自动读回一次（给了水面），天光要读人物画完之后的画面，得再拷一次。
+	var copy := BackBufferCopy.new()
+	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(copy)
+	light.shader = ATMOSPHERE
+	atmosphere.material = light
+	atmosphere.mouse_filter = MOUSE_FILTER_IGNORE
+	atmosphere.set_anchors_preset(PRESET_FULL_RECT)
+	add_child(atmosphere)
 	var mist := Gradient.new()
 	mist.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
 	mist.colors = PackedColorArray([Color("#92919400"), Color("#9291941c"), Color("#92919400")])
@@ -113,12 +160,17 @@ func set_camp_view(active: bool) -> void:
 	haze.set_shader_parameter("flatten", 0.16 * depth)
 	haze.set_shader_parameter("desaturate", 0.24 * depth)
 	street_floor = plate.floor
+	ripple.set_shader_parameter("water", plate.water)
+	ripple.set_shader_parameter("water_tint", plate.tint)
+	water.visible = plate.water > 0.0
+	reflections.visible = water.visible
 	lane_depth = 0.30 if route_view else SIDE_DEPTH
 	follow = Vector2.ZERO
 	shake = 0.0
 	glare = 0.0
 	hold = 0.0
 	cut_in_left = 0.0
+	daylight = _target_daylight()
 	_fit_stage()
 
 func _process(delta: float) -> void:
@@ -134,7 +186,51 @@ func _process(delta: float) -> void:
 	hold = maxf(0.0, hold - delta)
 	cut_in_left = maxf(0.0, cut_in_left - delta)
 	shake_seed += delta * 47.0
+	if camp_view:
+		day_clock = fposmod(day_clock + delta, DAY_LENGTH)
+	daylight = move_toward(daylight, _target_daylight(), delta * DAYLIGHT_PACE)
+	_update_light()
 	queue_redraw()
+	near.queue_redraw()
+	if reflections.visible:
+		reflections.queue_redraw()
+
+func _target_daylight() -> float:
+	if run == null:
+		return 0.0
+	if camp_view:
+		var hour := day_clock / DAY_LENGTH
+		if hour < 0.5:
+			return 0.0
+		if hour < 0.62:
+			return smoothstep(0.5, 0.62, hour)
+		if hour < 0.86:
+			return 1.0
+		return 1.0 - smoothstep(0.86, 1.0, hour)
+	if run.continuous:
+		return float(run.wave_index) / float(Combat.WAVE_SIZES.size() - 1)
+	return 1.0 if run.challenging else 0.0
+
+# 把水线交给 water.gdshader，天色和主角身边那圈光交给 atmosphere.gdshader。白天整层天光关掉，省一次读屏。
+func _update_light() -> void:
+	if run == null or size.y <= 0.0:
+		return
+	# 水从石路前沿往下铺：最靠后的那条走位线以下就是水，靠前走的人和精怪站在浅水里。
+	var bank := world_offset.y + (_floor(Combat.HOME).y + WATER_GAP) * scale_to_screen
+	ripple.set_shader_parameter("water_line", bank / size.y)
+	reflections.position = Vector2(0.0, bank)
+	reflections.size = Vector2(size.x, maxf(0.0, size.y - bank))
+	var warm := clampf(1.0 - absf(daylight - 0.5) * 2.0, 0.0, 1.0)
+	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
+	atmosphere.visible = warm > 0.01 or dark > 0.01
+	if not atmosphere.visible:
+		return
+	var body := world_offset + jitter + _floor(run.position) * scale_to_screen - Vector2(0.0, 40.0 * hero_pixels)
+	light.set_shader_parameter("warm", warm * 0.85)
+	light.set_shader_parameter("night", dark * 0.82)
+	light.set_shader_parameter("lamp", body / size)
+	light.set_shader_parameter("lamp_radius", 120.0 * hero_pixels / size.y)
+	light.set_shader_parameter("aspect", size.x / size.y)
 
 # 把战斗抛出的打击事件翻成画面反馈。挂机时一律减半，免得挂着挂着屏幕一直在抖。
 func _drain_pulses() -> void:
@@ -249,6 +345,7 @@ func _draw() -> void:
 	if run == null or size.x <= 0.0 or size.y <= 0.0:
 		return
 	jitter = Vector2(0.0, cos(shake_seed * 2.3) * 4.0) * shake * scale_to_screen
+	mirrors.clear()
 	_draw_mist()
 	_world_transform()
 	_draw_telegraphs()
@@ -427,6 +524,101 @@ func _draw_snow() -> void:
 		else:
 			draw_circle(point, 1.6 if i % 4 == 0 else 0.85, ink, true, -1.0, true)
 
+# 镜头最前面那层剪影：沿画面底边一丛一丛，比长卷走得快，人和精怪就夹在两层中间。
+# 每丛的样子由序号算出来，镜头怎么走都是同一片草。
+func _draw_near() -> void:
+	if run == null or size.x <= 0.0:
+		return
+	var kind: StringName = plate.get("near", &"grass")
+	var ink: Color = plate.get("near_ink", Color("#1d1c17"))
+	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
+	var unit := minf(size.x, size.y) / 390.0
+	var spacing := 46.0 * unit
+	var shift := -follow.x * scale_to_screen * NEAR_PARALLAX + jitter.x
+	var first := floori((-shift - spacing * 2.0) / spacing)
+	var last := ceili((size.x - shift + spacing * 2.0) / spacing)
+	for i in range(first, last + 1):
+		var seed := _hash(i)
+		if seed < 0.38:
+			continue
+		var x := i * spacing + shift + (_hash(i + 71) - 0.5) * spacing * 0.8
+		match kind:
+			&"rock":
+				_near_rock(x, seed, unit, ink)
+			&"cloud":
+				_near_cloud(x, seed, unit, Color(ink.lerp(Color("#5a6a90"), dark * 0.7), 1.0 - dark * 0.45))
+			_:
+				_near_blades(x, seed, unit, ink, kind == &"reed")
+
+# 倒影：同一张原画按脚底上下翻过来，压进水色、调淡，随水波左右轻轻错开。
+func _draw_reflections() -> void:
+	var tint: Color = plate.get("tint", Color.WHITE)
+	var ink := Color(tint.lerp(Color.WHITE, 0.55), clampf(float(plate.water) * 0.75, 0.0, 0.6))
+	for mirror in mirrors:
+		var point: Vector2 = mirror.point
+		var facing: float = mirror.facing
+		var origin := world_offset + point * scale_to_screen - reflections.position
+		var wobble := sin(ash_time * 2.1 + point.x * 0.05) * 0.05
+		var mirror_scale: float = scale_to_screen * float(mirror.scale)
+		var tilt := Transform2D(-float(mirror.lean) * facing, Vector2(facing, -1.0) * mirror_scale, wobble, origin)
+		reflections.draw_set_transform_matrix(tilt)
+		if mirror.has("art"):
+			MonsterArt.draw_frame(reflections, mirror.art, mirror.frame, mirror.height, ink)
+		else:
+			HeldWeapon.draw_actor(reflections, mirror.sprite, mirror.sex, mirror.frame, mirror.look, ink, mirror.gait, mirror.feet)
+	reflections.draw_set_transform(Vector2.ZERO)
+
+# 一丛草：每片叶子从根部斜出去再顺风弯下来，叶尖随风摆。外面先描一圈淡的，像镜头没对上焦。
+func _near_blades(x: float, seed: float, unit: float, ink: Color, reed: bool) -> void:
+	var count := (6 if reed else 9) + int(seed * 6.0)
+	var reach := ((44.0 + 50.0 * _hash(int(seed * 9973.0))) if reed else (18.0 + 30.0 * _hash(int(seed * 9973.0)))) * unit
+	# 一阵风过来，整丛往同一边倒，各片叶子再各自错开一点。
+	var wind := 0.18 + 0.14 * sin(ash_time * 0.9 + x * 0.006)
+	for j in range(count):
+		var pick := _hash(int(seed * 7919.0) + j)
+		var tall := reach * (0.35 + 0.65 * pick)
+		var lean := (float(j) / maxf(count - 1, 1) - 0.5) * (0.55 if reed else 0.9) + (pick - 0.5) * 0.3
+		var bend := wind + 0.28 * pick * pick + sin(ash_time * 1.7 + j * 1.3 + x * 0.02) * 0.03
+		var base := Vector2(x + lean * 14.0 * unit, size.y + 4.0)
+		var width := (1.3 if reed else 0.9 + 0.8 * pick) * unit
+		var left := PackedVector2Array()
+		var right := PackedVector2Array()
+		for k in range(6):
+			var t := float(k) / 5.0
+			var point := base + Vector2((lean * 0.5 * t + bend * t * t) * tall, -tall * t * (1.0 - 0.3 * bend * t))
+			var w := width * (1.0 - t * 0.9)
+			left.append(point - Vector2(w, 0.0))
+			right.insert(0, point + Vector2(w, 0.0))
+		near.draw_colored_polygon(left + right, Color(ink, 0.88 if reed else 0.78))
+		if reed and pick > 0.66:
+			var head := left[4].lerp(right[1], 0.5)
+			near.draw_set_transform(head, lean * 0.5 + bend * 0.9, Vector2(1.0, 3.2))
+			near.draw_circle(Vector2.ZERO, 1.9 * unit, Color(ink.lightened(0.1), 0.9), true, -1.0, true)
+			near.draw_set_transform(Vector2.ZERO)
+
+func _near_rock(x: float, seed: float, unit: float, ink: Color) -> void:
+	var wide := (22.0 + 30.0 * seed) * unit
+	var tall := wide * (0.45 + 0.3 * _hash(int(seed * 613.0)))
+	var points := PackedVector2Array()
+	for k in range(11):
+		var angle := PI + PI * float(k) / 10.0
+		var bump := 0.82 + 0.18 * _hash(int(seed * 331.0) + k)
+		points.append(Vector2(x + cos(angle) * wide * bump, size.y + 6.0 + sin(angle) * tall * bump))
+	near.draw_colored_polygon(points, Color(ink, 0.94))
+
+func _near_cloud(x: float, seed: float, unit: float, ink: Color) -> void:
+	var drift := sin(ash_time * 0.21 + seed * 9.0) * 14.0 * unit
+	for k in range(5):
+		var r := (16.0 + 26.0 * _hash(int(seed * 211.0) + k)) * unit
+		var point := Vector2(x + drift + (float(k) - 2.0) * r * 1.3, size.y - r * 0.15 - (k % 2) * 8.0 * unit)
+		near.draw_set_transform(point, 0.0, Vector2(2.4, 1.0))
+		near.draw_circle(Vector2.ZERO, r * 1.4, Color(ink, ink.a * 0.06), true, -1.0, true)
+		near.draw_circle(Vector2.ZERO, r, Color(ink, ink.a * 0.11), true, -1.0, true)
+	near.draw_set_transform(Vector2.ZERO)
+
+static func _hash(n: int) -> float:
+	return fposmod(sin(float(n) * 12.9898 + 78.233) * 43758.5453, 1.0)
+
 func _world_transform() -> void:
 	draw_set_transform(world_offset + jitter, 0.0, Vector2.ONE * scale_to_screen)
 
@@ -510,6 +702,8 @@ func _draw_hero() -> void:
 			{}, Vector2.ZERO, Vector2(offset, 0))
 	var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, hero_scale, lean)
 	HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, ink, gait, feet)
+	mirrors.append({"point": point, "facing": facing, "scale": hero_scale, "lean": lean, "sprite": sprite,
+		"sex": sprite_index, "frame": frame, "look": look, "gait": gait, "feet": feet})
 	draw_set_transform(Vector2.ZERO)
 	Figure.hands(self, rig, look)
 	Figure.charms(self, rig, look, ash_time)
@@ -539,6 +733,8 @@ func _draw_retinue() -> void:
 		var ink := Color("#929896e0")
 		var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, actor_scale, lean)
 		HeldWeapon.draw_actor(self, SideArt.SPRITES[0], 0, frame, retinue_look, ink, gait, feet)
+		mirrors.append({"point": point, "facing": facing, "scale": actor_scale, "lean": lean, "sprite": SideArt.SPRITES[0],
+			"sex": 0, "frame": frame, "look": retinue_look, "gait": gait, "feet": feet})
 		_world_transform()
 
 func _draw_enemy(enemy: Dictionary) -> void:
@@ -554,6 +750,8 @@ func _draw_enemy(enemy: Dictionary) -> void:
 	var flash := pow(clampf((enemy.hit - 0.04) / 0.11, 0.0, 1.0), 1.7)
 	var ink := Color.WHITE.lerp(tint, 0.16).lerp(Color(1.52, 1.40, 1.32), flash)
 	MonsterArt.draw_frame(self, art, frame, height, ink)
+	mirrors.append({"point": point, "facing": facing, "scale": foe_scale, "lean": 0.0, "art": art, "frame": frame,
+		"height": height})
 	_world_transform()
 	if enemy.hit > 0.0 and not enemy.boss:
 		var width := 34.0

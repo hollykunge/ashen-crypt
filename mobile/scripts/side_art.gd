@@ -28,27 +28,36 @@ const FRAMES := {&"ready": 0, &"guard": 3, &"windup": 4, &"strike": 5, &"follow"
 
 # 每个地域一条长卷，由 art/side/plates/prompts.json 的四幅拼成，地面线都按 79% 出图。
 # haze 是远景空气透视的颜色（snow_haze.gdshader），weather 决定前景飘的东西，shadow 是脚下阴影。
+# water 是石路前那片水面的倒影浓度（water.gdshader），旱地没有水；tint 是水色。
+# near 是镜头最前面那层剪影（草、芦苇、乱石、云絮），比镜头走得快，拉出纵深；near_ink 是它的颜色。
 # 长卷本身已经按远近压过色，空气透视只取雪道的一半（PLATE_DEPTH），不然远处的地标会被洗没。
 const PLATES := {
 	"drought": {"path": "res://art/side/plates/drought.webp", "floor": 0.79, "haze": Color("#d6c4a0"),
-		"weather": &"dust", "shadow": Color("#3b2a1a9c")},
+		"weather": &"dust", "shadow": Color("#3b2a1a9c"),
+		"water": 0.0, "tint": Color("#6b5a40"), "near": &"grass", "near_ink": Color("#3a2f20")},
 	"plague": {"path": "res://art/side/plates/plague.webp", "floor": 0.79, "haze": Color("#b8b69b"),
-		"weather": &"ash", "shadow": Color("#1c1a16b4")},
+		"weather": &"ash", "shadow": Color("#1c1a16b4"),
+		"water": 0.30, "tint": Color("#3b3f36"), "near": &"grass", "near_ink": Color("#2b2a22")},
 	"mine": {"path": "res://art/side/plates/mine.webp", "floor": 0.79, "haze": Color("#9da3a8"),
-		"weather": &"grit", "shadow": Color("#121416bc")},
+		"weather": &"grit", "shadow": Color("#121416bc"),
+		"water": 0.22, "tint": Color("#2c3135"), "near": &"rock", "near_ink": Color("#16181a")},
 	"war": {"path": "res://art/side/plates/war.webp", "floor": 0.79, "haze": Color("#a8b5c6"),
-		"weather": &"ash", "shadow": Color("#1a2230ac")},
+		"weather": &"ash", "shadow": Color("#1a2230ac"),
+		"water": 0.26, "tint": Color("#2e3646"), "near": &"grass", "near_ink": Color("#2a2a2c")},
 	"flood": {"path": "res://art/side/plates/flood.webp", "floor": 0.79, "haze": Color("#a7b6bb"),
-		"weather": &"rain", "shadow": Color("#1f2a2eac")},
+		"weather": &"rain", "shadow": Color("#1f2a2eac"),
+		"water": 0.72, "tint": Color("#3d5257"), "near": &"reed", "near_ink": Color("#18241f")},
 	"court": {"path": "res://art/side/plates/court.webp", "floor": 0.79, "haze": Color("#dde5ee"),
-		"weather": &"mist", "shadow": Color("#3a4a66a0")},
+		"weather": &"mist", "shadow": Color("#3a4a66a0"),
+		"water": 0.46, "tint": Color("#9fb0c8"), "near": &"cloud", "near_ink": Color("#eef3fa")},
 }
 # 长卷缺失时（还没出图、或日后新增地域）退回昆仑雪道，画面照常能跑。
 const PLATE_DEPTH := 0.5
 # 长卷两头各有一段为拼接留的空地（每幅两侧 18%，折合整卷约 5%），镜头不往那里停。
 const PLATE_MARGIN := 0.05
 const FALLBACK_PLATE := {"key": "kunlun", "texture": SNOW_PASS, "floor": SNOW_FLOOR, "depth": 1.0, "margin": 0.0,
-	"haze": Color(0.80, 0.85, 0.89), "weather": &"snow", "shadow": Color("#23364aa8")}
+	"haze": Color(0.80, 0.85, 0.89), "weather": &"snow", "shadow": Color("#23364aa8"),
+	"water": 0.30, "tint": Color("#5a7286"), "near": &"grass", "near_ink": Color("#1d2a35")}
 
 static var _plate_cache := {}
 
