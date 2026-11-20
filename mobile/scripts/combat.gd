@@ -36,15 +36,11 @@ const SKILL_COST := 30.0
 const TACTIC_COST := 22.0
 const PLAYER := {"hp": 150, "speed": 115.0, "damage": 34, "cooldown": 3.2, "color": Color("#e5cb93")}
 const PROJECTILE_START := 15.0
-const BLADE_CUES := {"long_blade": [0.17, 0.43, 0.69], "dual_blades": [0.13, 0.33, 0.54, 0.75], "sword": [0.20, 0.56]}
-const BLADE_SLICES := {
-	"long_blade": [Vector2(0.0, 0.27), Vector2(0.27, 0.56), Vector2(0.56, 1.0)],
-	"dual_blades": [Vector2(0.0, 0.54), Vector2(0.54, 1.0), Vector2(0.0, 0.45), Vector2(0.45, 1.0)],
-	"sword": [Vector2(0.0, 0.42), Vector2(0.42, 1.0)]
-}
-# 远程形制：普攻放弹道，不用贴身。法器（法杖、短杖）的弹道带溅射。
-const RANGED_FORMS := ["bow", "staff", "wand"]
-const SPELL_FORMS := ["staff", "wand"]
+# 剑一轮两剑，两道刃光把一次普攻的伤害分开打出去。
+const BLADE_CUES := {"sword": [0.20, 0.56]}
+const BLADE_SLICES := {"sword": [Vector2(0.0, 0.42), Vector2(0.42, 1.0)]}
+# 远程形制：普攻放弹道，不用贴身。
+const RANGED_FORMS := ["bow"]
 # 长枪一枪扎出去的宽度：只扫到枪杆这一路，前后站成一串的都会被穿。
 const THRUST_WIDTH := 30.0
 const ATTACK_BUFFER := 0.16
@@ -74,7 +70,7 @@ const HIT_LIFETIME := 10.0 / 30.0
 const CRIT_LIFETIME := 14.0 / 30.0
 enum ControlMode { MANUAL, ASSISTED, AUTOMATIC }
 
-var weapon_form := "long_blade"
+var weapon_form := "sword"
 # 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
 var trail_color := Color("#e5cb93")
 # 武器主行，决定击打特效取哪一行配色；空手为空串。由画面层按外观写入。
@@ -257,7 +253,7 @@ func attack(buffer := true) -> void:
 	_start_motion(&"attack", hero.interval)
 
 func attack_cues() -> Array:
-	const SINGLE := {"hammer": 0.53, "spear": 0.40}
+	const SINGLE := {"spear": 0.40}
 	return BLADE_CUES.get(weapon_form, [SINGLE.get(weapon_form, 1.0 / 3.0)])
 
 func skill() -> void:
@@ -273,9 +269,6 @@ func skill() -> void:
 		form = &"arrow_seal"
 		for spread in [-0.20, 0.0, 0.20]:
 			_fire(facing + spread, power, 880.0, hero.reach, 2, 0.0, false, true)
-	elif weapon_form in SPELL_FORMS:
-		form = &"spell_seal"
-		_fire(facing, power, 660.0, hero.reach, 1, 105.0, false, true)
 	else:
 		_crush(position + Vector2.from_angle(facing) * 65.0, 125.0, power, 200.0)
 	var center := position + Vector2.from_angle(facing) * 65.0 if form == &"seal_burst" else position
@@ -600,21 +593,12 @@ func _release_attack(index: int) -> void:
 	if basic_critical:
 		damage = roundi(float(damage) * (1.5 + (_stat("crit_damage") + _stat("keen_sight")) / 100.0))
 	match weapon_form:
-		"hammer":
-			_crush(position + Vector2.from_angle(facing) * 36.0, float(hero.reach) - 30.0, damage, 295.0, basic_critical)
-			feedback.emit(&"hammer_hit")
-		"long_blade", "dual_blades", "sword":
+		"sword":
 			_blade_strike(index, damage)
 		"spear":
 			_thrust(damage)
 		"bow":
 			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
-			feedback.emit(&"shot")
-		"staff":
-			_fire(facing, damage, 640.0, hero.reach, 1, 53.0, basic_critical)
-			feedback.emit(&"shot")
-		"wand":
-			_fire(facing, damage, 760.0, hero.reach, 1, 34.0, basic_critical)
 			feedback.emit(&"shot")
 
 # 长枪：沿面朝方向一条窄路上的全扎到，离得最远的那只也吃满伤害。
@@ -635,11 +619,10 @@ func _thrust(damage: int) -> void:
 func _blade_strike(index: int, damage: int) -> void:
 	var slices: Array = BLADE_SLICES[weapon_form]
 	var final := index == slices.size() - 1
-	var second_pair := weapon_form == "dual_blades" and index >= 2
-	var group := int(second_pair)
-	var raw := roundi(damage * 0.62) if second_pair else damage
+	var group := 0
+	var raw := damage
 	var reach: float = hero.reach
-	var angle := facing + (0.25 if second_pair else -0.25) if weapon_form == "dual_blades" else facing
+	var angle := facing
 	var lifetime := 0.24 if final else 0.15
 	effects.append({"type": &"flurry", "pos": position, "angle": facing, "color": trail_color,
 		"radius": reach, "life": lifetime, "duration": lifetime, "stroke": index, "finisher": final})
@@ -648,7 +631,7 @@ func _blade_strike(index: int, damage: int) -> void:
 		if enemy.spawn > 0.0 or enemy.hp <= 0 or gap.length() >= reach + _strike_padding(enemy) \
 				or cos(gap.angle() - angle) <= -0.05:
 			continue
-		# 副切片共享原本的一次命中触发，双刀仍有两次独立触发机会。
+		# 两剑共享原本的一次命中触发。
 		var first_contact: bool = strike_contacts.get(enemy.serial, -1) != group
 		if _damage_enemy(enemy, raw, 92.0 if final else 8.0, basic_critical, false, slices[index], first_contact):
 			strike_contacts[enemy.serial] = group
@@ -665,7 +648,7 @@ func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1,
 	var forward := Vector2.from_angle(angle)
 	shots.append({"pos": position + forward * PROJECTILE_START, "source": position, "reach": reach,
 		"velocity": forward * speed, "life": (reach - PROJECTILE_START) / speed, "damage": damage,
-		"magic": weapon_form in SPELL_FORMS, "wand": weapon_form == "wand", "color": trail_color, "hits": hits, "struck": [],
+		"magic": false, "wand": false, "color": trail_color, "hits": hits, "struck": [],
 		"splash": splash, "critical": critical, "empowered": empowered})
 
 func _cast_effect(kind: StringName, point: Vector2, color: Color, radius: float) -> void:

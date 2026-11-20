@@ -77,9 +77,9 @@
 
 换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。
 
-手持兵器有八种形制：长刃、长剑、双刀、长枪、重锤、长弓、法杖、短杖。兵器原画由 [pack_weapons.py](mobile/art/side/pack_weapons.py) 从法器原画里抠出（长剑是脚本按同一套配色画的），握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器握在靠镜头的右手（人物朝右，身前那只拳是远侧的左手），单手垂在身侧：刀剑刃尖斜指前方地面，锤头垂到脚边，杖和枪竖着拄地，弓和短杖斜提。长剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；短杖是法杖的轻便版，出手快、射程近。炉坊与行装里的形制图标出自同一批原画。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
+手持兵器只有三种形制：剑、长枪、弓（[gear.gd](mobile/scripts/gear.gd) 的 `WEAPON_FORMS`）。剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；弓远处快射。旧存档里去掉的形制读档时归过来：长刃、双刀归剑，重锤归长枪，法杖、短杖归弓。握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器握在靠镜头的右手（人物朝右，身前那只拳是远侧的左手），单手垂在身侧：剑尖斜指前方地面，枪竖着拄地，弓斜提。
 
-每件兵器有自己的样子：刀剑由刃、护手、握柄、柄首加一挂穗子拼成，长柄兵器换杆头和杆色，短杖整根换，弓是上半张弓臂镜像出下半张、握把缠绳，弓臂按杆色上漆。[weapon_design.gd](mobile/scripts/weapon_design.gd) 按这件装备的主行挑刃形或杆头、按次行挑护手和穗色、按阴阳定钢色深浅和缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎五行的几样里定下一样，所以同一件装备永远是同一个样子，两把同行的刀也未必一样。原画兵器也是选项之一，按它的配色只在两行里出现。行装、背包和炉坊的兵器格画的就是拼好的这一件。零件由 [pack_parts.py](mobile/art/side/pack_parts.py) 画成灰度出图，游戏里按五行乘色；把原画零件放进 `art/side/source/parts/<零件名>.png` 再跑一遍脚本，就会顶替同名的脚本零件，出图规格见 [parts-prompts.json](mobile/art/side/parts-prompts.json)。[gen_parts.sh](mobile/art/side/gen_parts.sh) 用 ChatGPT 桌面版自带的 codex 按这份提示词逐件出图（走 ChatGPT 登录，不要 API key）；要按五行发光的宝珠杖头仍用脚本画的，七星剑的星点在原画刃上照样叠一层灵光。
+每件兵器、每件装备都有自己的样子。剑由刃、护手、握柄、柄首拼成，长枪换枪头和杆色，弓是上半张弓臂镜像出下半张、握把缠绳；护甲、护手、鞋子在炉坊里选甲型——布衣、皮甲、链甲，只换样子不碰数值；护甲分男女两套，女角色是更贴身的丝衣、皮衣、盔甲；项链、戒指各有三四款。[weapon_design.gd](mobile/scripts/weapon_design.gd) 与 [gear_design.gd](mobile/scripts/gear_design.gd) 按装备的主行挑款式、按次行挑护手和穗色、按阴阳定钢色深浅与缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎条件的几款里定下一款，所以同一件装备永远是同一个样子。画风统一为「做旧实物」：锈铁、旧铜、旧骨、麻皮，低饱和、哑光、不加纹饰；布条绳穗一律褪色朱红，打包时单独分一层，游戏里换成主行的颜色。五行用色全游戏一份，取敦煌壁画的矿物颜料，定义在 [pigments.gd](mobile/scripts/pigments.gd)：兵器纹样、装备图标、人物染袍、刃光与界面上的五行字色都从这里取。零件与图标的原画在 `art/side/source/parts/`，由 [gen_parts.sh](mobile/art/side/gen_parts.sh) 调 ChatGPT 桌面版自带的 codex 按 [parts-prompts.json](mobile/art/side/parts-prompts.json) 出图（走 ChatGPT 登录，不要 API key），[pack_parts.py](mobile/art/side/pack_parts.py) 打进零件图集；没有原画的零件用脚本画的灰度替身。
 
 精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
 
@@ -95,7 +95,7 @@
 godot --headless --path mobile --script res://tests/run_tests.gd        # 规则与表现的单元断言
 godot --headless --path mobile --script res://tests/run_playthrough.gd  # 创角到渡劫的实玩流程
 godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
-godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 30 attack 0.45
+godot --path mobile --script res://tests/_dress.gd -- shot.png huo spear pose 30 attack 0.45
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 godot --path mobile --resolution 900x1946 --script res://tests/_poses.gd -- poses.png 0,5 huo   # 八种兵器在指定几格上的持械姿态
 godot --path mobile --resolution 1800x1800 --script res://tests/_weapons.gd -- weapons.png 5 7   # 每种形制随手打几把，看零件拼出来的样子

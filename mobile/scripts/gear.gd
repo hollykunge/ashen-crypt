@@ -16,16 +16,17 @@ const VERSION := Realm.SAVE_VERSION
 const SLOTS := Equipment.SLOTS
 const SLOT_NAMES := Equipment.SLOT_NAMES
 const WEAPON_FORMS := {
-	"long_blade": {"interval": 0.38, "reach": 119.0},
-	"hammer": {"interval": 0.54, "reach": 102.0},
-	"bow": {"interval": 0.29, "reach": 530.0},
-	"staff": {"interval": 0.49, "reach": 460.0},
-	"dual_blades": {"interval": 0.31, "reach": 82.0},
-	# 长枪：出手慢一拍，够得最远，一枪扎穿一路。长剑：两段快剑。短杖：法杖的轻便版，快而近。
-	"spear": {"interval": 0.45, "reach": 152.0},
+	# 剑：两段快剑。长枪：出手慢一拍，够得最远，一枪扎穿一路。弓：远处快射。
 	"sword": {"interval": 0.33, "reach": 104.0},
-	"wand": {"interval": 0.36, "reach": 350.0}
+	"spear": {"interval": 0.45, "reach": 152.0},
+	"bow": {"interval": 0.29, "reach": 530.0}
 }
+# 甲型：护甲、护手、鞋子在炉坊里选布衣、皮甲或链甲，只改样子，数值仍由五行与材料决定。
+const ARMOR_TYPES := ["cloth", "leather", "chain"]
+const ARMOR_TYPE_SLOTS := ["armor", "gloves", "boots"]
+# 兵器只留剑、长枪、弓三种；旧存档里别的形制按打法归过来：近身的刀剑归剑，重锤归长枪，远程的归弓。
+const RENAMED_FORMS := {"long_blade": "sword", "dual_blades": "sword", "hammer": "spear",
+	"staff": "bow", "wand": "bow"}
 const MATERIAL_COLORS := {"jin": Color("#e1c592"), "mu": Color("#a9cb93"), "shui": Color("#8ac7dc"),
 	"huo": Color("#efa588"), "tu": Color("#c3ad79")}
 const MATERIAL_ICONS := {"jin": 0, "mu": 1, "shui": 1, "huo": 2, "tu": 0}
@@ -62,6 +63,8 @@ func load_profile() -> void:
 	if version == VERSION and parsed.get("character") is Dictionary and parsed.get("materials") is Dictionary \
 			and parsed.get("items") is Dictionary and parsed.get("equipped") is Dictionary:
 		state = parsed
+		for item in state.items.values():
+			_rename_forms(item)
 		return
 	if version not in [1, 2, 3]:
 		storage_error = "存档读取失败"
@@ -76,6 +79,15 @@ func load_profile() -> void:
 	var migrated := _empty_profile()
 	migrated.materials = _legacy_refund(parsed)
 	_commit(migrated)
+
+# 旧存档里去掉的形制换成留下的那三种；熔合留下的来源件也一并换。
+static func _rename_forms(item: Variant) -> void:
+	if not item is Dictionary:
+		return
+	if RENAMED_FORMS.has(item.get("weapon_form", "")):
+		item.weapon_form = RENAMED_FORMS[item.weapon_form]
+	for source in item.get("merge_sources", []):
+		_rename_forms(source)
 
 static func _legacy_refund(saved: Dictionary) -> Dictionary:
 	var totals := {"iron": 0, "bone": 0, "ember": 0}
@@ -372,7 +384,8 @@ static func _quantity(value: Variant) -> int:
 
 static func new_draft() -> Dictionary:
 	return {"uid": Crypto.new().generate_random_bytes(8).hex_encode(), "slot": "weapon", "process": ["forge_rough"],
-		"materials": {}, "sockets": [], "rotation": 0, "wear": 0, "name": "", "weapon_form": "long_blade"}
+		"materials": {}, "sockets": [], "rotation": 0, "wear": 0, "name": "", "weapon_form": "sword",
+		"armor_type": "cloth"}
 
 func item(uid: String) -> Dictionary:
 	return state.items.get(uid, {})
@@ -462,6 +475,7 @@ func merge_draft(first_uid: String, second_uid: String, sockets: Array = []) -> 
 	var draft := new_draft()
 	draft.slot = combined.slot
 	draft.weapon_form = combined.weapon_form
+	draft.armor_type = combined.get("armor_type", "cloth")
 	draft.process = []
 	draft.forge_level = furnace_level()
 	draft.sockets = combined.sockets

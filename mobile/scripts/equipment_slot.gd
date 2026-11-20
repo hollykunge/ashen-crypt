@@ -6,6 +6,7 @@ const ForgeArt = preload("res://scripts/forge_art.gd")
 const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Appearance = preload("res://scripts/appearance.gd")
+const GearDesign = preload("res://scripts/gear_design.gd")
 
 const GOOD := Color("#b0d193")
 const BAD := Color("#ffaca0")
@@ -23,6 +24,7 @@ var caption := ""
 var _icon: Texture2D
 # 零件拼的兵器直接画在格子里；原画兵器仍用形制图标。
 var _design := {}
+var _gear := {}
 var _form := ""
 var _edge := BORDER
 var _tint := INK
@@ -63,15 +65,20 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		title += " · %s · %s%s · 阴阳 %+.2f" % [derived.name, _fortune, _god, _polarity]
 	else:
 		title += " · 空槽"
+	# 兵器画零件拼成的那一件，其余五槽画按这件装备挑出的图标；空槽画同一套图的素样，淡淡一层。
 	_design = {}
-	_form = form
-	if slot == "weapon" and occupied and ForgeArt.FORM_ICONS.has(form):
-		_icon = ForgeArt.weapon_icon(form)
-		var design := WeaponDesign.pick(derived, form, Appearance.amount_of(derived))
+	_gear = {}
+	_form = form if ForgeArt.FORM_ICONS.has(form) else "sword"
+	_icon = ForgeArt.texture(icon_index)
+	if slot == "weapon":
+		_icon = ForgeArt.weapon_icon(_form)
+		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \
+			else WeaponDesign.plain(_form)
 		if not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
 			_design = design
 	else:
-		_icon = ForgeArt.texture(icon_index)
+		var female: bool = person.get("gender") == "female"
+		_gear = GearDesign.pick(derived, slot, female) if occupied else GearDesign.plain(slot, female)
 	tooltip_text = title
 	accessibility_name = title
 	queue_redraw()
@@ -139,7 +146,12 @@ func _draw_item() -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, caption_size, INK if occupied else Color("#b6a492"))
 
 func _draw_icon(rect: Rect2, ink: Color) -> void:
-	if not _design.is_empty() and HeldWeapon.draw_icon(self, _form, _design, rect.grow(-rect.size.x * 0.06), ink):
+	if not _gear.is_empty():
+		GearDesign.draw(self, _gear, rect.grow(-rect.size.x * 0.04), ink)
+		return
+	# 兵器图标和装备图标一样提亮一点，做旧的铁在暗色格子里才看得清。
+	var lifted := Color(ink.r * GearDesign.LIFT, ink.g * GearDesign.LIFT, ink.b * GearDesign.LIFT, ink.a)
+	if not _design.is_empty() and HeldWeapon.draw_icon(self, _form, _design, rect.grow(-rect.size.x * 0.06), lifted):
 		return
 	draw_texture_rect(_icon, rect, false, ink)
 

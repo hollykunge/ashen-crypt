@@ -108,8 +108,11 @@ const NAME_PARTS := {
 	"pure": "纯", "pure_min": 0.80, "sheng": "相生", "clash": "反应",
 	"taiji": "太极", "zhoutian": "均衡", "xiangzhan": "相克",
 	"slots": {"weapon": "刃", "armor": "甲", "gloves": "护手", "charm": "符", "ring": "戒", "boots": "靴"},
-	"weapons": {"long_blade": "长刃", "hammer": "重锤", "bow": "长弓", "staff": "法杖", "dual_blades": "双刀",
-		"spear": "长枪", "sword": "长剑", "wand": "短杖"}
+	"weapons": {"sword": "剑", "spear": "长枪", "bow": "弓"},
+	# 护甲按甲型改叫法，男女各一套：女装是丝绸、皮衣、盔甲。护手、鞋子的甲型只改样子，名字不变。
+	"armor_types": {"cloth": "布衣", "leather": "皮甲", "chain": "链甲"},
+	"armor_types_female": {"cloth": "丝衣", "leather": "皮衣", "chain": "盔甲"},
+	"gear_types": {"cloth": "布", "leather": "皮", "chain": "链"}
 }
 
 static func stat_value(stat: String, points: float) -> float:

@@ -255,7 +255,7 @@ func refresh() -> void:
 		selected_uid = ""
 	_adapt()
 	var weapon := profile.item(profile.equipped("weapon"))
-	var form: String = weapon.get("weapon_form", "long_blade")
+	var form: String = weapon.get("weapon_form", "sword")
 	stage.display(config, person, form)
 	current_stats = _combat_values(config, form)
 	for slot in Gear.SLOTS:
@@ -319,7 +319,7 @@ func _pad_grid() -> void:
 
 func _kind(input: Dictionary) -> String:
 	if input.slot == "weapon":
-		return Gear.Rules.NAME_PARTS.weapons.get(input.get("weapon_form", "long_blade"), "武器")
+		return Gear.Rules.NAME_PARTS.weapons.get(input.get("weapon_form", "sword"), "武器")
 	return _slot_name(input.slot)
 
 func _combat_values(config: Dictionary, form: String) -> Dictionary:

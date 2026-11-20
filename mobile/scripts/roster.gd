@@ -1,10 +1,10 @@
 extends RefCounted
 
 const WuXing = preload("res://scripts/rules/wuxing.gd")
-const ELEMENT_TINTS := {"mu": Color("#b9eab4"), "shui": Color("#b5d5ff"),
-	"huo": Color("#ffc4a5"), "tu": Color("#d7b58b"), "jin": Color("#f7e7b6")}
-const ELEMENT_GLOW := {"mu": Color("#83cd89"), "shui": Color("#83b9ef"),
-	"huo": Color("#ee8862"), "tu": Color("#c99965"), "jin": Color("#ead087")}
+const Pigments = preload("res://scripts/pigments.gd")
+# 五行字色与边色，取自 pigments.gd 的敦煌矿物色。
+const ELEMENT_TINTS = Pigments.LIGHT
+const ELEMENT_GLOW = Pigments.GLOW
 
 const NAMES := ["二郎神", "九天玄女", "后羿", "青鸟仙子", "雷部天师", "电母"]
 const CONFIRM_TIME := 0.55
@@ -65,8 +65,7 @@ static func portrait_id(day_stem: String, female: bool) -> int:
 # 兵器形制 → 立绘用哪一套。双持类走替换装，其余走正装。
 # 想给某件兵器单独配图，就按 <形制>-<动作>-<神仙序号>.webp 丢进 art/immortals，这里会自动优先用它。
 const FORM_SETS := {
-	"long_blade": "", "staff": "", "bow": "",
-	"hammer": "alt", "dual_blades": "alt"
+	"sword": "", "spear": "", "bow": ""
 }
 # 动作名的回退链：没有这一格的画，就退到上一格，最后一定能落到待机或出招。
 const FRAME_FALLBACK := {

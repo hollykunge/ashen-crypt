@@ -9,7 +9,7 @@ extends SceneTree
 #   模式 fight  层主战，持续前压并出招
 #   模式 stick  层主战，并按出摇杆
 #   模式 pose   层主战，把角色定格在 [动作] 的 [进度] 上，例如 attack 0.4
-# 例 ... -- shot.png huo hammer pose 40 attack 0.45
+# 例 ... -- shot.png huo spear pose 40 attack 0.45
 
 const Main = preload("res://main.tscn")
 const Gear = preload("res://scripts/gear.gd")
@@ -22,7 +22,7 @@ func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var out: String = args[0] if args.size() > 0 else "user://dress.png"
 	var element: String = args[1] if args.size() > 1 else "huo"
-	var form: String = args[2] if args.size() > 2 else "long_blade"
+	var form: String = args[2] if args.size() > 2 else "sword"
 	var mode: String = args[3] if args.size() > 3 else "farm"
 	var settle: int = int(args[4]) if args.size() > 4 else 60
 	var clip: String = args[5] if args.size() > 5 else "attack"

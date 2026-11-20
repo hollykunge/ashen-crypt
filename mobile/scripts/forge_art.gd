@@ -15,8 +15,7 @@ const ICONS := {
 # 形制图标由 art/side/pack_weapons.py 从法器原画抠出，4 列 × 2 行。
 const WEAPONS = preload("res://art/forge-weapons.png")
 const WEAPON_GRID := Vector2(4, 2)
-const FORM_ICONS := {"long_blade": 0, "hammer": 1, "bow": 2, "dual_blades": 3, "staff": 4,
-	"wand": 5, "spear": 6, "sword": 7}
+const FORM_ICONS := {"bow": 2, "spear": 6, "sword": 7}
 
 static func item_index(slot_index: int, element: String, female: bool) -> int:
 	var variant: Variant = ICONS[element][slot_index]

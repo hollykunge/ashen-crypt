@@ -51,7 +51,7 @@ func _near(actual: float, expected: float, label: String, tolerance: float = 0.0
 
 func _test_monster_motion() -> bool:
 	var run := Combat.new()
-	run.reset(1, {}, "long_blade", false)
+	run.reset(1, {}, "sword", false)
 	run.enemies.resize(1)
 	var foe := run.enemies[0]
 	foe.spawn = 0.0
@@ -82,7 +82,7 @@ func _test_monster_motion() -> bool:
 		"倒地完成后保留末帧")
 	run.advance_enemy_deaths(Combat.ENEMY_DEATH_LIFETIME)
 	_check(run.fallen_enemies.is_empty(), "死亡动画结束后清理")
-	run.reset(1, {}, "long_blade", true)
+	run.reset(1, {}, "sword", true)
 	foe = run.enemies[0]
 	foe.spawn = 0.0
 	foe.pos = run.position + Vector2(68.0, 0.0)
@@ -95,7 +95,7 @@ func _test_monster_motion() -> bool:
 
 func _test_body_spacing() -> bool:
 	var run := Combat.new()
-	run.reset(1, {}, "dual_blades", true)
+	run.reset(1, {}, "sword", true)
 	var foe := run.enemies[0]
 	foe.spawn = 0.0
 	foe.cooldown = 20.0
@@ -107,7 +107,7 @@ func _test_body_spacing() -> bool:
 		run.step(1.0 / 60.0, Vector2.RIGHT)
 	_near(foe.pos.x - run.position.x, clearance, "持续前进在身体边缘停下", 0.001)
 	_check(foe.pos == planted and is_zero_approx(run.stride) and not foe.moving, "双方停住后没有推挤或踏步")
-	_check(run._basic_attack_reaches(foe), "双刀够得着碰撞边缘处的层主")
+	_check(run._basic_attack_reaches(foe), "剑够得着碰撞边缘处的层主")
 	run.attack()
 	var before_swing := run.position
 	run._step_player(0.1, Vector2.LEFT)
@@ -115,7 +115,7 @@ func _test_body_spacing() -> bool:
 	run.step(1.0 / 60.0, Vector2.LEFT)
 	_check(run.position.x < before_swing.x and run.stride > 0.0, "主动后退可以退出普攻并恢复步态")
 
-	run.reset(1, {}, "long_blade", true, "", true)
+	run.reset(1, {}, "sword", true, "", true)
 	# 连战第一波是一群小怪；这里只留一只当前排，单验「后来者不挤占、不推人」。
 	run.enemies.resize(1)
 	var front := run.enemies[0]
@@ -372,14 +372,14 @@ func _test_appearance() -> bool:
 	var entries := {}
 	for slot in ["weapon", "armor", "gloves", "charm", "ring", "boots"]:
 		entries[slot] = Derive.derive({"slot": slot, "materials": {"bing": 6}, "process": ["forge_fine"]}, 3)
-	var fire := Appearance.build(entries, {"yiqi": ["huo"]}, "long_blade")
+	var fire := Appearance.build(entries, {"yiqi": ["huo"]}, "sword")
 	_check(fire.dressed and fire.cape and fire.charm and fire.ring, "六件齐备时外观层全开")
 	_check(fire.robe.is_equal_approx(Appearance.ROBE_TINTS.huo), "护甲主导火行时染火色袍")
 	_check(fire.weapon.is_equal_approx(Appearance.EDGE_TINTS.huo), "兵器主导火行时刃光为火色")
 	_check(fire.polarity > 0.9 and fire.rim.is_equal_approx(Appearance.YANG_TRIM), "纯阳装备配阳边光")
 	_check(fire.halo >= 1, "成格才有脚下法阵")
 	var water := Appearance.build({"armor": entries.armor.duplicate(true),
-		"weapon": Derive.derive(_weapon({"ren": 6}), 3)}, {}, "long_blade")
+		"weapon": Derive.derive(_weapon({"ren": 6}), 3)}, {}, "sword")
 	_check(not water.weapon.is_equal_approx(fire.weapon), "换一把水行兵器就换一色刃光")
 	_check(not water.cape_color.is_equal_approx(Color.TRANSPARENT) and water.halo == 0, "未成格时没有法阵")
 	var bare := Appearance.bare()
@@ -401,7 +401,7 @@ func _test_appearance() -> bool:
 			var area := Rect2i(SideArt.frame_region(frame))
 			_check(original.get_region(area).get_data() != painted.get_region(area).get_data(), "穿戴在第 %d 格动作中可见" % frame)
 		for slot in ["armor", "gloves", "boots", "charm", "ring"]:
-			var one := Appearance.build({slot: entries[slot]}, {}, "long_blade")
+			var one := Appearance.build({slot: entries[slot]}, {}, "sword")
 			var dressed := SideArt.pixels(WornSprites.texture(female, one))
 			var rest := Rect2i(SideArt.frame_region(0))
 			_check(dressed.get_region(rest).get_data() != original.get_region(rest).get_data(), "单穿 %s 在站姿中可见" % slot)
@@ -417,7 +417,7 @@ func _test_appearance() -> bool:
 		var chest := Vector2i(SideArt.frame_region(0).position) + Vector2i(48, 47) * SideArt.TEXEL
 		var robe := painted.get_pixelv(chest)
 		_check(robe.r > robe.b * 1.3 and robe.r > robe.g, "火行护甲把袍子染成暖色")
-	var water_look := Appearance.build({"armor": Derive.derive({"slot": "armor", "materials": {"ren": 6}, "process": ["forge_fine"]}, 3)}, {}, "long_blade")
+	var water_look := Appearance.build({"armor": Derive.derive({"slot": "armor", "materials": {"ren": 6}, "process": ["forge_fine"]}, 3)}, {}, "sword")
 	var water_sheet := SideArt.pixels(WornSprites.texture(false, water_look))
 	var water_chest := water_sheet.get_pixelv(Vector2i(48, 47) * SideArt.TEXEL)
 	_check(water_chest.b > water_chest.r * 1.2, "水行护甲把袍子染成冷色")
@@ -433,29 +433,13 @@ func _test_weapon_grips() -> bool:
 		var column := Vector2(int(spec.cell) % int(HeldWeapon.ATLAS_GRID.x), floori(int(spec.cell) / HeldWeapon.ATLAS_GRID.x))
 		var grip := Vector2i((column + Vector2(spec.grip) / 128.0) * art_cell)
 		_check(atlas.get_pixelv(grip).a > 0.8, "%s 原画的握柄中心可见" % form)
-		if form in ["long_blade", "dual_blades"]:
-			# 沿人物右向出刀时，刀柄、护手、刀尖依次向前，亮刃随下劈朝地。
-			var pose := HeldWeapon.placement(form, Vector2.ZERO, 0.0)
-			var guard := pose * Vector2(78, 33)
-			var tip := pose * Vector2(5, 96)
-			var pommel := pose * Vector2(100, 5)
-			var edge := pose * Vector2(54, 72)
-			var spine := pose * Vector2(40, 72)
-			_check(pommel.x < 0 and guard.x > 0 and tip.x > guard.x and edge.y > spine.y,
-				"%s 柄尾留在拳后，开刃的一侧朝向下劈方向" % form)
-			var span := tip.distance_to(pommel)
-			_check(span > 24 and span < (45 if form == "long_blade" else 32), "%s 随角色身高定尺" % form)
 		for sex in [0, 1]:
 			var sprite: Texture2D = SideArt.SPRITES[sex]
 			var body := SideArt.pixels(sprite)
 			for frame in range(12):
 				var pose := HeldWeapon.body_frame(form, frame)
 				var source := Vector2i(SideArt.frame_region(pose).position)
-				var hands := [HeldWeapon.LEAD[sex][pose]]
-				if form in ["long_blade", "dual_blades"]:
-					hands = [HeldWeapon.blade_hand(sex, pose)]
-				if form == "dual_blades":
-					hands.append(HeldWeapon.blade_hand(sex, pose, true))
+				var hands := [HeldWeapon.blade_hand(sex, pose) if form == "sword" else HeldWeapon.LEAD[sex][pose]]
 				for hand: Vector2 in hands:
 					_check(body.get_pixelv(source + Vector2i(hand * SideArt.TEXEL)).a > 0.5,
 						"%s 第 %d 帧握点落在人物手上" % [form, frame])
@@ -491,27 +475,22 @@ func _test_motion() -> bool:
 
 func _test_blade_flurry() -> bool:
 	var run := Combat.new()
-	for form in ["long_blade", "dual_blades"]:
-		run.reset(1, {}, form, true)
-		var enemy := run.enemies[0]
-		enemy.spawn = 0.0
-		enemy.cooldown = 10.0
-		enemy.stats.speed = 0.0
-		enemy.pos = Combat.HOME + Vector2(70, 0)
-		var dual: bool = form == "dual_blades"
-		var loss := roundi(run.hero.damage * 0.89)
-		if dual:
-			loss += roundi(roundi(run.hero.damage * 0.62) * 0.89)
-		run.attack()
-		for i in range(24):
-			run.step(1.0 / 60.0)
-		_check(run.combo_hits == (4 if dual else 3), "%s 每道刃光均单独判定" % form)
-		_check(enemy.max_hp - enemy.hp == loss, "%s 一轮连斩保持伤害预算" % form)
-		_check(run.hits == (2 if dual else 1), "%s 装备触发按原有命中次数结算" % form)
-		run.step(Combat.COMBO_WINDOW)
-		_check(run.combo_hits == 0, "连击计数超时清空")
+	run.reset(1, {}, "sword", true)
+	var enemy := run.enemies[0]
+	enemy.spawn = 0.0
+	enemy.cooldown = 10.0
+	enemy.stats.speed = 0.0
+	enemy.pos = Combat.HOME + Vector2(70, 0)
+	run.attack()
+	for i in range(24):
+		run.step(1.0 / 60.0)
+	_check(run.combo_hits == 2, "剑每道刃光均单独判定")
+	_check(enemy.max_hp - enemy.hp == roundi(run.hero.damage * 0.89), "剑一轮两剑保持伤害预算")
+	_check(run.hits == 1, "剑的装备触发按原有命中次数结算")
+	run.step(Combat.COMBO_WINDOW)
+	_check(run.combo_hits == 0, "连击计数超时清空")
 
-	run.reset(1, {}, "long_blade", true)
+	run.reset(1, {}, "sword", true)
 	run.attack()
 	run.step(0.28)
 	run.attack()
@@ -523,9 +502,9 @@ func _test_blade_flurry() -> bool:
 	_check(run.motion.is_empty() and is_zero_approx(run.attack_buffer_left), "后撤取消待续普攻")
 	return true
 
-# 三种后加的形制各有各的打法，不是换皮。
+# 剑、长枪、弓三种形制各有各的打法，不是换皮。
 func _test_new_forms() -> bool:
-	for form in ["spear", "sword", "wand"]:
+	for form in ["spear", "sword", "bow"]:
 		_check(Gear.WEAPON_FORMS.has(form) and Forge.NAME_PARTS.weapons.has(form) and ForgeArt.FORM_ICONS.has(form),
 			"%s 在数值表、名称表和炉坊图标里都登记了" % form)
 		var icon := ForgeArt.weapon_region(form)
@@ -562,29 +541,13 @@ func _test_new_forms() -> bool:
 		run.step(1.0 / 60.0)
 	_check(front.hp < front.max_hp and back.hp < back.max_hp, "长枪一枪扎穿前后站成一串的两只")
 	_check(flank.hp == flank.max_hp, "长枪扫不到隔了一路的侧翼")
-	_check(float(Gear.WEAPON_FORMS.spear.reach) > float(Gear.WEAPON_FORMS.long_blade.reach), "长枪比长刃够得远")
+	_check(float(Gear.WEAPON_FORMS.spear.reach) > float(Gear.WEAPON_FORMS.sword.reach), "长枪比剑够得远")
 
-	run.reset(1, {}, "wand", true)
-	var target := run.enemies[0]
-	target.spawn = 0.0
-	target.cooldown = 10.0
-	target.stats.speed = 0.0
-	target.pos = Combat.HOME + Vector2(240, 0)
-	run.attack()
-	run.step(float(run.hero.interval) * 0.36)
-	_check(run.shots.size() == 1 and run.shots[0].magic and run.shots[0].wand, "短杖隔着距离放出一发轻法弹")
-	_check(float(Gear.WEAPON_FORMS.wand.interval) < float(Gear.WEAPON_FORMS.staff.interval)
-		and float(Gear.WEAPON_FORMS.wand.reach) < float(Gear.WEAPON_FORMS.staff.reach), "短杖比法杖快，也比法杖近")
-	for sex in [0, 1]:
-		var tip := HeldWeapon.release_point(sex, true, true)
-		var palm: Vector2 = HeldWeapon.LEAD[sex][10] - SideArt.PIVOT
-		_check(tip.x > palm.x and tip.distance_to(palm) < HeldWeapon.release_point(sex, true).distance_to(palm),
-			"短杖的法弹从杖尖出手，比法杖贴身")
 	return true
 
 func _test_control_modes() -> bool:
 	var run := Combat.new()
-	run.reset(1, {}, "long_blade", true)
+	run.reset(1, {}, "sword", true)
 	var enemy := run.enemies[0]
 	enemy.spawn = 0.0
 	enemy.cooldown = 30.0
@@ -644,7 +607,7 @@ func _test_fx_art() -> bool:
 	# 实战里真的打出击打特效：带着武器五行、出手方向与暴击标记。
 	# 暴击只在一刀的首次接触上显示 —— 连斩的后几段即便同属暴击也按普通击打画。
 	var run := Combat.new()
-	run.reset(1, {}, "long_blade", true)
+	run.reset(1, {}, "sword", true)
 	run.hit_element = "huo"
 	run.facing = 0.0
 	var enemy := run.enemies[0]
@@ -694,10 +657,10 @@ func _test_horde() -> bool:
 	_check(Combat.WAVE_SIZES[0] >= 5 and Combat.WAVE_SIZES[1] >= 5 and Combat.WAVE_SIZES[-1] == 1, "小怪成群，层主独战")
 	var run := Combat.new()
 	run.combat_rng.seed = 11
-	run.reset(1, {}, "long_blade", true, "", true)
+	run.reset(1, {}, "sword", true, "", true)
 	_check(run.enemies.size() == Combat.WAVE_SIZES[0], "第一波一次放出整群")
 	var boss_run := Combat.new()
-	boss_run.reset(1, {}, "long_blade", true)
+	boss_run.reset(1, {}, "sword", true)
 	var boss: Dictionary = boss_run.enemies[0]
 	for foe in run.enemies:
 		_check(not foe.boss and foe.max_hp * 4 < boss.max_hp and foe.stats.damage * 3 < boss.stats.damage
@@ -724,7 +687,7 @@ func _test_horde() -> bool:
 	_check(rows.size() >= 3, "怪群分三路纵深压上来，而不是排成一列")
 
 	# 侧翼的小怪也会咬人。
-	run.reset(1, {}, "long_blade", true, "", true)
+	run.reset(1, {}, "sword", true, "", true)
 	run.enemies.resize(1)
 	var flanker: Dictionary = run.enemies[0]
 	flanker.spawn = 0.0
@@ -739,7 +702,7 @@ func _test_horde() -> bool:
 	var farm := Combat.new()
 	farm.combat_rng.seed = 5
 	farm.loot_rng.seed = 5
-	farm.reset(1, {}, "long_blade", false)
+	farm.reset(1, {}, "sword", false)
 	var peak := 0
 	for _tick in range(60 * 20):
 		farm.step(1.0 / 60.0)
@@ -750,7 +713,7 @@ func _test_horde() -> bool:
 	# 全自动空手打第一层的两波小怪，打得完而且死不了。
 	var auto := Combat.new()
 	auto.combat_rng.seed = 21
-	auto.reset(1, {}, "long_blade", true, "", true)
+	auto.reset(1, {}, "sword", true, "", true)
 	var ticks := 0
 	while auto.result == &"" and auto.wave_index < 2 and ticks < 60 * 60:
 		auto.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)

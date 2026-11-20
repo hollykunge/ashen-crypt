@@ -14,7 +14,7 @@ static func derive(item: Dictionary, forge_level: int,
 	var result := {
 		"stats": {}, "triggers": [], "clash": {}, "wuxing": {}, "yin_yang": 0.0, "purity": 0.0,
 		"budget": 0.0, "jingyu": {}, "q": 1.0, "shi": 1.0, "f": 1.0, "name": item.get("name", ""), "steps": [],
-		"uid": item.get("uid", "")
+		"uid": item.get("uid", ""), "armor_type": item.get("armor_type", "")
 	}
 	if not Forge.FORM_MATRIX.has(slot) or not Forge.FORGE_TIERS.has(forge_level):
 		return result
@@ -98,7 +98,8 @@ static func derive(item: Dictionary, forge_level: int,
 		"yin_yang": y, "purity": purity, "budget": budget, "jingyu": environment.jingyu,
 		"q": environment.q, "shi": s, "f": f}, true)
 	if result.name.is_empty():
-		result.name = _name(item, slot, weights, dominant, purity, y, chain, zhou, clash, triggers)
+		result.name = _name(item, slot, weights, dominant, purity, y, chain, zhou, clash, triggers,
+			character.get("gender", "") == "female")
 	return result
 
 static func _charge(item: Dictionary) -> Dictionary:
@@ -285,11 +286,14 @@ static func _stats(slot: String, weights: Dictionary, y: float, scaled_budget: f
 	return stats
 
 static func _name(item: Dictionary, slot: String, weights: Dictionary, dominant: String, purity: float,
-		y: float, chain: int, zhou: bool, clash: Dictionary, triggers: Array[Dictionary]) -> String:
+		y: float, chain: int, zhou: bool, clash: Dictionary, triggers: Array[Dictionary], female := false) -> String:
 	var parts := Forge.NAME_PARTS
 	var form: String = parts.slots[slot]
 	if slot == "weapon":
 		form = parts.weapons.get(item.get("weapon_form", ""), form)
+	elif slot == "armor":
+		var names: Dictionary = parts.armor_types_female if female else parts.armor_types
+		form = names.get(item.get("armor_type", ""), form)
 	var prefix := ""
 	if zhou:
 		prefix = parts.zhoutian + "·"
@@ -340,6 +344,7 @@ static func merge_items(a: Dictionary, b: Dictionary, forge_level: int, sockets:
 			if trigger.stem == socket:
 				retained.append(socket)
 				break
-	return {"slot": a.get("slot", "weapon"), "weapon_form": a.get("weapon_form", ""), "wear": wear + int(process.wear),
+	return {"slot": a.get("slot", "weapon"), "weapon_form": a.get("weapon_form", ""), "armor_type": a.get("armor_type", ""),
+		"wear": wear + int(process.wear),
 		"sockets": retained, "merged": {"purity": budget, "wuxing": _normalize(energy),
 			"yin_yang": (float(first.yin_yang) * float(first.budget) + float(second.yin_yang) * float(second.budget)) / total}}

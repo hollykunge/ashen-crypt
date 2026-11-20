@@ -611,7 +611,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	battle_portrait.texture = SideArt.PORTRAITS[field.portrait_id % 2]
 	field.hero_element = element
 	var outfit := profile.loadout()
-	var form: String = weapon.get("weapon_form", "long_blade")
+	var form: String = weapon.get("weapon_form", "sword")
 	var layer_tribulation := Gear.Realm.jie_ling_of(profile.layer())
 	var tribulation := layer_tribulation if challenge else ""
 	var ling := profile.ling() if tribulation.is_empty() else tribulation
@@ -669,8 +669,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.show()
 	battle_shade.visible = not run.continuous
 	battle.show()
-	var symbols := {"long_blade": &"sword", "hammer": &"heavy", "bow": &"arrow", "staff": &"spark", "dual_blades": &"slash",
-		"spear": &"cleave", "sword": &"sword", "wand": &"spark"}
+	var symbols := {"sword": &"sword", "spear": &"cleave", "bow": &"arrow"}
 	_set_glyph(&"attack", symbols.get(form, &"sword"))
 	_set_glyph(&"skill", &"slash")
 	_set_glyph(&"tactic", &"sigil")

@@ -37,7 +37,7 @@ class Board extends Node2D:
 				var icon := Rect2(Vector2(left + 190.0 * zoom, r * row_height + 6.0), Vector2.ONE * 46.0)
 				draw_rect(icon, Color("#181516"))
 				HeldWeapon.draw_icon(self, row.form, look.design, icon.grow(-4.0))
-				draw_string(font, Vector2(left, (r + 1) * row_height - 4.0), String(look.design.blade if row.form in ["long_blade", "dual_blades", "sword"] else look.design.head),
+				draw_string(font, Vector2(left, (r + 1) * row_height - 4.0), String(look.design.blade if row.form == "sword" else look.design.head),
 					HORIZONTAL_ALIGNMENT_LEFT, -1, 10)
 
 func _initialize() -> void:
@@ -64,7 +64,7 @@ func _run() -> void:
 	var tally := {}
 	for row: Dictionary in board.rows:
 		for look: Dictionary in row.looks:
-			var key: String = row.form + ":" + String(look.design.blade if row.form in ["long_blade", "dual_blades", "sword"] else look.design.head)
+			var key: String = row.form + ":" + String(look.design.blade if row.form == "sword" else look.design.head)
 			tally[key] = tally.get(key, 0) + 1
 	print(tally)
 	board.sprite = WornSprites.texture(false, board.rows[0].looks[0])

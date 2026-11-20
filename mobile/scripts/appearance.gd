@@ -18,18 +18,13 @@ extends RefCounted
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Loadout = preload("res://scripts/loadout.gd")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
+const Pigments = preload("res://scripts/pigments.gd")
 
-# 袍色比图标色深一档，才压得住工笔立绘；刃光则要亮过立绘才看得见。
-const ROBE_TINTS := {
-	"jin": Color("#cdb87f"), "mu": Color("#6f9c63"), "shui": Color("#5d87b8"),
-	"huo": Color("#b05a3c"), "tu": Color("#9a7a4c")
-}
-const EDGE_TINTS := {
-	"jin": Color("#ffeeb4"), "mu": Color("#b6f7a4"), "shui": Color("#a8d8ff"),
-	"huo": Color("#ffb07a"), "tu": Color("#f0cf94")
-}
-const YANG_TRIM := Color("#ffd89a")
-const YIN_TRIM := Color("#9fc8d8")
+# 五行用色统一在 pigments.gd：袍色用染布那一档，才压得住立绘；刃光用光那一档，要亮过立绘才看得见。
+const ROBE_TINTS = Pigments.DYE
+const EDGE_TINTS = Pigments.GLOW
+const YANG_TRIM = Pigments.YANG
+const YIN_TRIM = Pigments.YIN
 const NEUTRAL := Color("#c9bda4")
 # 预算到视觉强度的换算：六档炉温上限为 18~135，48 以上按满算。
 const FULL_BUDGET := 48.0
@@ -113,7 +108,7 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 	return look
 
 # 没有装备时的素身外观，创角直后与读档失败都走这里。
-static func bare(weapon_form: String = "long_blade") -> Dictionary:
+static func bare(weapon_form: String = "sword") -> Dictionary:
 	return build({}, {}, weapon_form)
 
 static func _halo_rings(patterns: Dictionary) -> int:

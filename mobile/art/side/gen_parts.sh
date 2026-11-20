@@ -5,7 +5,7 @@
 #   art/side/gen_parts.sh                 # 在 mobile 目录下运行：还没有原画的零件都出一张
 #   art/side/gen_parts.sh liuye guitou    # 只出这几件（已有的会被覆盖）
 #
-# 每件大约一分钟，四件一起跑。标了 skip 的零件（比如要按五行发光的宝珠）不出。
+# 每件大约一分钟，六件一起跑。标了 skip 的零件（比如要按五行发光的宝珠）不出。
 
 set -u
 HERE=${0:A:h}
@@ -43,6 +43,6 @@ $prompt" > $dir/codex.log 2>&1
 
 for name in $names; do
   one $name &
-  while (( $(jobs -r | wc -l) >= 4 )); do sleep 2; done
+  while (( $(jobs -r | wc -l) >= 6 )); do sleep 2; done
 done
 wait

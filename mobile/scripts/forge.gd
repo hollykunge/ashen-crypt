@@ -54,6 +54,8 @@ var parts_grid: GridContainer
 var parts_toggle: Button
 var extras: VBoxContainer
 var forms: OptionButton
+# 护甲、护手、鞋子的甲型：布衣、皮甲、链甲（女角色的护甲叫丝衣、皮衣、盔甲）。只改样子。
+var types: OptionButton
 var socket_controls: HBoxContainer
 var preview_ling := ""
 var pending := false
@@ -200,6 +202,14 @@ func _build_inputs() -> void:
 		draft.weapon_form = forms.get_item_metadata(index)
 		_changed())
 	extras.add_child(forms)
+	types = _option()
+	for id in Gear.ARMOR_TYPES:
+		types.add_item(id)
+		types.set_item_metadata(types.item_count - 1, id)
+	types.item_selected.connect(func(index: int) -> void:
+		draft.armor_type = types.get_item_metadata(index)
+		_changed())
+	extras.add_child(types)
 	var processes := _chip_row(extras)
 	for id in ["seal", "reverse_yin_yang", "engrave"]:
 		var control := _chip(Rules.PROCESSES[id].name, _toggle_process.bind(id))
@@ -235,6 +245,10 @@ func _select_tab(show_gear: bool) -> void:
 	heading.add_theme_font_size_override("font_size", 25 if inventory else 29)
 	ui._fit_forge()
 	_refresh()
+
+# 甲型选单里护手、鞋子的叫法：布护手、皮靴、链靴……
+func _slot_label(slot: String) -> String:
+	return Rules.NAME_PARTS.slots[slot]
 
 func _choose_slot(slot: String) -> void:
 	draft.slot = slot
@@ -314,6 +328,16 @@ func _refresh() -> void:
 	for id in process_buttons:
 		process_buttons[id].set_pressed_no_signal(draft.process.has(id))
 	forms.visible = draft.slot == "weapon"
+	types.visible = draft.slot in Gear.ARMOR_TYPE_SLOTS
+	if types.visible:
+		var female: bool = profile.character().get("gender") == "female"
+		for index in range(types.item_count):
+			var id: String = types.get_item_metadata(index)
+			var label: String = Rules.NAME_PARTS.gear_types[id] + _slot_label(draft.slot)
+			if draft.slot == "armor":
+				label = (Rules.NAME_PARTS.armor_types_female if female else Rules.NAME_PARTS.armor_types)[id]
+			types.set_item_text(index, label)
+		types.select(maxi(0, Gear.ARMOR_TYPES.find(draft.get("armor_type", "cloth"))))
 	_refresh_sockets()
 	_refresh_preview(result, count)
 	var error := profile.craft_error(draft)
@@ -546,6 +570,7 @@ func _craft() -> void:
 	armory.reset(draft.slot, draft.uid)
 	draft = Gear.new_draft()
 	forms.select(0)
+	types.select(0)
 	_select_tab(true)
 	_message("打造完成，已放入背包")
 
