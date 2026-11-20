@@ -19,6 +19,20 @@ static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: 
 	_crescent(canvas, pivot, axes * 0.94, side, lean + 0.09, 3.0, Color(IVORY, opacity))
 	_sparks(canvas, pivot + Vector2(swing * 0.68 * side, slant * 22.0), side, age, Color(tint, opacity), 10 if final else 6)
 
+# 枪芒：从肩前直直地送出去一道梭形的光，越往前越细，枪尖处炸一把火星。
+static func thrust(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float, actor_zoom: float) -> void:
+	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
+	var opacity := pow(1.0 - age, 1.4)
+	var tint: Color = effect.color
+	var start := origin + Vector2(26.0 * side, -45.0 * actor_zoom)
+	var length: float = effect.radius * (0.62 + age * 0.44)
+	var tip := start + Vector2(length * side, 0.0)
+	for layer in [[7.5, Color(CINNABAR, opacity * 0.45)], [4.4, Color(tint, opacity)], [1.6, Color(IVORY, opacity)]]:
+		var girth: float = layer[0]
+		canvas.draw_colored_polygon(PackedVector2Array([start, start.lerp(tip, 0.34) - Vector2(0.0, girth),
+			tip, start.lerp(tip, 0.34) + Vector2(0.0, girth)]), layer[1])
+	_sparks(canvas, tip, side, age, Color(tint, opacity), 8)
+
 static func cast(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float) -> void:
 	var strength := pow(1.0 - age, 1.28)
 	var tint: Color = effect.color

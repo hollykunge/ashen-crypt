@@ -108,7 +108,8 @@ const NAME_PARTS := {
 	"pure": "纯", "pure_min": 0.80, "sheng": "相生", "clash": "反应",
 	"taiji": "太极", "zhoutian": "均衡", "xiangzhan": "相克",
 	"slots": {"weapon": "刃", "armor": "甲", "gloves": "护手", "charm": "符", "ring": "戒", "boots": "靴"},
-	"weapons": {"long_blade": "长刃", "hammer": "重锤", "bow": "长弓", "staff": "法杖", "dual_blades": "双刀"}
+	"weapons": {"long_blade": "长刃", "hammer": "重锤", "bow": "长弓", "staff": "法杖", "dual_blades": "双刀",
+		"spear": "长枪", "sword": "长剑", "wand": "短杖"}
 }
 
 static func stat_value(stat: String, points: float) -> float:

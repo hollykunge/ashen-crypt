@@ -3,8 +3,13 @@ extends RefCounted
 const Places = preload("res://scripts/rules/places.gd")
 const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
 const PORTRAITS := [preload("res://art/side/portrait-male.webp"), preload("res://art/side/portrait-female.webp")]
-const SPRITES := [preload("res://art/side/frames-male.png"), preload("res://art/side/frames-female.png")]
+# 人物图集：每格的逻辑尺寸是 96×96，脚底、握点和关节都按这个尺寸标定；贴图本身是它的 TEXEL 倍，
+# 由 art/side/pack_frames.py 从原画拼出。画的时候目标矩形用逻辑尺寸，取样矩形用 frame_region。
+const SHEETS := [preload("res://art/side/frames-male.png"), preload("res://art/side/frames-female.png")]
+const TEXEL := 3
 const CELL := Vector2(96, 96)
+# 工程默认最近邻取样（精怪和界面是像素图），高清人物要带多级渐远的线性取样，缩小时才不闪。
+static var SPRITES: Array = [smooth(SHEETS[0]), smooth(SHEETS[1])]
 const PIVOT := Vector2(47, 89)
 const FLOOR := 0.76
 const SNOW_FLOOR := 0.79
@@ -82,7 +87,7 @@ static func draw_gait(canvas: CanvasItem, sprite: Texture2D, gait_pose: Dictiona
 		foot_shift: Vector2, ink: Color) -> void:
 	var source := frame_region(gait_pose.frame)
 	var upper := Vector2(CELL.x, KNEE_Y)
-	canvas.draw_texture_rect_region(sprite, Rect2(-PIVOT, upper), Rect2(source.position, upper), ink)
+	canvas.draw_texture_rect_region(sprite, Rect2(-PIVOT, upper), Rect2(source.position, upper * TEXEL), ink)
 	# 只让膝盖以下跟随落脚点，肩、腰和武器仍随角色位置连续移动。
 	var top := Vector2(0.0, KNEE_Y) - PIVOT
 	var sole_height := float(gait_pose.sole.y) + PIVOT.y - KNEE_Y
@@ -90,12 +95,34 @@ static func draw_gait(canvas: CanvasItem, sprite: Texture2D, gait_pose: Dictiona
 	var right := Vector2(CELL.x, 0.0)
 	var points := PackedVector2Array([top, top + right, bottom + right, bottom])
 	var tex_size := sprite.get_size()
-	var uv_top := (source.position + Vector2(0.0, KNEE_Y)) / tex_size
-	var uv_bottom := (source.position + Vector2(0.0, CELL.y)) / tex_size
-	var uv_right := right / tex_size
+	var uv_top := (source.position + Vector2(0.0, KNEE_Y) * TEXEL) / tex_size
+	var uv_bottom := (source.position + Vector2(0.0, CELL.y) * TEXEL) / tex_size
+	var uv_right := right * TEXEL / tex_size
 	canvas.draw_polygon(points, PackedColorArray([ink]),
 		PackedVector2Array([uv_top, uv_top + uv_right, uv_bottom + uv_right, uv_bottom]), sprite)
 
+# 某一格在贴图上的取样矩形（贴图像素）。
 static func frame_region(frame: int) -> Rect2:
 	var cell := Vector2(frame % 4, floori(frame / 4.0))
-	return Rect2(cell * CELL, CELL)
+	return Rect2(cell * CELL * TEXEL, CELL * TEXEL)
+
+static func smooth(texture: Texture2D) -> CanvasTexture:
+	var out := CanvasTexture.new()
+	out.diffuse_texture = texture
+	out.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	return out
+
+# 取回一张人物贴图的像素（拷贝一份，不带多级渐远），换装合成与测试都从这里读。
+static func pixels(texture: Texture2D) -> Image:
+	var source: Texture2D = texture.diffuse_texture if texture is CanvasTexture else texture
+	# 无头模式下 get_image 交回的是贴图自己存的那一份，直接改会把底图改掉，所以一定先拷贝。
+	var image: Image = source.get_image().duplicate()
+	if image.is_compressed():
+		image.decompress()
+	image.clear_mipmaps()
+	image.convert(Image.FORMAT_RGBA8)
+	return image
+
+static func texture_from(image: Image) -> CanvasTexture:
+	image.generate_mipmaps()
+	return smooth(ImageTexture.create_from_image(image))

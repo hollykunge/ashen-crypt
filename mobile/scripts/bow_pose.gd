@@ -24,32 +24,34 @@ static func nock_hand(sex: int, release: bool) -> Vector2:
 static func texture(sprite: Texture2D, sex: int, release: bool) -> Texture2D:
 	if cache.has(sprite):
 		return cache[sprite][int(release)]
-	var source := sprite.get_image().get_region(Rect2i(SideArt.frame_region(10)))
-	source.convert(Image.FORMAT_RGBA8)
+	var source := SideArt.pixels(sprite).get_region(Rect2i(SideArt.frame_region(10)))
 	if cache.size() >= 4:
 		cache.erase(cache.keys()[0])
 	cache[sprite] = [_pose(source, sex, false), _pose(source, sex, true)]
 	return cache[sprite][int(release)]
 
+# 关节和袖片都标在 96 像素的逻辑分格里，贴图是它的 TEXEL 倍：逐贴图像素扫，换回逻辑坐标去判断。
 static func _pose(source: Image, sex: int, release: bool) -> Texture2D:
+	var k := SideArt.TEXEL
 	var frame: Image = source.duplicate()
 	var sleeve := PackedVector2Array(UPPER[sex])
 	var forearm := PackedVector2Array(LOWER[sex])
-	for y in range(30, 59):
-		for x in range(29, 48):
-			var at := Vector2(x + 0.5, y + 0.5)
+	for y in range(30 * k, 59 * k):
+		for x in range(29 * k, 48 * k):
+			var at := Vector2(x + 0.5, y + 0.5) / k
 			if not (Geometry2D.is_point_in_polygon(at, sleeve) or Geometry2D.is_point_in_polygon(at, forearm)):
 				continue
 			# 在旧手臂遮住腰身的部分接回相邻的袍料或腰带。
 			var seam := lerpf(43.0, 38.0, clampf((at.y - 34.0) / 21.0, 0.0, 1.0))
-			frame.set_pixel(x, y, source.get_pixel(47 + x % 3, y) if at.x >= seam else Color.TRANSPARENT)
+			frame.set_pixel(x, y, source.get_pixel(47 * k + x % (3 * k), y) if at.x >= seam else Color.TRANSPARENT)
 	var j: Array = JOINTS[sex]
 	_move_sleeve(frame, source, sleeve, j[0], j[1], j[3], j[4])
 	_move_sleeve(frame, source, forearm, j[1], j[2], j[4], nock_hand(sex, release))
-	return ImageTexture.create_from_image(frame)
+	return SideArt.texture_from(frame)
 
 static func _move_sleeve(frame: Image, source: Image, shape: PackedVector2Array,
 		start: Vector2, end: Vector2, posed_start: Vector2, posed_end: Vector2) -> void:
+	var k := SideArt.TEXEL
 	var old_axis := end - start
 	var new_axis := posed_end - posed_start
 	var src := Transform2D(old_axis, old_axis.normalized().orthogonal(), start)
@@ -59,9 +61,10 @@ static func _move_sleeve(frame: Image, source: Image, shape: PackedVector2Array,
 	var bounds := Rect2(posed[0], Vector2.ZERO)
 	for vertex in posed:
 		bounds = bounds.expand(vertex)
-	for y in range(floori(bounds.position.y), ceili(bounds.end.y)):
-		for x in range(floori(bounds.position.x), ceili(bounds.end.x)):
-			var uv := to_source * Vector2(x + 0.5, y + 0.5)
+	var limit := source.get_size()
+	for y in range(floori(bounds.position.y * k), ceili(bounds.end.y * k)):
+		for x in range(floori(bounds.position.x * k), ceili(bounds.end.x * k)):
+			var uv := to_source * (Vector2(x + 0.5, y + 0.5) / k)
 			if Geometry2D.is_point_in_polygon(uv, shape):
-				var pixel := source.get_pixelv(Vector2i(uv.floor()))
-				frame.set_pixel(x, y, frame.get_pixel(x, y).blend(pixel))
+				var texel := Vector2i((uv * k).floor()).clamp(Vector2i.ZERO, limit - Vector2i.ONE)
+				frame.set_pixel(x, y, frame.get_pixel(x, y).blend(source.get_pixelv(texel)))

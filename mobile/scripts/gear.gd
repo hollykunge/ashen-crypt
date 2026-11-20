@@ -20,7 +20,11 @@ const WEAPON_FORMS := {
 	"hammer": {"interval": 0.54, "reach": 102.0},
 	"bow": {"interval": 0.29, "reach": 530.0},
 	"staff": {"interval": 0.49, "reach": 460.0},
-	"dual_blades": {"interval": 0.31, "reach": 82.0}
+	"dual_blades": {"interval": 0.31, "reach": 82.0},
+	# 长枪：出手慢一拍，够得最远，一枪扎穿一路。长剑：两段快剑。短杖：法杖的轻便版，快而近。
+	"spear": {"interval": 0.45, "reach": 152.0},
+	"sword": {"interval": 0.33, "reach": 104.0},
+	"wand": {"interval": 0.36, "reach": 350.0}
 }
 const MATERIAL_COLORS := {"jin": Color("#e1c592"), "mu": Color("#a9cb93"), "shui": Color("#8ac7dc"),
 	"huo": Color("#efa588"), "tu": Color("#c3ad79")}

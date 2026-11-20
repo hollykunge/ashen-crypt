@@ -2,6 +2,7 @@
   "tool": "OpenAI ImageGen (built-in)",
   "inventory": {
     "atlas": "forge-weapons.webp",
+    "note": "这张 3×2 的像素图标已停用。现在的形制图标是 forge-weapons.png，由 side/pack_weapons.py 从法器原画抠出。",
     "prompt": "Use case: stylized-concept. Exactly six original inventory icons on a perfectly spaced 3 column × 2 row grid. Each equal square cell contains only one centered complete weapon within 74% of its cell, with generous empty space between images, all facing from bottom left to upper right with strong silhouette. Original detailed gothic pixel fantasy RPG icons for a mobile dungeon. Actual transparent background. Top row left-to-right: simple wide straight medieval silver greatsword with wine-red leather grip and aged bronze crossguard; large squat blunt square steel and brass war hammer with long wood shaft and burgundy bindings; dark Chinese recurve bow with subtle green-jade fittings and thin bowstring, one arrow alongside. Bottom row: two short crossed Chinese curved dao knives with jade leather grips; tall blue-purple wooden arcane staff with a large ornate blue faceted stone; considerably shorter bare slim plum and gold magic wand with bright violet tiny stone and tiny carved grip. Crisp game sprites with high readability at 48 pixels, rim highlights, subdued shadows inside objects, no frames, grids, lettering, UI, decorations, shadow, scenery or particles."
   },
   "characters": [

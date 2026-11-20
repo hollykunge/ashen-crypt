@@ -18,6 +18,7 @@ const Combat = preload("res://scripts/combat.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
 const Places = preload("res://scripts/rules/places.gd")
 const FxArt = preload("res://scripts/fx_art.gd")
+const ForgeArt = preload("res://scripts/forge_art.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -25,7 +26,7 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
+		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_new_forms,
 		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
@@ -115,9 +116,9 @@ func _test_body_spacing() -> bool:
 	_check(run.position.x < before_swing.x and run.stride > 0.0, "主动后退可以退出普攻并恢复步态")
 
 	run.reset(1, {}, "long_blade", true, "", true)
-	var front := run.enemies[0]
 	# 连战第一波是一群小怪；这里只留一只当前排，单验「后来者不挤占、不推人」。
 	run.enemies.resize(1)
+	var front := run.enemies[0]
 	front.spawn = 0.0
 	front.pos = run.position + Vector2(run._enemy_contact_distance(front) + 10.0, 0.0)
 	front.cooldown = 20.0
@@ -392,25 +393,44 @@ func _test_appearance() -> bool:
 		_check(WornSprites.texture(female, bare) == base, "卸下服饰恢复男女各自的底图")
 		var sheet := WornSprites.texture(female, fire)
 		_check(sheet == WornSprites.texture(female, fire), "预览与战斗复用相同外观的图集")
-		var original := base.get_image()
-		var painted := sheet.get_image()
+		var original := SideArt.pixels(base)
+		var painted := SideArt.pixels(sheet)
+		_check(painted.get_size() == original.get_size() and original.get_size() == Vector2i(SideArt.CELL * SideArt.TEXEL) * Vector2i(4, 3),
+			"人物图集是 4×3 格，每格为逻辑尺寸的 TEXEL 倍")
 		for frame in range(12):
 			var area := Rect2i(SideArt.frame_region(frame))
 			_check(original.get_region(area).get_data() != painted.get_region(area).get_data(), "穿戴在第 %d 格动作中可见" % frame)
 		for slot in ["armor", "gloves", "boots", "charm", "ring"]:
 			var one := Appearance.build({slot: entries[slot]}, {}, "long_blade")
-			var dressed := WornSprites.texture(female, one).get_image()
+			var dressed := SideArt.pixels(WornSprites.texture(female, one))
 			var rest := Rect2i(SideArt.frame_region(0))
 			_check(dressed.get_region(rest).get_data() != original.get_region(rest).get_data(), "单穿 %s 在站姿中可见" % slot)
-			var head := Rect2i(46, 14, 14, 16)
+			var head := Rect2i(Vector2i(50, 14) * SideArt.TEXEL, Vector2i(10, 15) * SideArt.TEXEL)
 			_check(dressed.get_region(head).get_data() == original.get_region(head).get_data(), "单穿 %s 保留脸部原画" % slot)
+		# 染色只换颜色不换轮廓：透明的地方仍然透明，半透明的勾边最多被填实一点。
+		var silhouette_kept := true
+		for y in range(0, original.get_height(), 5):
+			for x in range(0, original.get_width(), 5):
+				if absf(original.get_pixel(x, y).a - painted.get_pixel(x, y).a) > 0.1:
+					silhouette_kept = false
+		_check(silhouette_kept, "换装不改人物轮廓")
+		var chest := Vector2i(SideArt.frame_region(0).position) + Vector2i(48, 47) * SideArt.TEXEL
+		var robe := painted.get_pixelv(chest)
+		_check(robe.r > robe.b * 1.3 and robe.r > robe.g, "火行护甲把袍子染成暖色")
+	var water_look := Appearance.build({"armor": Derive.derive({"slot": "armor", "materials": {"ren": 6}, "process": ["forge_fine"]}, 3)}, {}, "long_blade")
+	var water_sheet := SideArt.pixels(WornSprites.texture(false, water_look))
+	var water_chest := water_sheet.get_pixelv(Vector2i(48, 47) * SideArt.TEXEL)
+	_check(water_chest.b > water_chest.r * 1.2, "水行护甲把袍子染成冷色")
 	return true
 
 func _test_weapon_grips() -> bool:
-	var atlas := HeldWeapon.ATLAS.get_image()
+	var atlas := SideArt.pixels(HeldWeapon.ATLAS)
+	var art_cell := Vector2(atlas.get_size()) / HeldWeapon.ATLAS_GRID
+	_check(HeldWeapon.FORMS.size() == Gear.WEAPON_FORMS.size(), "每种形制都有手持原画")
 	for form in Gear.WEAPON_FORMS:
 		var spec: Dictionary = HeldWeapon.FORMS[form]
-		var grip := Vector2i(Vector2(spec.grip) * 0.5) + Vector2i(int(spec.cell) * 64, 0)
+		var column := Vector2(int(spec.cell) % int(HeldWeapon.ATLAS_GRID.x), floori(int(spec.cell) / HeldWeapon.ATLAS_GRID.x))
+		var grip := Vector2i((column + Vector2(spec.grip) / 128.0) * art_cell)
 		_check(atlas.get_pixelv(grip).a > 0.8, "%s 原画的握柄中心可见" % form)
 		if form in ["long_blade", "dual_blades"]:
 			# 沿人物右向出刀时，刀柄、护手、刀尖依次向前，亮刃随下劈朝地。
@@ -426,7 +446,7 @@ func _test_weapon_grips() -> bool:
 			_check(span > 24 and span < (45 if form == "long_blade" else 32), "%s 随角色身高定尺" % form)
 		for sex in [0, 1]:
 			var sprite: Texture2D = SideArt.SPRITES[sex]
-			var body := sprite.get_image()
+			var body := SideArt.pixels(sprite)
 			for frame in range(12):
 				var pose := HeldWeapon.body_frame(form, frame)
 				var source := Vector2i(SideArt.frame_region(pose).position)
@@ -435,17 +455,17 @@ func _test_weapon_grips() -> bool:
 					hands = [HeldWeapon.blade_hand(sex, pose)]
 				if form == "dual_blades":
 					hands.append(HeldWeapon.blade_hand(sex, pose, true))
-				if form == "hammer" and frame == 0:
+				if form in ["hammer", "spear"] and frame == 0:
 					hands.append(HeldWeapon.SUPPORT[sex][pose])
 				for hand: Vector2 in hands:
-					_check(body.get_pixelv(source + Vector2i(hand)).a > 0.5,
+					_check(body.get_pixelv(source + Vector2i(hand * SideArt.TEXEL)).a > 0.5,
 						"%s 第 %d 帧握点落在人物手上" % [form, frame])
 			if form == "bow":
 				for release in [false, true]:
-					var archer := HeldWeapon.BowPose.texture(sprite, sex, release).get_image()
+					var archer := SideArt.pixels(HeldWeapon.BowPose.texture(sprite, sex, release))
 					var nock := HeldWeapon.BowPose.nock_hand(sex, release)
 					var hand: Vector2 = HeldWeapon.LEAD[sex][10]
-					_check(archer.get_pixelv(Vector2i(nock)).a > 0.8 and absf(nock.y - hand.y) <= 1.0,
+					_check(archer.get_pixelv(Vector2i(nock * SideArt.TEXEL)).a > 0.8 and absf(nock.y - hand.y) <= 1.0,
 						"拉弦手与弓把等高，满弓与撒放格均有手部原画")
 	return true
 
@@ -502,6 +522,65 @@ func _test_blade_flurry() -> bool:
 	run.retreat()
 	run.step(0.40)
 	_check(run.motion.is_empty() and is_zero_approx(run.attack_buffer_left), "后撤取消待续普攻")
+	return true
+
+# 三种后加的形制各有各的打法，不是换皮。
+func _test_new_forms() -> bool:
+	for form in ["spear", "sword", "wand"]:
+		_check(Gear.WEAPON_FORMS.has(form) and Forge.NAME_PARTS.weapons.has(form) and ForgeArt.FORM_ICONS.has(form),
+			"%s 在数值表、名称表和炉坊图标里都登记了" % form)
+		var icon := ForgeArt.weapon_region(form)
+		_check(Rect2(Vector2.ZERO, ForgeArt.WEAPONS.get_size()).encloses(icon), "%s 的炉坊图标落在图集内" % form)
+	var run := Combat.new()
+	run.reset(1, {}, "sword", true)
+	var enemy := run.enemies[0]
+	enemy.spawn = 0.0
+	enemy.cooldown = 10.0
+	enemy.stats.speed = 0.0
+	enemy.pos = Combat.HOME + Vector2(70, 0)
+	run.attack()
+	for i in range(24):
+		run.step(1.0 / 60.0)
+	_check(run.combo_hits == 2, "长剑一轮两剑")
+	_check(enemy.max_hp - enemy.hp == roundi(run.hero.damage * 0.89), "长剑两剑合起来是一次普攻的伤害")
+
+	run.reset(1, {}, "spear", true)
+	var front := run.enemies[0]
+	front.spawn = 0.0
+	front.cooldown = 10.0
+	front.stats.speed = 0.0
+	front.pos = Combat.HOME + Vector2(80, 0)
+	var back: Dictionary = front.duplicate(true)
+	back.serial = front.serial + 1
+	back.pos = Combat.HOME + Vector2(140, 0)
+	var flank: Dictionary = front.duplicate(true)
+	flank.serial = front.serial + 2
+	flank.pos = Combat.HOME + Vector2(80, 80)
+	run.enemies.append(back)
+	run.enemies.append(flank)
+	run.attack()
+	for i in range(30):
+		run.step(1.0 / 60.0)
+	_check(front.hp < front.max_hp and back.hp < back.max_hp, "长枪一枪扎穿前后站成一串的两只")
+	_check(flank.hp == flank.max_hp, "长枪扫不到隔了一路的侧翼")
+	_check(float(Gear.WEAPON_FORMS.spear.reach) > float(Gear.WEAPON_FORMS.long_blade.reach), "长枪比长刃够得远")
+
+	run.reset(1, {}, "wand", true)
+	var target := run.enemies[0]
+	target.spawn = 0.0
+	target.cooldown = 10.0
+	target.stats.speed = 0.0
+	target.pos = Combat.HOME + Vector2(240, 0)
+	run.attack()
+	run.step(float(run.hero.interval) * 0.36)
+	_check(run.shots.size() == 1 and run.shots[0].magic and run.shots[0].wand, "短杖隔着距离放出一发轻法弹")
+	_check(float(Gear.WEAPON_FORMS.wand.interval) < float(Gear.WEAPON_FORMS.staff.interval)
+		and float(Gear.WEAPON_FORMS.wand.reach) < float(Gear.WEAPON_FORMS.staff.reach), "短杖比法杖快，也比法杖近")
+	for sex in [0, 1]:
+		var tip := HeldWeapon.release_point(sex, true, true)
+		var palm: Vector2 = HeldWeapon.LEAD[sex][10] - SideArt.PIVOT
+		_check(tip.x > palm.x and tip.distance_to(palm) < HeldWeapon.release_point(sex, true).distance_to(palm),
+			"短杖的法弹从杖尖出手，比法杖贴身")
 	return true
 
 func _test_control_modes() -> bool:

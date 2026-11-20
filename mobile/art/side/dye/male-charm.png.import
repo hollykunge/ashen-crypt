@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cu5n2t3be2ie6"
-path="res://.godot/imported/forge-weapons.webp-7362d93d2488d5f177a8af5db96196f4.ctex"
+uid="uid://16qw76vrhh1v"
+path="res://.godot/imported/male-charm.png-6074edb34dd7333aa15e8dc107dd7af0.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/forge-weapons.webp"
-dest_files=["res://.godot/imported/forge-weapons.webp-7362d93d2488d5f177a8af5db96196f4.ctex"]
+source_file="res://art/side/dye/male-charm.png"
+dest_files=["res://.godot/imported/male-charm.png-6074edb34dd7333aa15e8dc107dd7af0.ctex"]
 
 [params]
 

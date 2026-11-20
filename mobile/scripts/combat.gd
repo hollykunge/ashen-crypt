@@ -36,11 +36,17 @@ const SKILL_COST := 30.0
 const TACTIC_COST := 22.0
 const PLAYER := {"hp": 150, "speed": 115.0, "damage": 34, "cooldown": 3.2, "color": Color("#e5cb93")}
 const PROJECTILE_START := 15.0
-const BLADE_CUES := {"long_blade": [0.17, 0.43, 0.69], "dual_blades": [0.13, 0.33, 0.54, 0.75]}
+const BLADE_CUES := {"long_blade": [0.17, 0.43, 0.69], "dual_blades": [0.13, 0.33, 0.54, 0.75], "sword": [0.20, 0.56]}
 const BLADE_SLICES := {
 	"long_blade": [Vector2(0.0, 0.27), Vector2(0.27, 0.56), Vector2(0.56, 1.0)],
-	"dual_blades": [Vector2(0.0, 0.54), Vector2(0.54, 1.0), Vector2(0.0, 0.45), Vector2(0.45, 1.0)]
+	"dual_blades": [Vector2(0.0, 0.54), Vector2(0.54, 1.0), Vector2(0.0, 0.45), Vector2(0.45, 1.0)],
+	"sword": [Vector2(0.0, 0.42), Vector2(0.42, 1.0)]
 }
+# 远程形制：普攻放弹道，不用贴身。法器（法杖、短杖）的弹道带溅射。
+const RANGED_FORMS := ["bow", "staff", "wand"]
+const SPELL_FORMS := ["staff", "wand"]
+# 长枪一枪扎出去的宽度：只扫到枪杆这一路，前后站成一串的都会被穿。
+const THRUST_WIDTH := 30.0
 const ATTACK_BUFFER := 0.16
 const COMBO_WINDOW := 1.25
 # 连战每层三波：两波成群的小怪，最后一波是层主。
@@ -251,7 +257,8 @@ func attack(buffer := true) -> void:
 	_start_motion(&"attack", hero.interval)
 
 func attack_cues() -> Array:
-	return BLADE_CUES.get(weapon_form, [0.53 if weapon_form == "hammer" else 1.0 / 3.0])
+	const SINGLE := {"hammer": 0.53, "spear": 0.40}
+	return BLADE_CUES.get(weapon_form, [SINGLE.get(weapon_form, 1.0 / 3.0)])
 
 func skill() -> void:
 	if result != &"" or advancing or skill_left > 0.0 or dodge_left > 0.0 or mana < skill_cost:
@@ -266,7 +273,7 @@ func skill() -> void:
 		form = &"arrow_seal"
 		for spread in [-0.20, 0.0, 0.20]:
 			_fire(facing + spread, power, 880.0, hero.reach, 2, 0.0, false, true)
-	elif weapon_form == "staff":
+	elif weapon_form in SPELL_FORMS:
 		form = &"spell_seal"
 		_fire(facing, power, 660.0, hero.reach, 1, 105.0, false, true)
 	else:
@@ -383,7 +390,7 @@ func _basic_attack_reaches(enemy: Dictionary) -> bool:
 	if enemy.is_empty() or enemy.hp <= 0 or enemy.spawn > 0.0:
 		return false
 	var reach := float(hero.reach)
-	if weapon_form not in ["bow", "staff"]:
+	if weapon_form not in RANGED_FORMS:
 		reach = minf(reach + _strike_padding(enemy), _enemy_contact_distance(enemy) + 26.0)
 	return position.distance_to(enemy.pos) < reach - 3.0
 
@@ -452,7 +459,7 @@ func _farm_actions(target: Dictionary) -> void:
 		return
 	var gap := position.distance_to(target.pos)
 	var reach := float(hero.reach)
-	if weapon_form not in ["bow", "staff"]:
+	if weapon_form not in RANGED_FORMS:
 		reach = maxf(155.0, reach + _strike_padding(target))
 	if gap < reach:
 		if skill_left <= 0.0 and mana >= skill_cost:
@@ -596,14 +603,34 @@ func _release_attack(index: int) -> void:
 		"hammer":
 			_crush(position + Vector2.from_angle(facing) * 36.0, float(hero.reach) - 30.0, damage, 295.0, basic_critical)
 			feedback.emit(&"hammer_hit")
-		"long_blade", "dual_blades":
+		"long_blade", "dual_blades", "sword":
 			_blade_strike(index, damage)
+		"spear":
+			_thrust(damage)
 		"bow":
 			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
 			feedback.emit(&"shot")
 		"staff":
 			_fire(facing, damage, 640.0, hero.reach, 1, 53.0, basic_critical)
 			feedback.emit(&"shot")
+		"wand":
+			_fire(facing, damage, 760.0, hero.reach, 1, 34.0, basic_critical)
+			feedback.emit(&"shot")
+
+# 长枪：沿面朝方向一条窄路上的全扎到，离得最远的那只也吃满伤害。
+func _thrust(damage: int) -> void:
+	var forward := Vector2.from_angle(facing)
+	var reach: float = hero.reach
+	effects.append({"type": &"thrust", "pos": position, "angle": facing, "color": trail_color,
+		"radius": reach, "life": 0.20, "duration": 0.20})
+	for enemy in enemies:
+		var gap: Vector2 = enemy.pos - position
+		var along := gap.dot(forward)
+		if enemy.spawn > 0.0 or enemy.hp <= 0 or along <= -6.0 or along >= reach + _strike_padding(enemy) \
+				or absf(gap.dot(forward.orthogonal())) > THRUST_WIDTH + float(enemy.stats.radius) * 0.5:
+			continue
+		_damage_enemy(enemy, damage, 150.0, basic_critical)
+	feedback.emit(&"slash_finish")
 
 func _blade_strike(index: int, damage: int) -> void:
 	var slices: Array = BLADE_SLICES[weapon_form]
@@ -638,7 +665,7 @@ func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1,
 	var forward := Vector2.from_angle(angle)
 	shots.append({"pos": position + forward * PROJECTILE_START, "source": position, "reach": reach,
 		"velocity": forward * speed, "life": (reach - PROJECTILE_START) / speed, "damage": damage,
-		"magic": weapon_form == "staff", "wand": false, "color": trail_color, "hits": hits, "struck": [],
+		"magic": weapon_form in SPELL_FORMS, "wand": weapon_form == "wand", "color": trail_color, "hits": hits, "struck": [],
 		"splash": splash, "critical": critical, "empowered": empowered})
 
 func _cast_effect(kind: StringName, point: Vector2, color: Color, radius: float) -> void:
@@ -829,6 +856,8 @@ func _step_enemies(delta: float) -> void:
 		enemy.moving = false
 		if not engaged and not attacking and enemy.attack_recovery <= 0.0 and enemy.stagger <= 0.0:
 			var speed: float = stats.speed * (0.55 if enemy.slow > 0.0 else 1.0)
+			if not enemy.boss and gap.length() > CHARGE_DISTANCE:
+				speed *= float(MINION.charge)
 			var side := -1.0 if gap.x < 0.0 else 1.0
 			var destination := position + Vector2((contact + 2.0) * side, 0.0)
 			var previous: Vector2 = enemy.pos
@@ -856,8 +885,6 @@ func _step_enemy_attack(enemy: Dictionary, delta: float, near: bool) -> bool:
 			_damage_player(enemy.stats.damage, enemy)
 	return true
 
-			if not enemy.boss and gap.length() > CHARGE_DISTANCE:
-				speed *= float(MINION.charge)
 func _step_boss_skill(enemy: Dictionary, delta: float, gap: float) -> bool:
 	if enemy.windup <= 0.0:
 		if gap < maxf(float(enemy.strike_radius) + 49.0, _enemy_contact_distance(enemy) + 26.0) and enemy.cooldown <= 0.0 and enemy.stagger <= 0.0:

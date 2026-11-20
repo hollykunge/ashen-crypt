@@ -606,8 +606,9 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.show()
 	battle_shade.visible = not run.continuous
 	battle.show()
-	var symbols := {"long_blade": &"sword", "hammer": &"heavy", "bow": &"arrow", "staff": &"spark", "dual_blades": &"slash"}
-	_set_glyph(&"attack", symbols[form])
+	var symbols := {"long_blade": &"sword", "hammer": &"heavy", "bow": &"arrow", "staff": &"spark", "dual_blades": &"slash",
+		"spear": &"cleave", "sword": &"sword", "wand": &"spark"}
+	_set_glyph(&"attack", symbols.get(form, &"sword"))
 	_set_glyph(&"skill", &"slash")
 	_set_glyph(&"tactic", &"sigil")
 	_describe(action_buttons[&"attack"], "普攻 · " + Gear.Rules.NAME_PARTS.weapons[form])

@@ -12,8 +12,11 @@ const ICONS := {
 	"tu": [[10, 12], 4, 17, 5, 24, [20, 22]]
 }
 
-const WEAPONS = preload("res://art/forge-weapons.webp")
-const FORM_ICONS := {"long_blade": 0, "hammer": 1, "bow": 2, "dual_blades": 3, "staff": 4}
+# 形制图标由 art/side/pack_weapons.py 从法器原画抠出，4 列 × 2 行。
+const WEAPONS = preload("res://art/forge-weapons.png")
+const WEAPON_GRID := Vector2(4, 2)
+const FORM_ICONS := {"long_blade": 0, "hammer": 1, "bow": 2, "dual_blades": 3, "staff": 4,
+	"wand": 5, "spear": 6, "sword": 7}
 
 static func item_index(slot_index: int, element: String, female: bool) -> int:
 	var variant: Variant = ICONS[element][slot_index]
@@ -21,8 +24,8 @@ static func item_index(slot_index: int, element: String, female: bool) -> int:
 
 static func weapon_region(form: String) -> Rect2:
 	var index: int = FORM_ICONS[form]
-	var cell := WEAPONS.get_size() / Vector2(3, 2)
-	return Rect2(Vector2(index % 3, floori(index / 3.0)) * cell, cell)
+	var cell := WEAPONS.get_size() / WEAPON_GRID
+	return Rect2(Vector2(index % int(WEAPON_GRID.x), floori(index / WEAPON_GRID.x)) * cell, cell)
 
 static func weapon_icon(form: String) -> AtlasTexture:
 	var result := AtlasTexture.new()

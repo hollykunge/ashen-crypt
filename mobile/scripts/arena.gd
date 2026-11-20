@@ -579,7 +579,7 @@ func _draw_projectile(shot: Dictionary) -> void:
 	if not shot.empowered:
 		var forward := Vector2(shot.velocity).normalized()
 		var facing := -1.0 if forward.x < 0.0 else 1.0
-		var release := HeldWeapon.release_point(portrait_id % 2, shot.magic) * Vector2(facing, 1) * HERO_SCALE * actor_zoom
+		var release := HeldWeapon.release_point(portrait_id % 2, shot.magic, shot.wand) * Vector2(facing, 1) * HERO_SCALE * actor_zoom
 		var first_point := _floor(Vector2(shot.source) + forward * Combat.PROJECTILE_START) - height
 		var remaining := clampf(shot.life * Vector2(shot.velocity).length() / (shot.reach - Combat.PROJECTILE_START), 0.0, 1.0)
 		tip += (_floor(shot.source) + release - first_point) * remaining
@@ -650,6 +650,8 @@ func _draw_effect(effect: Dictionary) -> void:
 	ink.a = 1.0 - progress
 	if effect.type == &"flurry":
 		CombatFX.slash(self, origin, effect, progress, actor_zoom)
+	elif effect.type == &"thrust":
+		CombatFX.thrust(self, origin, effect, progress, actor_zoom)
 	elif effect.type == &"impact":
 		_draw_impact(effect, origin, progress)
 	elif effect.type in [&"seal_burst", &"quake_seal", &"arrow_seal", &"spell_seal", &"arrow_impact", &"spell_impact"]:

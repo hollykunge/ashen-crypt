@@ -69,7 +69,13 @@
 
 底图跟着地方走：六个地域各有一条长卷（陇右旱、河东疫、太行矿、朔方兵、江淮涝、上界），每条由四幅拼成、约 7800 像素宽，一个地域的十层沿长卷从左走到右，天劫那层在最右端。各地域另有自己的远景雾色、前景天气（热尘、灰烬、煤尘、斜雨、云絮）与脚下阴影色。长卷按需加载，只常驻当前一张。出图规格、生成脚本与拼接工具见 [mobile/art/side/plates](mobile/art/side/plates)。
 
-男女修行人各用一张 4 列 × 3 行的像素图集，每格为 96 × 96 像素，脚底锚点和武器握点定义在 [side_art.gd](mobile/scripts/side_art.gd)。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。装备页与战斗共用换装图集。护甲、护手和靴子随每一帧的肩、肘、腕和脚踝改变位置，手持武器沿握点绘制。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
+男女修行人各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
+
+换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。
+
+手持兵器有八种形制：长刃、长剑、双刀、长枪、重锤、长弓、法杖、短杖。兵器原画由 [pack_weapons.py](mobile/art/side/pack_weapons.py) 从法器原画里抠出（长剑是脚本按同一套配色画的），握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。长剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；短杖是法杖的轻便版，出手快、射程近。炉坊与行装里的形制图标出自同一批原画。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
+
+精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
 
 手操战的走位用浮动摇杆（[stick.gd](mobile/scripts/stick.gd)）：在战场区按下即生摇杆，松手即收，键盘 WASD 与前后键同时保留。
 
@@ -85,9 +91,12 @@ godot --headless --path mobile --script res://tests/run_playthrough.gd  # 创角
 godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
 godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 30 attack 0.45
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
+python mobile/art/side/pack_frames.py --preview out    # 重出人物图集与染色图层，另存五行染色对照图
+python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标
+python mobile/art/side/pack_monsters.py --preview out  # 把精怪的像素图集平滑放大
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
+`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态；末尾可再跟 `female`，模式写 `bag` 则截行装页。三个 `pack_*.py` 需要 Pillow、NumPy 和 SciPy，改过关节标定（`worn_sprites.gd` 的 `MALE` / `FEMALE`）或换了原画（[art/side/source](mobile/art/side/source)）之后重跑，再让 Godot 重新导入。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
 
 ## 网页原型
 
