@@ -3,12 +3,12 @@ extends RefCounted
 const IVORY := Color("#fff1c9")
 const CINNABAR := Color("#b6452f")
 
-static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float) -> void:
+static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float, actor_zoom: float) -> void:
 	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
 	var stroke: int = effect.stroke
 	var final: bool = effect.finisher
 	var slant := -1.0 if stroke % 2 == 0 else 1.0
-	var pivot := origin + Vector2(10.0 * side, -47.0 + slant * 12.0)
+	var pivot := origin + Vector2(10.0 * side, (-47.0 + slant * 12.0) * actor_zoom)
 	var swing: float = effect.radius * (0.52 + age * 0.37) * (1.13 if final else 1.0)
 	var axes := Vector2(swing, swing * (0.76 if final else 0.54))
 	var lean := slant * 0.51

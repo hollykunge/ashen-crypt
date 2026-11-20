@@ -52,7 +52,7 @@ const CLASH_EFFECTS := {
 }
 const TRIGGER_CONDITIONS := {
 	"weapon": {"jin": ["每第 3 击", "暴击时"], "mu": ["击杀时", "目标中毒时"],
-		"shui": ["击退目标时", "命中被减速目标时"], "huo": ["攻速满时", "目标燃烧时"],
+	"shui": ["震慑目标时", "命中被减速目标时"], "huo": ["攻速满时", "目标燃烧时"],
 		"tu": ["破甲命中时", "目标被重压时"]},
 	"armor": {"jin": ["受击时", "格挡成功时"], "mu": ["生命回满时", "再生中时"],
 		"shui": ["灵力满时", "闪避成功时"], "huo": ["受火伤时", "周身 3 敌时"],
@@ -79,7 +79,7 @@ const TRIGGER_ACTIONS := {
 	"ji": {"id": "absorb", "name": "化伤为灵力", "absorb_scale": 1.2},
 	"geng": {"id": "armor_break", "name": "破甲", "armor_loss_scale": 0.008},
 	"xin": {"id": "pierce", "name": "穿刺", "damage_scale": 0.04, "guaranteed_crit": true},
-	"ren": {"id": "flush", "name": "冲刷", "knockback_scale": 1.0, "dispels_buffs": true},
+	"ren": {"id": "flush", "name": "冲刷", "stagger_scale": 1.0, "dispels_buffs": true},
 	"gui": {"id": "freeze", "name": "冰缓／冻结", "slow": 0.40, "duration_scale": 0.05}
 }
 

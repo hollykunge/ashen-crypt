@@ -13,16 +13,10 @@ const FORTUNES := {
 	"旺": Color("#b29251"), "相": Color("#557447"), "休": Color("#515b5a"),
 	"囚": Color("#71362e"), "死": Color("#282a2c")
 }
-# 需要区分男女式样时使用 [男, 女]。每行依次为武器、护甲、护手、项链、戒指、鞋子。
-const ICONS := {
-	"jin": [[10, 12], 7, 17, 26, 23, 20],
-	"mu": [11, 15, 18, 29, 24, 21],
-	"huo": [9, [4, 15], 17, [26, 27], 25, 19],
-	"shui": [13, 16, 18, [5, 29], 24, [21, 22]],
-	"tu": [[10, 12], 4, 17, 5, 24, [20, 22]]
-}
-
 var occupied := false
+var simple := false
+var highlighted := false
+var caption := ""
 var _icon: Texture2D
 var _edge := BORDER
 var _tint := INK
@@ -43,15 +37,14 @@ func _init(pixels: int = 88) -> void:
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
 
-func display(slot: String, derived: Dictionary, person: Dictionary) -> void:
+func display(slot: String, derived: Dictionary, person: Dictionary, form: String = "") -> void:
 	var index := Gear.SLOTS.find(slot)
 	var title: String = Gear.SLOT_NAMES[index]
 	var main := Gear.Loadout.dominant(derived.get("wuxing", {}))
 	occupied = not main.is_empty()
 	var icon_index: int = Gear.Equipment.EMPTY_ICONS[index]
 	if occupied:
-		var variant: Variant = ICONS[main][index]
-		icon_index = variant[int(person.get("gender") == "female")] if variant is Array else variant
+		icon_index = ForgeArt.item_index(index, main, person.get("gender") == "female")
 		_polarity = derived.yin_yang
 		_edge = Roster.ELEMENT_GLOW[main]
 		_tint = Roster.ELEMENT_TINTS[main]
@@ -61,15 +54,21 @@ func display(slot: String, derived: Dictionary, person: Dictionary) -> void:
 		_god = Gear.Bazi.GOD_EFFECTS[Gear.Bazi.ten_god(day_stem, stem)].name
 		var fit := Gear.Loadout.fit_group(day_stem, main, Gear.Loadout.strength(person))
 		_god_color = GOOD if fit > 0 else (BAD if fit < 0 else INK)
-		title += " · %s · %s%s · 阴阳 %+.2f · 查看推导" % [derived.name, _fortune, _god, _polarity]
+		title += " · %s · %s%s · 阴阳 %+.2f" % [derived.name, _fortune, _god, _polarity]
 	else:
-		title += " · 去投料打造"
-	_icon = ForgeArt.texture(icon_index)
+		title += " · 空槽"
+	if slot == "weapon" and occupied and ForgeArt.FORM_ICONS.has(form):
+		_icon = ForgeArt.weapon_icon(form)
+	else:
+		_icon = ForgeArt.texture(icon_index)
 	tooltip_text = title
 	accessibility_name = title
 	queue_redraw()
 
 func _draw() -> void:
+	if simple:
+		_draw_item()
+		return
 	var compact := size.x <= 44.0
 	var bounds := Rect2(Vector2.ZERO, size)
 	draw_style_box(_plate(PLATE.lightened(0.08) if is_hovered() else PLATE, 3), bounds)
@@ -105,6 +104,28 @@ func _draw() -> void:
 		draw_line(center - Vector2(0, arm), center + Vector2(0, arm), INK, 1.5, true)
 	if has_focus() or is_pressed():
 		draw_style_box(_plate(Color.TRANSPARENT, 3, INK, 1), bounds.grow(-2.0))
+
+func _draw_item() -> void:
+	var bounds := Rect2(Vector2.ZERO, size)
+	var edge := _edge.darkened(0.30) if occupied else Color("#594b40")
+	if highlighted or has_focus():
+		edge = Color("#f0cf93")
+	var fill := Color("#28201c") if is_hovered() or highlighted else Color("#181618")
+	draw_rect(bounds, fill)
+	var caption_size := 13 if size.x >= 70 else 11
+	var art_height := size.y - (caption_size + 4.0 if not caption.is_empty() else 2.0)
+	var side := minf(art_height, size.x - 4)
+	if _icon:
+		var rect := Rect2(Vector2((size.x - side) * 0.5, (art_height - side) * 0.5 + 1), Vector2.ONE * side)
+		draw_texture_rect(_icon, rect, false, Color.WHITE if occupied else Color(0.72, 0.68, 0.62, 0.34))
+	draw_rect(bounds.grow(-0.5), edge, false, 1)
+	if occupied:
+		draw_line(Vector2(2, 1.5), Vector2(size.x - 2, 1.5), _edge, 2)
+	if highlighted:
+		draw_rect(bounds.grow(-2.5), edge, false, 1)
+	if not caption.is_empty():
+		draw_string(get_theme_default_font(), Vector2(0, size.y - 3), (caption.left(4) + "…" if caption.length() > 5 else caption),
+			HORIZONTAL_ALIGNMENT_CENTER, size.x, caption_size, INK if occupied else Color("#b6a492"))
 
 func _draw_tag(title: String, rect: Rect2, fill: Color, ink: Color, pixels: int) -> void:
 	if title.is_empty():

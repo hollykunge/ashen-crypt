@@ -12,13 +12,14 @@ const Roster = preload("res://scripts/roster.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const Stick = preload("res://scripts/stick.gd")
 const Turnover = preload("res://scripts/layer_turnover.gd")
+const TribulationNotice = preload("res://scripts/tribulation_notice.gd")
 const SideArt = preload("res://scripts/side_art.gd")
-const CAMP = preload("res://art/immortals/ruined-shrine.webp")
-const FORGE_BG = preload("res://art/immortals/soot-furnace.webp")
+const CAMP = preload("res://art/immortals/ruined-shrine-flagstones.webp")
+const FORGE_BG = preload("res://art/immortals/soot-furnace-flagstones.webp")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
 const SPELL_GRADE = preload("res://art/gothic_grade.gdshader")
-const FONT = preload("res://art/fonts/game.ttf")
-const HEADING_FONT = preload("res://art/fonts/heading.ttf")
+const FONT = preload("res://art/fonts/game.otf")
+const HEADING_FONT = preload("res://art/fonts/heading.tres")
 
 const NIGHT := Color("#151315")
 const INK := Color("#eee5d6")
@@ -57,7 +58,6 @@ var retinue_faces: HBoxContainer
 var selection: CharacterPage
 var battle: VBoxContainer
 var battle_header: GridContainer
-var battle_status: HBoxContainer
 var battle_tools: HBoxContainer
 var battle_info: Control
 var battle_context: Label
@@ -71,6 +71,7 @@ var recent_loot := ""
 var loot_animation: Tween
 var farm_actions: HBoxContainer
 var challenge_button: Button
+var challenge_caption := ""
 var boss_controls: VBoxContainer
 var skill_row: HBoxContainer
 var manual_movement: HBoxContainer
@@ -84,11 +85,11 @@ var boss_readout: VBoxContainer
 var boss_health: Gothic.Meter
 var boss_hint: Label
 var gear_slots := {}
-var notice_cover: ColorRect
-var notice_title: Label
-var notice_text: Label
+var tribulation_notice: TribulationNotice
+var forge_return_to_notice := false
 var turnover: Turnover
 var retry_until := 0.0
+var original_design_size: Vector2i
 var forge: Forge
 var life_meter: Gothic.Meter
 var mana_meter: Gothic.Meter
@@ -99,6 +100,7 @@ var stick: Stick
 var gear_card: Node
 
 func _ready() -> void:
+	original_design_size = get_window().content_scale_size
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spell_grade.shader = SPELL_GRADE
 	spell_grade.set_shader_parameter("grade_weight", 0.68)
@@ -184,15 +186,8 @@ func _build_battle() -> void:
 	var stage_info := _vbox(5)
 	stage_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	battle_header.add_child(stage_info)
-	battle_status = _hbox(7)
-	stage_info.add_child(battle_status)
-	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _box(Color(NIGHT, 0.80), BORDER, 1, 8))
-	battle_status.add_child(panel)
-	battle_context = _label("", 13, INK)
-	panel.add_child(battle_context)
 
+	# 层数与流年并进标题行右侧，顶栏少一整条，把高度让给战场。
 	var info := _hud_card(stage_info, 9, 0.79)
 	battle_info = info.get_parent()
 	battle_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -201,10 +196,17 @@ func _build_battle() -> void:
 	encounter_label = _label("", 21, INK)
 	encounter_label.add_theme_font_override("font", HEADING_FONT)
 	encounter_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	encounter_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	heading.add_child(encounter_label)
+	var year := _vbox(0)
+	year.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	heading.add_child(year)
+	battle_context = _label("", 11, MUTED)
+	battle_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	year.add_child(battle_context)
 	ling_label = _label("", 12, GOLD)
-	ling_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	heading.add_child(ling_label)
+	ling_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	year.add_child(ling_label)
 
 	farm_readout = _vbox(4)
 	info.add_child(farm_readout)
@@ -265,7 +267,7 @@ func _build_battle() -> void:
 	battle.add_child(spring)
 	farm_actions = _hbox(7)
 	battle.add_child(farm_actions)
-	var forge_button := _button("回炉坊", false, 53.0)
+	var forge_button := _button("行装", false, 53.0)
 	forge_button.custom_minimum_size.x = 89
 	forge_button.pressed.connect(_open_forge)
 	farm_actions.add_child(forge_button)
@@ -320,7 +322,7 @@ func _build_battle() -> void:
 	hud.add_child(skill_row)
 	_add_action(skill_row, &"attack", "普攻", true, true)
 	_add_action(skill_row, &"skill", "破阵", false, true)
-	_add_action(skill_row, &"tactic", "震退", false, true)
+	_add_action(skill_row, &"tactic", "震慑", false, true)
 	_add_action(skill_row, &"retreat", "后撤", false, true)
 	_update_control_labels()
 
@@ -364,39 +366,12 @@ func _meter(ink: Color, height: int, segments: int = 0) -> Gothic.Meter:
 	return bar
 
 func _build_overlay() -> void:
-	var center := CenterContainer.new()
-	notice_cover = ColorRect.new()
-	notice_cover.color = Color(NIGHT, 0.82)
-	_fill(notice_cover)
-	add_child(notice_cover)
-	_fill(center)
-	notice_cover.add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 319
-	panel.add_theme_stylebox_override("panel", _box(IRON, GOLD, 1, 14))
-	center.add_child(panel)
-	var stack := _vbox(8)
-	panel.add_child(stack)
-	notice_title = _label("", 27, GOLD)
-	notice_title.add_theme_font_override("font", HEADING_FONT)
-	stack.add_child(notice_title)
-	notice_text = _label("", 14, INK)
-	notice_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	stack.add_child(notice_text)
-	var commands := _hbox(6)
-	stack.add_child(commands)
-	var prepare := _button("先回炉坊", false, 43)
-	prepare.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	prepare.pressed.connect(_open_forge)
-	commands.add_child(prepare)
-	var begin := _button("迎接天劫", true, 43)
-	begin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	begin.pressed.connect(func() -> void: _start_encounter(true, true))
-	commands.add_child(begin)
-	var close := _button("留在本层挂机", false, 36)
-	close.pressed.connect(_close_notice)
-	stack.add_child(close)
-	notice_cover.hide()
+	tribulation_notice = preload("res://tribulation_notice.tscn").instantiate()
+	add_child(tribulation_notice)
+	tribulation_notice.configure(self)
+	tribulation_notice.prepare_requested.connect(_open_forge)
+	tribulation_notice.challenge_requested.connect(_start_encounter.bind(true, true))
+	tribulation_notice.stay_requested.connect(_close_notice)
 
 	turnover = Turnover.new()
 	turnover.ui = self
@@ -405,17 +380,25 @@ func _build_overlay() -> void:
 	turnover.hide()
 
 func _physics_process(delta: float) -> void:
+	if field.visible:
+		run.advance_enemy_deaths(delta)
 	if state == &"next_layer":
 		next_layer_left = maxf(0.0, next_layer_left - delta)
-		var previous := run.position
-		run.position.x += delta * Combat.RUN_SPEED
-		run.track_steps(previous)
+		if not run.enemy_fall_in_progress():
+			field.layer_travel = true
+			var previous := run.position
+			run.position.x += delta * Combat.RUN_SPEED
+			run.track_steps(previous)
 		if next_layer_left == 0.0:
-			_start_encounter(true, true)
+			_challenge()
 		return
 	elif state in [&"farm", &"jie_notice"]:
 		run.step(delta)
 	elif state == &"boss":
+		if run.result == &"victory":
+			if not run.enemy_fall_in_progress():
+				_finish_challenge(run.result)
+			return
 		var left := _held(&"back") or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
 		var right := _held(&"forward") or Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
 		var up := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
@@ -428,9 +411,14 @@ func _physics_process(delta: float) -> void:
 		var attack := _held(&"attack") or Input.is_physical_key_pressed(KEY_J)
 		for _tick in range(battle_speed):
 			run.step(delta, direction, attack, control_mode)
-			if not run.result.is_empty():
+			if run.result.is_empty():
+				continue
+			if run.result == &"victory" and not run.continuous:
+				_clear_input()
+				boss_health.set_amount(0.0, 1.0)
+			else:
 				_finish_challenge(run.result)
-				break
+			break
 	else:
 		return
 	_update_battle()
@@ -448,7 +436,11 @@ func _input(event: InputEvent) -> void:
 		var key: Key = event.physical_keycode if event.physical_keycode else event.keycode
 		if key == KEY_ESCAPE:
 			match state:
-				&"forge": _close_forge()
+				&"forge":
+					if forge.inventory and not forge.armory.selected_uid.is_empty():
+						forge.armory.inspect("")
+					else:
+						_close_forge()
 				&"jie_notice": _close_notice()
 				&"boss", &"next_layer":
 					if not run.continuous:
@@ -539,7 +531,8 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	if run.encounter_stem == profile.ling() and not run.challenging:
 		run.collect_pending_materials()
 	_clear_input()
-	notice_cover.hide()
+	tribulation_notice.hide()
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 	turnover.dismiss()
 	var person := profile.character()
 	var weapon := profile.item(profile.equipped("weapon"))
@@ -549,7 +542,8 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.hero_element = element
 	var outfit := profile.loadout()
 	var form: String = weapon.get("weapon_form", "long_blade")
-	var tribulation := Gear.Realm.jie_ling_of(profile.layer()) if challenge else ""
+	var layer_tribulation := Gear.Realm.jie_ling_of(profile.layer())
+	var tribulation := layer_tribulation if challenge else ""
 	var ling := profile.ling() if tribulation.is_empty() else tribulation
 	if ling != profile.ling():
 		outfit = profile.loadout({}, true, ling)
@@ -569,6 +563,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	ling_label.add_theme_color_override("font_color", Gear.MATERIAL_COLORS[Gear.WuXing.stem_element(ling)])
 	_set_loadout_slots(outfit.entries, person, challenge)
 	farm_actions.visible = not challenge
+	challenge_caption = ("开始连战 · 第%d层" if layer_tribulation.is_empty() else "准备渡劫 · 第%d层") % profile.layer()
 	farm_readout.visible = not challenge
 	boss_readout.visible = challenge
 	boss_controls.visible = challenge
@@ -582,6 +577,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 
 	selection.hide()
 	forge.hide()
+	_fit_forge()
 	camp.hide()
 	camp_shade.hide()
 	field.set_camp_view(not challenge)
@@ -601,18 +597,14 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 func _set_loadout_slots(entries: Dictionary, person: Dictionary, read_only: bool) -> void:
 	for slot in Gear.SLOTS:
 		var frame: EquipmentSlot = gear_slots[slot]
-		frame.display(slot, entries.get(slot, {}), person)
+		frame.display(slot, entries.get(slot, {}), person, run.weapon_form)
 		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE if read_only else Control.MOUSE_FILTER_STOP
 		frame.focus_mode = Control.FOCUS_NONE if read_only else Control.FOCUS_ALL
 
 func _press_camp_slot(slot: String) -> void:
 	if state != &"farm":
 		return
-	var frame: EquipmentSlot = gear_slots[slot]
-	if frame.occupied:
-		forge.show_derivation(profile.item(profile.equipped(slot)))
-	else:
-		_open_forge(slot)
+	_open_forge(slot)
 
 func _update_battle() -> void:
 	if state == &"next_layer":
@@ -621,8 +613,7 @@ func _update_battle() -> void:
 		farm_health.set_amount(run.hp, run.max_hp)
 		farm_status.text = "生命 %d/%d   ·   本层击退 %d" % [run.hp, run.max_hp, run.kills]
 		var wait := maxi(profile.challenge_wait(), ceili(retry_until - Time.get_unix_time_from_system()))
-		var next := "开始连战 · 冲第%d层" % (profile.layer() + 1)
-		challenge_button.text = ("调息 %d 秒\n" % wait + next) if wait > 0 else next
+		challenge_button.text = ("调息 %d 秒\n" % wait + challenge_caption) if wait > 0 else challenge_caption
 		return
 	var enemy: Dictionary = run.enemies[0] if not run.enemies.is_empty() else {}
 	if run.continuous:
@@ -670,24 +661,24 @@ func _cooldown(action: StringName, left: float, out_of_mana: bool) -> void:
 	cooldown_sweeps[action].show_amount(left, total, out_of_mana)
 
 func _challenge() -> void:
-	if state != &"farm" or profile.challenge_wait() > 0 or Time.get_unix_time_from_system() < retry_until:
+	if state not in [&"farm", &"next_layer"]:
+		return
+	if state == &"farm" and (profile.challenge_wait() > 0 or Time.get_unix_time_from_system() < retry_until):
 		return
 	var tribulation := Gear.Realm.jie_ling_of(profile.layer())
 	if tribulation.is_empty():
 		_start_encounter(true, true)
 		return
-	var element := Gear.WuXing.stem_element(tribulation)
-	var counter := String(Gear.WuXing.KE.find_key(element))
-	var detained := Gear.WuXing.jingyu(counter, element)
-	notice_title.text = "%s劫当前" % Gear.WuXing.ELEMENT_NAMES[element]
-	notice_text.text = "%s覆盖本层流年。\n你的%s属装备将落%s位（Q %.2f）。\n可先回炉坊查看六件装备的渡劫境遇。" % [
-		Gear.ling_caption(tribulation), Gear.WuXing.ELEMENT_NAMES[counter], Gear.WuXing.JINGYU_NAMES[detained], Gear.WuXing.JINGYU[detained]]
+	if state == &"next_layer":
+		_enter_farm()
 	turnover.dismiss()
 	state = &"jie_notice"
-	notice_cover.show()
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	tribulation_notice.present(profile, tribulation)
 
 func _close_notice() -> void:
-	notice_cover.hide()
+	tribulation_notice.hide()
+	battle.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 	state = &"farm"
 
 func _stop_route() -> void:
@@ -715,9 +706,10 @@ func _open_forge(slot: String = "") -> void:
 		return
 	var preview_ling := Gear.Realm.jie_ling_of(profile.layer())
 	run.collect_pending_materials()
+	forge_return_to_notice = state == &"jie_notice"
 	state = &"forge"
 	_clear_input()
-	notice_cover.hide()
+	tribulation_notice.hide()
 	turnover.dismiss()
 	battle.hide()
 	field.hide()
@@ -733,6 +725,9 @@ func _open_forge(slot: String = "") -> void:
 
 func _close_forge() -> void:
 	_enter_farm()
+	if forge_return_to_notice:
+		forge_return_to_notice = false
+		_challenge()
 
 func _finish_challenge(outcome: StringName) -> void:
 	if outcome == &"defeat":
@@ -762,7 +757,6 @@ func _finish_challenge(outcome: StringName) -> void:
 		run.motion = &""
 		run.facing = 0.0
 		run.stride = 0.0
-		field.layer_travel = true
 		encounter_label.text = "第 %d 层已通关" % old_layer
 		if is_breakthrough:
 			encounter_label.text += " · 破境"
@@ -811,18 +805,29 @@ func _adapt_safe_area() -> void:
 	safe.add_theme_constant_override("margin_right", right)
 	var wide := size.x >= size.y * 1.17
 	battle_header.columns = 2 if wide else 1
-	for readout in [battle_status, battle_info]:
-		readout.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if wide else Control.SIZE_FILL
-		readout.custom_minimum_size.x = 322.0 if wide else 0.0
+	battle_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if wide else Control.SIZE_FILL
+	battle_info.custom_minimum_size.x = 340.0 if wide else 0.0
 	gear_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
 	farm_actions.size_flags_horizontal = Control.SIZE_SHRINK_END if wide else Control.SIZE_FILL
 	farm_actions.custom_minimum_size.x = minf(530.0, size.x * 0.50) if wide else 0.0
 	skill_row.custom_minimum_size.x = minf(355.0, size.x * 0.31) if wide else 0.0
 	battle_portrait.custom_minimum_size.x = 58.0 if wide else 43.0
 	_update_retinue()
-	for panel in [selection, forge]:
-		panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
-		panel.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
+	selection.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
+	selection.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
+	_fit_forge()
+
+func _fit_forge() -> void:
+	if forge == null:
+		return
+	var window := get_window()
+	var wide := window.size.x >= window.size.y * 1.17
+	var armory_open := state == &"forge" and forge.inventory
+	var design := Vector2i(original_design_size.y, original_design_size.x) if wide and armory_open else original_design_size
+	if window.content_scale_size != design:
+		window.content_scale_size = design
+	forge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide and not armory_open else Control.SIZE_FILL
+	forge.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide and not armory_open else 0.0
 
 func _held(action: StringName) -> bool:
 	return touches.values().has(action)
@@ -999,7 +1004,7 @@ func _image(texture: Texture2D) -> TextureRect:
 func _camp_gradient() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.30, 0.75, 1.0])
-	shade.colors = PackedColorArray([Color("#100e11b3"), Color("#15131500"), Color("#15131520"), Color("#100e11bf")])
+	shade.colors = PackedColorArray([Color("#100e118a"), Color("#15131500"), Color("#15131520"), Color("#100e1173")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 2
@@ -1011,7 +1016,7 @@ func _camp_gradient() -> GradientTexture2D:
 func _forge_vignette() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.42, 1.0])
-	shade.colors = PackedColorArray([Color.TRANSPARENT, Color.TRANSPARENT, Color("#100d10d9")])
+	shade.colors = PackedColorArray([Color("#100d1000"), Color("#100d1000"), Color("#100d1073")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 128
@@ -1024,7 +1029,7 @@ func _forge_vignette() -> GradientTexture2D:
 func _battle_gradient() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.20, 0.74, 1.0])
-	shade.colors = PackedColorArray([Color("#0d090a8a"), Color("#0d090a00"), Color("#0d0b0b00"), Color("#0d0b0bdd")])
+	shade.colors = PackedColorArray([Color("#0d090a8a"), Color("#0d090a00"), Color("#0d0b0b00"), Color("#0d0b0b7a")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 2

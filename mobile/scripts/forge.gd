@@ -8,21 +8,15 @@ const Rules = preload("res://scripts/rules/forge_rules.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Roster = preload("res://scripts/roster.gd")
 const EquipmentSlot = preload("res://scripts/equipment_slot.gd")
+const Armory = preload("res://scripts/armory.gd")
 const GOOD := EquipmentSlot.GOOD
 const BAD := EquipmentSlot.BAD
 
 var ui
 var profile: Gear
 var draft := Gear.new_draft()
-var selected_uid := ""
 var inventory := false
-var fit_only := false
-var sort_fit := false
-var comparing := false
-var merging := false
-var merge_armed := false
-var merge_partner := ""
-var merge_sockets: Array[String] = []
+var armory: Armory
 var tab_forge: Button
 var tab_gear: Button
 var heading: Label
@@ -43,18 +37,6 @@ var notice: Label
 var notice_panel: PanelContainer
 var confirm: Button
 var smith_options: VBoxContainer
-var inventory_panel: VBoxContainer
-var inventory_scroll: ScrollContainer
-var inventory_filters: PanelContainer
-var inventory_top_space: Control
-var inventory_bottom_space: Control
-var empty_prompt: PanelContainer
-var outfit_slots := {}
-var outfit_count: Label
-var outfit_mix: HBoxContainer
-var mix_labels := {}
-var outfit_pattern: Label
-var resources: Label
 var forge_scroll: ScrollContainer
 var details_button: Button
 var detail_cover: ColorRect
@@ -68,22 +50,19 @@ var process_buttons := {}
 var stock_labels := {}
 var plus_buttons := {}
 var minus_buttons := {}
-var saved_list: VBoxContainer
-var saved_detail: VBoxContainer
 var parts_grid: GridContainer
 var parts_toggle: Button
 var extras: VBoxContainer
 var forms: OptionButton
 var socket_controls: HBoxContainer
 var preview_ling := ""
-var gear_compass: Compass
 var pending := false
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 8)
 	var header: HBoxContainer = ui._hbox(8)
 	_surface(self, 7, false).add_child(header)
-	var back: Button = ui._icon_button(&"back", "返回挂机", false, Vector2(43, 43))
+	var back: Button = ui._icon_button(&"back", "返回战场", false, Vector2(43, 43))
 	_style_secondary(back)
 	back.pressed.connect(func() -> void: close_requested.emit())
 	header.add_child(back)
@@ -95,19 +74,21 @@ func _ready() -> void:
 	headers.add_child(heading)
 	context = _text("", 12, ui.GOLD)
 	headers.add_child(context)
-	var tabs: HBoxContainer = ui._hbox(0)
-	_surface(self, 0, false).add_child(tabs)
-	tab_forge = _tab("投料锻造", func() -> void: _select_tab(false))
-	tab_gear = _tab("装备行囊", func() -> void: _select_tab(true))
-	tabs.add_child(tab_forge)
-	tabs.add_child(tab_gear)
+	tab_forge = _button("投料锻造", 44, func() -> void: _forge_for_slot(armory.filter_slot))
+	tab_gear = _button("装备行囊", 44, func() -> void: _select_tab(true))
+	for button in [tab_forge, tab_gear]:
+		button.size_flags_horizontal = Control.SIZE_SHRINK_END
+		header.add_child(button)
 	_build_preview()
 
 	smith_options = ui._vbox(5)
 	smith_options.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(smith_options)
 	_build_inputs()
-	_build_inventory()
+	armory = Armory.new()
+	armory.forge = self
+	armory.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(armory)
 	notice_panel = _surface(self, 6, false)
 	notice = _text("", 12, ui.GOLD)
 	notice_panel.add_child(notice)
@@ -116,7 +97,9 @@ func _ready() -> void:
 
 func open(encounter_ling: String = "", slot: String = "") -> void:
 	preview_ling = encounter_ling
-	_forge_for_slot(slot)
+	notice_panel.hide()
+	armory.reset(slot, profile.equipped(slot))
+	_select_tab(true)
 
 func _forge_for_slot(slot: String) -> void:
 	if not slot.is_empty():
@@ -239,97 +222,19 @@ func _build_inputs() -> void:
 	confirm = _primary("打造", _craft)
 	footer.add_child(confirm)
 
-func _build_inventory() -> void:
-	inventory_panel = ui._vbox(8)
-	inventory_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(inventory_panel)
-	inventory_filters = _surface(inventory_panel, 4, false)
-	var options: HBoxContainer = ui._hbox(6)
-	inventory_filters.add_child(options)
-	var sort := _chip("按契合排序", func() -> void:
-		sort_fit = not sort_fit
-		_refresh_inventory())
-	options.add_child(sort)
-	var filter := _chip("只看忌神", func() -> void:
-		fit_only = not fit_only
-		_refresh_inventory())
-	options.add_child(filter)
-	inventory_scroll = _scroll(inventory_panel)
-	var body: VBoxContainer = ui._vbox(10)
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	inventory_scroll.add_child(body)
-	inventory_top_space = _spring(body)
-	var outfit := _card(body, 12)
-	outfit.add_theme_constant_override("separation", 9)
-	outfit_count = _text("", 15, ui.GOLD)
-	outfit_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	outfit.add_child(outfit_count)
-	var slots := _grid(outfit, 2, 14)
-	slots.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	slots.add_theme_constant_override("h_separation", 42)
-	for index in range(Gear.SLOTS.size()):
-		var slot: String = Gear.SLOTS[index]
-		var cell: VBoxContainer = ui._vbox(3)
-		slots.add_child(cell)
-		var frame := EquipmentSlot.new()
-		frame.pressed.connect(_press_equipped.bind(slot))
-		cell.add_child(frame)
-		outfit_slots[slot] = frame
-		var caption := _text(Gear.SLOT_NAMES[index], 12, ui.INK)
-		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cell.add_child(caption)
-
-	outfit_mix = ui._hbox(13)
-	outfit_mix.alignment = BoxContainer.ALIGNMENT_CENTER
-	outfit.add_child(outfit_mix)
-	gear_compass = Compass.new()
-	gear_compass.custom_minimum_size = Vector2(100, 92)
-	outfit_mix.add_child(gear_compass)
-	var mix: VBoxContainer = ui._vbox(6)
-	mix.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	outfit_mix.add_child(mix)
-	mix.add_child(_text("五行配比", 13, ui.INK))
-	var percentages := _grid(mix, 3, 6)
-	for element in WuXing.WUXING:
-		var amount := _text("", 12, Roster.ELEMENT_TINTS[element])
-		amount.autowrap_mode = TextServer.AUTOWRAP_OFF
-		percentages.add_child(amount)
-		mix_labels[element] = amount
-	outfit_pattern = _text("", 11, ui.GOLD)
-	mix.add_child(outfit_pattern)
-
-	var guide := _card(body, 12)
-	empty_prompt = guide.get_parent()
-	guide.add_theme_constant_override("separation", 9)
-	var hint := _text("点任意空槽，直接打造该部位的装备。", 13, ui.INK)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	guide.add_child(hint)
-	guide.add_child(_primary("去投料打造", _forge_for_slot.bind("")))
-	saved_detail = _card(body, 8)
-	saved_list = ui._vbox(6)
-	body.add_child(saved_list)
-	inventory_bottom_space = _spring(body)
-	resources = _text("", 11, ui.MUTED)
-	resources.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_surface(inventory_panel, 6, false).add_child(resources)
-
 func _select_tab(show_gear: bool) -> void:
 	inventory = show_gear
 	pending = false
+	notice_panel.hide()
 	preview.get_parent().visible = not inventory
 	smith_options.visible = not inventory
-	inventory_panel.visible = inventory
-	tab_forge.set_pressed_no_signal(not inventory)
-	tab_gear.set_pressed_no_signal(inventory)
+	armory.visible = inventory
+	tab_forge.visible = inventory
+	tab_gear.visible = not inventory
+	heading.text = "角色装备" if inventory else "兜率炉坊"
+	heading.add_theme_font_size_override("font_size", 25 if inventory else 29)
+	ui._fit_forge()
 	_refresh()
-
-func _press_equipped(slot: String) -> void:
-	var frame: EquipmentSlot = outfit_slots[slot]
-	if frame.occupied:
-		show_derivation(profile.item(profile.equipped(slot)), preview_ling)
-	else:
-		_forge_for_slot(slot)
 
 func _choose_slot(slot: String) -> void:
 	draft.slot = slot
@@ -383,12 +288,16 @@ func _changed() -> void:
 	notice_panel.hide()
 	_refresh()
 
-func _refresh() -> void:
-	context.text = "%s  ·  炉温 L%d" % [profile.layer_caption(), profile.furnace_level()]
+func _context_text() -> String:
+	var caption := profile.layer_caption() if inventory else "%s  ·  炉温 L%d" % [profile.layer_caption(), profile.furnace_level()]
 	if not preview_ling.is_empty():
-		context.text += "\n渡劫预演 · %s当令" % Gear.ling_caption(preview_ling)
+		caption += "  ·  渡劫 %s当令" % Gear.ling_caption(preview_ling)
+	return caption
+
+func _refresh() -> void:
+	context.text = _context_text()
 	if inventory:
-		_refresh_inventory()
+		armory.refresh()
 		return
 	var result := profile.describe(draft)
 	var count := 0
@@ -462,7 +371,7 @@ func _refresh_preview(result: Dictionary, count: int) -> void:
 	pure_label.text = "主行纯度 %.0f%% · 阴阳 %+.2f · 阳 %.0f%%" % [result.purity * 100.0, result.yin_yang, (result.yin_yang + 1.0) * 50.0]
 	polarity_bar.value = (result.yin_yang + 1.0) * 50.0
 	preview_stats.text = _stat_lines(result.stats, true) if not result.stats.is_empty() else "在下方按 ＋ 加入材料"
-	preview_slot.display(draft.slot, profile.describe(draft, true, preview_ling) if not result.wuxing.is_empty() else {}, profile.character())
+	preview_slot.display(draft.slot, profile.describe(draft, true, preview_ling) if not result.wuxing.is_empty() else {}, profile.character(), draft.weapon_form)
 	compass.visible = preview_slot.occupied
 	details_button.disabled = not preview_slot.occupied
 	compass.update_data(result.wuxing, _charge_weights())
@@ -506,14 +415,12 @@ func _press_preview() -> void:
 func show_derivation(item: Dictionary, encounter_ling: String = "") -> void:
 	if item.is_empty():
 		return
-	if detail_cover == null:
-		_build_derivation()
 	var result := profile.describe(item)
 	var live := profile.describe(item, true, encounter_ling)
 	var element := Loadout.dominant(live.wuxing)
 	var slot := String(item.slot)
 	var slot_index := Gear.SLOTS.find(slot)
-	detail_title.text = result.name if not result.name.is_empty() else Gear.SLOT_NAMES[slot_index]
+	var title: String = result.name if not result.name.is_empty() else Gear.SLOT_NAMES[slot_index]
 	var report := PackedStringArray()
 	if not element.is_empty():
 		var person := profile.character()
@@ -538,7 +445,13 @@ func show_derivation(item: Dictionary, encounter_ling: String = "") -> void:
 		effect = _effect_text(live)
 		if not effect.is_empty():
 			report.append(effect)
-	detail_body.text = "\n".join(report)
+	show_report(title, "\n".join(report))
+
+func show_report(title: String, report: String) -> void:
+	if detail_cover == null:
+		_build_derivation()
+	detail_title.text = title
+	detail_body.text = report
 	detail_return_focus = get_viewport().gui_get_focus_owner()
 	detail_cover.show()
 	detail_scroll.scroll_vertical = 0
@@ -630,214 +543,11 @@ func _craft() -> void:
 		_message(profile.storage_error if not profile.storage_error.is_empty() else "请核对投料与库存")
 		_refresh()
 		return
-	selected_uid = draft.uid
+	armory.reset(draft.slot, draft.uid)
 	draft = Gear.new_draft()
 	forms.select(0)
 	_select_tab(true)
-	_message("打造完成 · 可装备刚出炉的成品")
-	_reveal_selected_item()
-
-func _refresh_inventory() -> void:
-	_clear(saved_list)
-	_clear(saved_detail)
-	var config := profile.loadout({}, true, preview_ling)
-	var person := profile.character()
-	var equipped_count := 0
-	for slot in Gear.SLOTS:
-		var frame: EquipmentSlot = outfit_slots[slot]
-		frame.display(slot, config.entries.get(slot, {}), person)
-		equipped_count += int(frame.occupied)
-	outfit_count.text = "已装备  %d / %d" % [equipped_count, Gear.SLOTS.size()]
-	outfit_mix.visible = equipped_count > 0
-	if outfit_mix.visible:
-		gear_compass.update_data(config.weights, {})
-		for element in mix_labels:
-			mix_labels[element].text = "%s %s%%" % [WuXing.ELEMENT_NAMES[element], String.num(float(config.weights[element]) * 100.0, 2)]
-		outfit_pattern.text = "格局 · " + Loadout.pattern_names(config.patterns)
-	resources.text = "残渣 %s  ·  遗物核 %d" % [String.num(profile.state.residue, 2), profile.stock("relic_core")]
-	var item := profile.item(selected_uid)
-	saved_detail.get_parent().visible = not item.is_empty()
-	if not item.is_empty():
-		_item_detail(item)
-	var items := profile.items()
-	inventory_filters.visible = not items.is_empty()
-	empty_prompt.visible = equipped_count == 0
-	inventory_top_space.visible = items.is_empty()
-	inventory_bottom_space.visible = items.is_empty()
-	if sort_fit:
-		items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return profile.describe(a, true, preview_ling).f > profile.describe(b, true, preview_ling).f)
-	var count := 0
-	for entry in items:
-		var live := profile.describe(entry, true, preview_ling)
-		var badge := Loadout.badge(live, person)
-		if fit_only and badge.fit >= 0:
-			continue
-		count += 1
-		var shown: VBoxContainer = _card(saved_list, 5)
-		var row: HBoxContainer = ui._hbox(7)
-		shown.add_child(row)
-		var frame := EquipmentSlot.new(44)
-		frame.display(entry.slot, live, person)
-		frame.pressed.connect(show_derivation.bind(entry, preview_ling))
-		row.add_child(frame)
-		var description: VBoxContainer = ui._vbox(2)
-		description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(description)
-		var button := _button("%s%s" % [live.name, "  ·  已装备" if profile.equipped(entry.slot) == entry.uid else ""], 34, _select_item.bind(entry.uid))
-		button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		description.add_child(button)
-		var line := _text(badge.text, 12, _badge_color(badge))
-		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		description.add_child(line)
-	if count == 0 and not items.is_empty():
-		_surface(saved_list, 8, false).add_child(_text("当前行囊没有符合筛选条件的装备", 13, ui.MUTED))
-
-func _select_item(uid: String) -> void:
-	selected_uid = uid
-	comparing = false
-	merging = false
-	merge_armed = false
-	merge_partner = ""
-	merge_sockets.clear()
-	_refresh()
-	_reveal_selected_item()
-
-func _reveal_selected_item() -> void:
-	await get_tree().process_frame
-	if inventory and saved_detail.get_child_count() > 0:
-		inventory_scroll.ensure_control_visible(saved_detail.get_child(0))
-
-func _item_detail(input: Dictionary) -> void:
-	var result := profile.describe(input)
-	var live := profile.describe(input, true, preview_ling)
-	var badge := Loadout.badge(live, profile.character())
-	var title := _text(result.name, 18, ui.GOLD)
-	saved_detail.add_child(title)
-	saved_detail.add_child(_text(badge.text + ("  ·  当前处死位" if badge.danger else ""), 12, _badge_color(badge)))
-	saved_detail.add_child(_text(("本层实战\n" if comparing else "内在品质\n") + _stat_lines(live.stats if comparing else result.stats), 12, ui.INK))
-	var effect := _effect_text(live if comparing else result)
-	if not effect.is_empty():
-		saved_detail.add_child(_text(effect, 12, GOOD))
-	var equipped := profile.item(profile.equipped(input.slot))
-	if not comparing and not equipped.is_empty() and equipped.uid != input.uid:
-		saved_detail.add_child(_text("已装备对比  " + _stat_lines(profile.describe(equipped).stats), 11, ui.MUTED))
-	saved_detail.add_child(_text(_rotation_text(input), 11, ui.MUTED))
-	var actions: HBoxContainer = ui._hbox(5)
-	saved_detail.add_child(actions)
-	var active: bool = profile.equipped(input.slot) == input.uid
-	var equip_button := _button("卸下" if active else "装备", 40, func() -> void:
-		if profile.toggle_equip(input.uid):
-			_message("已卸下" if active else "已装备")
-		else:
-			_message(profile.storage_error)
-		_refresh())
-	actions.add_child(equip_button)
-	actions.add_child(_button("内在数值" if comparing else "本层数值", 40, func() -> void:
-		comparing = not comparing
-		_refresh()))
-	var rotate := _button("轮转", 40, func() -> void:
-		if profile.rotate_item(input.uid):
-			_message("五行已顺生链轮转一位")
-		else:
-			_message(profile.storage_error)
-		_refresh())
-	rotate.disabled = not profile.process_unlocked("rotate")
-	rotate.tooltip_text = "轮转在第二层开放" if rotate.disabled else ""
-	actions.add_child(rotate)
-	var same_slot: Array = profile.items().filter(func(entry: Dictionary) -> bool:
-		return entry.slot == input.slot and entry.uid != input.uid)
-	if profile.process_unlocked("merge") and not same_slot.is_empty():
-		actions.add_child(_button("合炉", 40, func() -> void:
-			merging = not merging
-			merge_armed = false
-			_refresh()))
-		if merging:
-			_merge_options(input, same_slot)
-	var rename := LineEdit.new()
-	for style in ["normal", "focus"]:
-		rename.add_theme_stylebox_override(style, ui._box(ui.NIGHT, ui.BORDER, 1, 6))
-	rename.placeholder_text = "装备改名"
-	rename.max_length = 24
-	rename.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rename.text = input.name
-	var rename_row: HBoxContainer = ui._hbox(5)
-	saved_detail.add_child(rename_row)
-	rename_row.add_child(rename)
-	rename_row.add_child(_button("改名", 32, func() -> void:
-		if profile.rename_item(input.uid, rename.text):
-			_refresh()))
-
-func _rotation_text(input: Dictionary) -> String:
-	var planning := input.duplicate()
-	var path := PackedStringArray()
-	var first_favorable := 0
-	for i in range(1, 6):
-		planning.rotation = int(input.rotation) + i
-		var outcome := profile.describe(planning, true, preview_ling)
-		var element := Loadout.dominant(outcome.wuxing)
-		if element.is_empty():
-			continue
-		path.append(WuXing.ELEMENT_NAMES[element] + outcome.jingyu[element])
-		if first_favorable == 0 and Loadout.badge(outcome, profile.character()).fit > 0:
-			first_favorable = i
-	var hint := " · %d 次达用神" % first_favorable if first_favorable > 0 else ""
-	return "轮转 " + " → ".join(path) + hint + "  ·  磨损 %d" % int(input.wear)
-
-func _badge_color(badge: Dictionary) -> Color:
-	if badge.fit > 0:
-		return GOOD
-	return BAD if badge.fit < 0 else ui.MUTED
-
-func _merge_options(input: Dictionary, items: Array) -> void:
-	var picker := _option()
-	var selected := 0
-	for index in range(items.size()):
-		var candidate: Dictionary = items[index]
-		picker.add_item(profile.describe(candidate).name)
-		if candidate.uid == merge_partner:
-			selected = index
-	merge_partner = items[selected].uid
-	picker.select(selected)
-	picker.item_selected.connect(func(index: int) -> void:
-		merge_partner = items[index].uid
-		merge_sockets.clear()
-		merge_armed = false
-		_refresh())
-	saved_detail.add_child(picker)
-	var source_sockets: Array = input.sockets + items[selected].sockets
-	if not source_sockets.is_empty() and profile.socket_limit() > 0:
-		var pick_sockets := _grid(saved_detail, 4, 3)
-		for stem in WuXing.STEMS:
-			if not source_sockets.has(stem):
-				continue
-			var toggle := _chip("留" + Gear.stem_name(stem), _merge_socket.bind(stem))
-			toggle.set_pressed_no_signal(merge_sockets.has(stem))
-			pick_sockets.add_child(toggle)
-	var draft_item := profile.merge_draft(input.uid, merge_partner, merge_sockets)
-	if draft_item.is_empty():
-		return
-	var result := profile.describe(draft_item)
-	saved_detail.add_child(_text("合炉预览  %s\n预算 %.1f  ·  磨损 %d" % [result.name, result.budget, draft_item.wear], 12, ui.GOLD))
-	var merge_button := _button("确认消耗两件成品" if merge_armed else "合炉打造", 35, func() -> void:
-		if not merge_armed:
-			merge_armed = true
-			_refresh()
-			return
-		var new_uid := profile.merge_items(input.uid, merge_partner, merge_sockets)
-		if new_uid.is_empty():
-			_message(profile.storage_error)
-			return
-		_select_item(new_uid)
-		_message("合炉完成"))
-	saved_detail.add_child(merge_button)
-
-func _merge_socket(stem: String) -> void:
-	if merge_sockets.has(stem):
-		merge_sockets.erase(stem)
-	elif merge_sockets.size() < profile.socket_limit():
-		merge_sockets.append(stem)
-	merge_armed = false
-	_refresh()
+	_message("打造完成，已放入背包")
 
 func _zhoutian_hint(loadout: Dictionary) -> String:
 	var low := PackedStringArray()
@@ -877,8 +587,11 @@ func _effect_text(result: Dictionary) -> String:
 	return "\n".join(effects)
 
 func _message(message: String) -> void:
-	notice.text = message
-	notice_panel.visible = not message.is_empty()
+	if inventory:
+		context.text = _context_text() if message.is_empty() else message
+	else:
+		notice.text = message
+		notice_panel.visible = not message.is_empty()
 
 func _surface(parent: Node, padding: int, outlined: bool = true) -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -891,13 +604,6 @@ func _card(parent: Node, padding: int) -> VBoxContainer:
 	var stack: VBoxContainer = ui._vbox(4)
 	panel.add_child(stack)
 	return stack
-
-func _spring(parent: Node) -> Control:
-	var space := Control.new()
-	space.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	space.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	parent.add_child(space)
-	return space
 
 func _grid(parent: Node, columns: int, gap: int) -> GridContainer:
 	var grid := GridContainer.new()
@@ -944,24 +650,6 @@ func _style_secondary(button: Button) -> void:
 	button.add_theme_stylebox_override("pressed", ui._box(Color(ui.GOLD, 0.16), ui.GOLD, 1, 5))
 	button.add_theme_stylebox_override("disabled", ui._box(Color.TRANSPARENT, Color(ui.BORDER, 0.25), 1, 5))
 	button.add_theme_color_override("font_disabled_color", ui.MUTED.darkened(0.2))
-
-func _tab(title: String, callback: Callable) -> Button:
-	var button := _button(title, 40, callback)
-	button.toggle_mode = true
-	button.add_theme_font_size_override("font_size", 14)
-	var active: StyleBoxFlat = ui._box(Color.TRANSPARENT, ui.GOLD, 0, 6)
-	active.border_width_bottom = 2
-	active.set_corner_radius_all(0)
-	var empty := StyleBoxEmpty.new()
-	for style in ["normal", "hover"]:
-		button.add_theme_stylebox_override(style, empty)
-	for style in ["pressed", "hover_pressed"]:
-		button.add_theme_stylebox_override(style, active)
-	button.add_theme_color_override("font_color", ui.MUTED)
-	button.add_theme_color_override("font_hover_color", ui.INK)
-	button.add_theme_color_override("font_pressed_color", ui.GOLD)
-	button.add_theme_color_override("font_hover_pressed_color", ui.GOLD)
-	return button
 
 func _chip(title: String, callback: Callable) -> Button:
 	var button := _button(title, 28, callback)

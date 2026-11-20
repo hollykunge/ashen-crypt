@@ -8,11 +8,11 @@ extends RefCounted
 #
 # 槽位 → 画面：
 #   weapon 武器 → 刃光、斩击与弹道的颜色
-#   armor  护甲 → 袍色、披风
-#   gloves 护手 → 出手时的腕光
+#   armor  护甲 → 胸甲、肩甲、衣摆和披帛
+#   gloves 护手 → 随腕移动的护臂、出手时的腕光
 #   charm  项链 → 胸前悬浮的符牌
 #   ring   戒指 → 绕身旋转的符环
-#   boots  鞋子 → 脚下尘土与步痕
+#   boots  鞋子 → 靴筒、鞋面和步痕
 #   格局     → 脚下法阵的环数
 
 const WuXing = preload("res://scripts/rules/wuxing.gd")
@@ -44,6 +44,7 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 	var look := {
 		"form": weapon_form,
 		"dressed": false,
+		"pieces": {},
 		"polarity": 0.0,
 		"robe": NEUTRAL, "robe_amount": 0.0,
 		"trim": NEUTRAL,
@@ -70,6 +71,7 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 		carried += weight
 		polarity += float(entry.get("yin_yang", 0.0)) * weight
 		look.dressed = true
+		look.pieces[slot] = {"element": element, "polarity": int(signf(float(entry.get("yin_yang", 0.0))))}
 		var glow: Color = EDGE_TINTS[element]
 		var dye: Color = ROBE_TINTS[element]
 		match slot:

@@ -11,27 +11,45 @@ const Figure = preload("res://scripts/figure.gd")
 const Rig = preload("res://scripts/rig.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const SideArt = preload("res://scripts/side_art.gd")
-const ENEMY := [
-	preload("res://art/side/shanxiao.png"),
-	preload("res://art/side/fire-fox.png"),
-	preload("res://art/side/guardian.png"),
-]
-const VINE_SPIRIT = preload("res://art/side/vine-spirit.png")
+const HeldWeapon = preload("res://scripts/held_weapon.gd")
+const WornSprites = preload("res://scripts/worn_sprites.gd")
+const MonsterArt = preload("res://scripts/monster_art.gd")
 const WORLD_CENTER_X := 538.0
 const SIDE_DEPTH := 0.18
 const HERO_SCALE := 1.34
 const FOE_SCALE := 1.30
+const LANDSCAPE_ACTOR_MAGNIFICATION := 1.40
 const CUT_IN_TIME := 0.43
+# 连战镜头在原取景上整体推近：站位、人物和背景同比放大，交手距离的观感不变，
+# 只是空地少了，人物占得更满。
+const PORTRAIT_BATTLE_ZOOM := 1.24
+const LANDSCAPE_BATTLE_ZOOM := 1.22
+# 竖屏把地面线压低，下方空雪地让给人物；镜头中心左移，主角和精怪各占画面一侧。
+const PORTRAIT_BATTLE_FLOOR := 0.765
+const PORTRAIT_BATTLE_CENTER_X := 493.0
+const SNOW_HAZE = preload("res://scripts/snow_haze.gdshader")
 
 var run: Combat
 var portrait_id := 0
 var hero_element := "jin"
 var scale_to_screen := 1.0
+var actor_zoom := 1.0
+# 主角每个像素在屏幕上的边长，连击数等贴着人物的界面按它避让头顶。
+var hero_pixels := 1.0
+var world_center_x := WORLD_CENTER_X
+var haze := ShaderMaterial.new()
 var world_offset := Vector2.ZERO
 var camp_view := false
 var ash_time := 0.0
 # 装备外观，由 main 在换装备或开场时写入。
-var look: Dictionary = Appearance.bare()
+var retinue_look := Appearance.bare()
+var hero_sprite: Texture2D = SideArt.SPRITES[0]
+var look: Dictionary = Appearance.bare():
+	set(value):
+		look = value
+		hero_sprite = WornSprites.texture(portrait_id % 2 == 1, look)
+		if look.form == "bow":
+			HeldWeapon.BowPose.texture(hero_sprite, portrait_id % 2, false)
 # 打击反馈：震屏、闪白、顿感都只影响画面，不碰结算。
 var shake := 0.0
 var shake_seed := 0.0
@@ -42,29 +60,29 @@ var held_motion: StringName
 var held_phase := 0.0
 var jitter := Vector2.ZERO
 var follow := Vector2.ZERO
+var camera_limits := Vector2.ZERO
 var hero_pose: Dictionary = Motion.REST
-var street_size := Vector2.ZERO
 var floor_height := 0.0
-var street: Texture2D = SideArt.STREET
 var street_floor := SideArt.FLOOR
 var lane_depth := SIDE_DEPTH
 var snow_pass := false
 var layer_travel := false
 var snow_drift := 0.0
-var snow_backdrop := TextureRect.new()
+var backdrop := TextureRect.new()
 var fog := GradientTexture2D.new()
 var cut_in_left := 0.0
 var cut_in_name := ""
 
 func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
-	snow_backdrop.texture = SideArt.SNOW_PASS
-	snow_backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	snow_backdrop.texture_filter = TEXTURE_FILTER_LINEAR
-	snow_backdrop.show_behind_parent = true
-	snow_backdrop.mouse_filter = MOUSE_FILTER_IGNORE
-	snow_backdrop.hide()
-	add_child(snow_backdrop)
+	backdrop.texture = SideArt.STREET
+	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	backdrop.texture_filter = TEXTURE_FILTER_LINEAR
+	backdrop.show_behind_parent = true
+	backdrop.mouse_filter = MOUSE_FILTER_IGNORE
+	haze.shader = SNOW_HAZE
+	haze.set_shader_parameter("floor_line", SideArt.SNOW_FLOOR)
+	add_child(backdrop)
 	var mist := Gradient.new()
 	mist.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
 	mist.colors = PackedColorArray([Color("#92919400"), Color("#9291941c"), Color("#92919400")])
@@ -79,8 +97,8 @@ func set_camp_view(active: bool) -> void:
 	camp_view = active
 	layer_travel = false
 	snow_pass = not active and run != null and run.continuous
-	snow_backdrop.visible = snow_pass
-	street = SideArt.SNOW_PASS if snow_pass else SideArt.STREET
+	backdrop.texture = SideArt.SNOW_PASS if snow_pass else SideArt.STREET
+	backdrop.material = haze if snow_pass else null
 	street_floor = SideArt.SNOW_FLOOR if snow_pass else SideArt.FLOOR
 	lane_depth = 0.30 if snow_pass else SIDE_DEPTH
 	follow = Vector2.ZERO
@@ -114,7 +132,7 @@ func _drain_pulses() -> void:
 		var power: float = pulse.power
 		if not camp_view and pulse.kind in [&"cast", &"stomp"]:
 			cut_in_left = CUT_IN_TIME
-			cut_in_name = "破阵" if pulse.kind == &"cast" else "震退"
+			cut_in_name = "破阵" if pulse.kind == &"cast" else "震慑"
 		match pulse.kind:
 			&"hit":
 				shake = maxf(shake, 0.16 * power * damp)
@@ -156,53 +174,70 @@ func _fit_stage() -> void:
 		return
 	var wide := size.x >= size.y * 1.17
 	var stage_height := 435.0 if snow_pass else (590.0 if camp_view else 510.0)
-	scale_to_screen = minf(size.x / (445.0 if camp_view else 414.0), size.y / stage_height)
-	floor_height = size.y * ((0.79 if wide else 0.72) if snow_pass else (0.755 if wide else 0.70))
-	var anchor := Vector2(WORLD_CENTER_X + follow.x, Combat.HOME.y)
-	world_offset = Vector2(size.x * 0.5, floor_height) - anchor * scale_to_screen
-	var native := street.get_size()
+	var zoom := (LANDSCAPE_BATTLE_ZOOM if wide else PORTRAIT_BATTLE_ZOOM) if snow_pass else 1.0
+	scale_to_screen = minf(size.x / (445.0 if camp_view else 414.0), size.y / stage_height) * zoom
+	# 取景按原来的地面线算，推近后再把地面线挪到新位置。
+	var framing_floor := size.y * ((0.79 if wide else 0.72) if snow_pass else (0.755 if wide else 0.70))
+	var portrait_battle := snow_pass and not wide
+	floor_height = size.y * PORTRAIT_BATTLE_FLOOR if portrait_battle else framing_floor
+	world_center_x = PORTRAIT_BATTLE_CENTER_X if portrait_battle else WORLD_CENTER_X
+	var native := backdrop.texture.get_size()
 	var margin := 340.0 if snow_pass else 104.0
-	var height := floor_height / street_floor
-	if snow_pass:
-		height = maxf(height, (size.y - floor_height) / (1.0 - street_floor))
-	street_size = native * maxf((size.x + margin) / native.x, height / native.y)
-	if snow_pass:
-		var progress := clampf((follow.x + 76.0) / (Combat.WAVE_SPACING * Combat.WAVE_SIZES.size()), 0.0, 1.0)
-		snow_backdrop.position = Vector2((size.x - street_size.x) * progress, floor_height - street_size.y * street_floor)
-		snow_backdrop.size = street_size
+	# 地面锚点对齐角色脚底，同时覆盖地面上、下两段视口。
+	var framing := maxf(framing_floor / street_floor, (size.y - framing_floor) / (1.0 - street_floor))
+	var cover := maxf(floor_height / street_floor, (size.y - floor_height) / (1.0 - street_floor))
+	var backdrop_scale := maxf(maxf((size.x + margin) / native.x, framing / native.y) * zoom, cover / native.y)
+	var street_size := native * backdrop_scale
+	# 人物随原画缩放，战斗坐标仍使用原来的投影。窄屏至少容下两个人物分格（推近时同比放宽）。
+	var art_scale := SideArt.SNOW_ACTOR_SCALE if snow_pass else SideArt.STREET_ACTOR_SCALE
+	if wide:
+		art_scale *= LANDSCAPE_ACTOR_MAGNIFICATION
+	hero_pixels = minf(street_size.y * art_scale, size.x / (2.0 * SideArt.CELL.x) * zoom)
+	actor_zoom = hero_pixels / (HERO_SCALE * scale_to_screen)
+	# 地面和脚底共用同一段镜头位移，图片边缘同时限制镜头的行程。
+	var overflow := street_size.x - size.x
+	var initial_left := -minf(76.0 * scale_to_screen, overflow * 0.20) if snow_pass else -overflow * 0.5
+	camera_limits = Vector2(initial_left, initial_left + overflow) / scale_to_screen
+	follow.x = clampf(follow.x, camera_limits.x, camera_limits.y)
+	var anchor := Vector2(world_center_x + follow.x, Combat.HOME.y)
+	world_offset = Vector2(size.x * 0.5, floor_height) - anchor * scale_to_screen
+	backdrop.position = Vector2(initial_left - follow.x * scale_to_screen, floor_height - street_size.y * street_floor)
+	backdrop.size = street_size
 	queue_redraw()
 
-# 镜头跟着战况挪一点点：人与层主分得越开，视角越往中间让。幅度刻意压得很小，免得晕。
+# 交手时停住镜头。换波跑图或主角靠近画面边缘时才移动。
 func _track_camera(delta: float) -> void:
-	var wish := Vector2.ZERO
-	if not camp_view and run != null:
-		var focus: Vector2 = run.position
-		var far: Vector2 = run.enemies[0].pos if not run.enemies.is_empty() else focus
-		focus = focus.lerp(far, 0.44)
-		var section := run.section_x
-		if run.advancing or layer_travel:
-			section = clampf(run.position.x - Combat.HOME.x, section, section + Combat.WAVE_SPACING)
-		var chase := (focus.x - WORLD_CENTER_X - section) * 0.80
-		wish.x = section + clampf(chase, -76.0, 76.0)
-	var next := follow.lerp(wish, clampf(delta * 3.2, 0.0, 1.0))
-	if next.distance_squared_to(follow) < 0.0004:
+	if camp_view or run == null:
 		return
-	follow = next
+	var wish: float
+	var traveling := run.advancing or layer_travel
+	if traveling:
+		wish = clampf(run.position.x - Combat.HOME.x, run.section_x, run.section_x + Combat.WAVE_SPACING)
+	else:
+		var band := maxf(24.0, size.x * 0.5 / scale_to_screen - 56.0)
+		var relative_x := run.position.x - (world_center_x + follow.x)
+		wish = follow.x + relative_x - clampf(relative_x, -band, band)
+	wish = clampf(wish, camera_limits.x, camera_limits.y)
+	if absf(wish - follow.x) < 0.02:
+		return
+	follow.x = wish if traveling else lerpf(follow.x, wish, clampf(delta * 3.2, 0.0, 1.0))
 	_fit_stage()
 
 func _draw() -> void:
 	if run == null or size.x <= 0.0 or size.y <= 0.0:
 		return
-	jitter = Vector2(sin(shake_seed * 1.7) * 7.0, cos(shake_seed * 2.3) * 4.0) * shake * scale_to_screen
-	_draw_street()
+	jitter = Vector2(0.0, cos(shake_seed * 2.3) * 4.0) * shake * scale_to_screen
+	_draw_mist()
 	_world_transform()
 	_draw_telegraphs()
 	_draw_drops()
+	for fallen in run.fallen_enemies:
+		_draw_fallen_enemy(fallen)
 	_draw_retinue()
 
 	var actors: Array[Dictionary] = [{"pos": run.position, "hero": true}]
 	for enemy in run.enemies:
-		if enemy.spawn <= 0.0:
+		if enemy.spawn <= 0.0 and enemy.hp > 0:
 			actors.append(enemy)
 	actors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.y < b.pos.y)
 	for actor in actors:
@@ -221,7 +256,8 @@ func _draw() -> void:
 		var critical: bool = popup.get("critical", false)
 		var pixels := 25 if critical else 20
 		var ink := Color("#ffcb75", opacity) if critical else Color(1.0, 0.87, 0.65, opacity)
-		var origin := _floor(popup.pos) - Vector2(0, 30.0) + Vector2(popup.get("offset", Vector2.ZERO))
+		var height := float(popup.get("height", 0.0)) * FOE_SCALE * actor_zoom
+		var origin := _floor(popup.pos) - Vector2(0, height + 18.0) + Vector2(popup.get("offset", Vector2.ZERO))
 		var center := origin - Vector2(font.get_string_size(popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x * 0.5, 0.0)
 		if popup.has("material"):
 			var item := Gear.material(popup.material)
@@ -279,21 +315,17 @@ func _draw_combo() -> void:
 	var caption := "连击"
 	var width := font.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, digits).x
 	var caption_width := font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE).x
-	var anchor := Vector2(size.x * 0.87 - width - caption_width - 8.0, floor_height - 125.0 - lift * 5.0)
+	# 放在人物头顶之上，镜头推近后也不压住精怪。
+	var head := (SideArt.PIVOT.y - 12.0) * hero_pixels
+	var anchor := Vector2(size.x * 0.87 - width - caption_width - 8.0, floor_height - head - 22.0 - lift * 5.0)
 	draw_string_outline(font, anchor, n, HORIZONTAL_ALIGNMENT_LEFT, -1, digits, 5, Color("#1a1113", alpha))
 	draw_string(font, anchor, n, HORIZONTAL_ALIGNMENT_LEFT, -1, digits, Color("#ffd697", alpha))
 	var label := anchor + Vector2(width + 7.0, -2.0)
 	draw_string_outline(font, label, caption, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE, 4, Color("#1a1113", alpha))
 	draw_string(font, label, caption, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE, Color("#ead9be", alpha))
 
-func _draw_street() -> void:
+func _draw_mist() -> void:
 	draw_set_transform(Vector2.ZERO)
-	if not snow_pass:
-		draw_rect(Rect2(Vector2.ZERO, size), Color("#100e10"))
-		var left := (size.x - street_size.x) * 0.5 - follow.x * scale_to_screen * 0.49
-		left = clampf(left, size.x - street_size.x, 0.0)
-		var top := floor_height - street_size.y * street_floor
-		draw_texture_rect(street, Rect2(Vector2(left, top).round(), street_size.round()), false)
 	var mist_y := floor_height - size.y * (0.21 + 0.017 * sin(ash_time * 0.52))
 	draw_texture_rect(fog, Rect2(0.0, mist_y, size.x, size.y * 0.16), false)
 
@@ -384,29 +416,29 @@ func _hero_pose() -> Dictionary:
 
 func _draw_hero() -> void:
 	var base := _floor(run.position)
+	var hero_scale := HERO_SCALE * actor_zoom
 	var facing := -1.0 if cos(run.facing) < 0.0 else 1.0
 	hero_pose = _hero_pose()
 	var running := run.advancing or layer_travel
 	var sprite_index := portrait_id % 2
 	var frame := SideArt.frame_for(hero_pose.frame)
-	var nudge := Vector2(hero_pose.shift) * Vector2(0.56 * facing, 0.44)
+	var retreating := run.motion == &"retreat" and run.dodge_moves
+	var shift_x := 0.56 * facing if retreating else 0.0
+	var nudge := Vector2(hero_pose.shift) * Vector2(shift_x, 0.44)
 	var point := base + nudge
 	var lean := 0.0
 	var gait := {}
 	if run.motion.is_empty() and run.stride > 0.0:
 		if absf(run.step_direction.x) > 0.15:
 			facing = signf(run.step_direction.x)
-		gait = SideArt.gait(run.stride, HERO_SCALE, sprite_index, running)
+		gait = SideArt.gait(run.stride, hero_scale, sprite_index, running)
 		frame = gait.frame
 		lean = 0.11 if running else 0.0
-	var sprite: Texture2D = SideArt.SPRITES[sprite_index]
-	var source := SideArt.frame_region(frame)
-	var bounds := Rect2(-SideArt.PIVOT, SideArt.CELL)
+	var sprite := hero_sprite
 	var ink: Color = Roster.ELEMENT_TINTS.get(hero_element, Color.WHITE).lerp(Color.WHITE, 0.88)
-	ink = ink.lerp(Color(look.robe).lightened(0.18), float(look.robe_amount) * 0.55)
 	ink = ink.lerp(Color(1.45, 1.32, 1.22), float(hero_pose.flash) * 0.60)
 	ink.a = float(hero_pose.fade)
-	_shadow(base + Vector2(nudge.x, 0.0), Vector2(25, 4), Color("#23364a9e") if snow_pass else Color("#0c090ae0"))
+	_shadow(base + Vector2(nudge.x, 0.0), Vector2(25, 4) * actor_zoom, Color("#23364a9e") if snow_pass else Color("#0c090ae0"))
 	if snow_pass and running and not gait.is_empty():
 		var stamp := base + _step_vector() * float(gait.plant)
 		for i in range(3):
@@ -419,25 +451,21 @@ func _draw_hero() -> void:
 				var offset := Vector2(-age * (10.0 + flake * 4.0), -sin(age * PI) * (5.0 + flake * 3.0))
 				draw_circle(origin + offset, 2.3 - age, Color("#f2f7ff", 0.66 * (1.0 - age)), true, -1.0, true)
 	if run.shield > 0.0:
-		_arc(base, Vector2(26, 5), ash_time * 2.2, 2.4, 1.0, Color("#d1fba3af"))
-	var rig := Rig.new(world_offset + jitter + point * scale_to_screen, scale_to_screen * HERO_SCALE, facing,
+		_arc(base, Vector2(26, 5) * actor_zoom, ash_time * 2.2, 2.4, 1.0, Color("#d1fba3af"))
+	var rig := Rig.new(world_offset + jitter + point * scale_to_screen, scale_to_screen * hero_scale, facing,
 		69.0, 52.0, Motion.REST)
 	draw_set_transform(Vector2.ZERO)
 	Figure.halo(self, rig, look, ash_time)
-	Figure.sash(self, rig, look, ash_time, clampf(run.stride / 90.0, 0.0, 1.0) + float(hero_pose.ghost))
-	_at_actor(point, facing, HERO_SCALE, lean)
-	if float(hero_pose.ghost) > 0.1:
+	_at_actor(point, facing, hero_scale, lean)
+	if float(hero_pose.ghost) > 0.1 and (run.motion != &"retreat" or retreating):
 		var offset := 13.0 if run.motion == &"retreat" else -10.0
 		if float(hero_pose.ghost) > 0.65 and run.motion == &"attack":
-			draw_texture_rect_region(sprite, Rect2(bounds.position + Vector2(offset * 2.1, 0), bounds.size), source,
-				Color(look.trim, float(hero_pose.ghost) * 0.12))
-		draw_texture_rect_region(sprite, Rect2(bounds.position + Vector2(offset, 0), bounds.size), source,
-			Color(look.trim, float(hero_pose.ghost) * 0.23))
-	if gait.is_empty():
-		draw_texture_rect_region(sprite, bounds, source, ink)
-	else:
-		SideArt.draw_gait(self, sprite, gait, _foot_shift(gait, facing, HERO_SCALE, lean), ink)
-	SideArt.draw_weapon(self, run.weapon_form, frame, Color(look.weapon, ink.a))
+			HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, Color(look.trim, float(hero_pose.ghost) * 0.12),
+				{}, Vector2.ZERO, Vector2(offset * 2.1, 0))
+		HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, Color(look.trim, float(hero_pose.ghost) * 0.23),
+			{}, Vector2.ZERO, Vector2(offset, 0))
+	var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, hero_scale, lean)
+	HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, ink, gait, feet)
 	draw_set_transform(Vector2.ZERO)
 	Figure.hands(self, rig, look)
 	Figure.charms(self, rig, look, ash_time)
@@ -450,11 +478,11 @@ func _draw_retinue() -> void:
 	for index in range(run.companions):
 		var offset := Vector2(56.0 + index * 44.0, 9.0 - index * 14.0) if spread else Vector2(42.0 + index * 28.0, 2.0 - index * 2.0)
 		var point := _floor(run.position) - offset
-		_shadow(point, Vector2(17, 3), Color("#0c090ab8"))
+		_shadow(point, Vector2(17, 3) * actor_zoom, Color("#0c090ab8"))
 		var running := run.advancing or layer_travel
 		var pose := &"strike" if not running and run.companion_left >= 0.65 else &"ready"
 		var frame := SideArt.frame_for(pose)
-		var actor_scale := 0.97 - index * 0.055
+		var actor_scale := (0.97 - index * 0.055) * actor_zoom
 		var facing := 1.0
 		var lean := 0.0
 		var gait := {}
@@ -465,44 +493,52 @@ func _draw_retinue() -> void:
 			lean = 0.11 if running else 0.0
 		_at_actor(point, facing, actor_scale, lean)
 		var ink := Color("#929896e0")
-		if gait.is_empty():
-			draw_texture_rect_region(SideArt.SPRITES[0], Rect2(-SideArt.PIVOT, SideArt.CELL), SideArt.frame_region(frame), ink)
-		else:
-			SideArt.draw_gait(self, SideArt.SPRITES[0], gait, _foot_shift(gait, facing, actor_scale, lean), ink)
-		SideArt.draw_weapon(self, "long_blade", frame, Color("#b8b5a0"))
+		var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, actor_scale, lean)
+		HeldWeapon.draw_actor(self, SideArt.SPRITES[0], 0, frame, retinue_look, ink, gait, feet)
 		_world_transform()
 
 func _draw_enemy(enemy: Dictionary) -> void:
 	var point := _floor(enemy.pos)
 	var height: float = enemy.stats.size
+	var foe_scale := FOE_SCALE * actor_zoom
 	var tint: Color = Roster.ELEMENT_GLOW[Gear.WuXing.stem_element(run.encounter_stem)]
 	var facing := -1.0 if enemy.pos.x > run.position.x else 1.0
-	var lean := -6.0 * facing if enemy.windup > 0.0 else 0.0
-	var bounce := 2.0 * (floori(enemy.stride) % 2)
-	_shadow(point, Vector2(height * 0.30, height * 0.052), Color("#23364aa8") if snow_pass else Color("#0c090ae0"))
-	_at_actor(point + Vector2(lean, -bounce), facing, FOE_SCALE)
-	var artwork: Texture2D = VINE_SPIRIT if run.encounter_stem in ["jia", "yi"] else ENEMY[enemy.art]
+	var frame := MonsterArt.live_frame(enemy)
+	var art := MonsterArt.variant(enemy.art, run.encounter_stem)
+	_shadow(point, Vector2(height * 0.30, height * 0.052) * actor_zoom, Color("#23364aa8") if snow_pass else Color("#0c090ae0"))
+	_at_actor(point, facing, foe_scale)
 	var flash := pow(clampf((enemy.hit - 0.04) / 0.11, 0.0, 1.0), 1.7)
 	var ink := Color.WHITE.lerp(tint, 0.16).lerp(Color(1.52, 1.40, 1.32), flash)
-	# 贴身站位时精怪会把人整个盖住，挡在前面的那只让出一点通透度。
-	var half := artwork.get_width() * height / artwork.get_height() * FOE_SCALE * 0.5
-	if enemy.pos.y >= run.position.y - 3.0 and absf(enemy.pos.x - run.position.x) < half * 0.73:
-		ink.a = 0.73
-	_draw_sprite(artwork, height, 0.5, ink)
+	MonsterArt.draw_frame(self, art, frame, height, ink)
 	_world_transform()
 	if enemy.hit > 0.0 and not enemy.boss:
 		var width := 34.0
-		var origin := point - Vector2(width / 2.0, height * FOE_SCALE + 8.0)
+		var origin := point - Vector2(width / 2.0, height * foe_scale + 8.0)
 		draw_rect(Rect2(origin - Vector2.ONE, Vector2(width + 2.0, 5.0)), Color("#241b37"))
 		draw_rect(Rect2(origin, Vector2(width * float(enemy.hp) / float(enemy.max_hp), 3.0)), Color("#f0a580"))
 
-func _draw_sprite(texture: Texture2D, height: float, pivot: float, color: Color) -> void:
-	var width := texture.get_width() * height / texture.get_height()
-	draw_texture_rect(texture, Rect2(-width * pivot, 3.0 - height, width, height), false, color)
+func _draw_fallen_enemy(fallen: Dictionary) -> void:
+	var point := _floor(fallen.pos)
+	var height: float = fallen.height
+	var art := MonsterArt.variant(fallen.art, run.encounter_stem)
+	var alpha := 1.0 - smoothstep(Combat.ENEMY_DEATH_DURATION, Combat.ENEMY_DEATH_LIFETIME, fallen.age)
+	var tint: Color = Roster.ELEMENT_GLOW[Gear.WuXing.stem_element(run.encounter_stem)]
+	_shadow(point, Vector2(height * 0.34, height * 0.05) * actor_zoom, Color("#0c090a", 0.65 * alpha))
+	_at_actor(point, fallen.facing, FOE_SCALE * actor_zoom)
+	MonsterArt.draw_frame(self, art, MonsterArt.death_frame(fallen.age), height, Color(Color.WHITE.lerp(tint, 0.16), alpha))
+	_world_transform()
 
 func _draw_projectile(shot: Dictionary) -> void:
 	var direction := (Vector2(shot.velocity) * Vector2(1.0, lane_depth)).normalized()
-	var tip := _floor(shot.pos) - Vector2(0, 42 if shot.magic else 46)
+	var height := Vector2(0, 42 if shot.magic else 46) * actor_zoom
+	var tip := _floor(shot.pos) - height
+	if not shot.empowered:
+		var forward := Vector2(shot.velocity).normalized()
+		var facing := -1.0 if forward.x < 0.0 else 1.0
+		var release := HeldWeapon.release_point(portrait_id % 2, shot.magic) * Vector2(facing, 1) * HERO_SCALE * actor_zoom
+		var first_point := _floor(Vector2(shot.source) + forward * Combat.PROJECTILE_START) - height
+		var remaining := clampf(shot.life * Vector2(shot.velocity).length() / (shot.reach - Combat.PROJECTILE_START), 0.0, 1.0)
+		tip += (_floor(shot.source) + release - first_point) * remaining
 	if shot.get("empowered", false):
 		draw_line(tip - direction * 66.0, tip, Color(shot.color, 0.35), 9.0, true)
 		draw_line(tip - direction * 47.0, tip, Color("#fff1c9", 0.84), 2.0, true)
@@ -513,7 +549,7 @@ func _draw_projectile(shot: Dictionary) -> void:
 			var point := tip - direction * (i * 4.0) + direction.orthogonal() * sway
 			_square(point, maxf(2.0, float(echo + 1 - i)), Color("#fff2ff") if i == 0 else Color(shot.color, 1.0 - i * 0.09))
 		return
-	var tail := tip - direction * 24.0
+	var tail := tip - direction * HeldWeapon.arrow_length(portrait_id % 2) * HERO_SCALE * actor_zoom
 	var normal := direction.orthogonal()
 	draw_line(tail, tip, Color("#aa9776"), 2.0)
 	draw_colored_polygon(PackedVector2Array([tip + direction * 4.0, tip - direction * 4.0 + normal * 3.0, tip - direction * 4.0 - normal * 3.0]), Color("#f3ecdc"))
@@ -522,6 +558,8 @@ func _draw_projectile(shot: Dictionary) -> void:
 
 func _draw_telegraphs() -> void:
 	for enemy in run.enemies:
+		if enemy.hp <= 0:
+			continue
 		if enemy.windup > 0.0:
 			var radius: float = enemy.strike_radius
 			var focus := _floor(enemy.strike_at)
@@ -558,9 +596,9 @@ func _draw_effect(effect: Dictionary) -> void:
 	var origin := _floor(effect.pos)
 	ink.a = 1.0 - progress
 	if effect.type == &"flurry":
-		CombatFX.slash(self, origin, effect, progress)
+		CombatFX.slash(self, origin, effect, progress, actor_zoom)
 	elif effect.type == &"impact":
-		CombatFX.impact(self, origin, effect.radius, ink, progress)
+		CombatFX.impact(self, origin, float(effect.radius) * actor_zoom, ink, progress)
 	elif effect.type in [&"seal_burst", &"quake_seal", &"arrow_seal", &"spell_seal", &"arrow_impact", &"spell_impact"]:
 		CombatFX.cast(self, origin, effect, progress)
 	elif effect.type == &"thunder":

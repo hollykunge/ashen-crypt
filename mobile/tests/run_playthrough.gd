@@ -16,10 +16,11 @@ func _run() -> void:
 	await process_frame
 	_check(_test_migration() == true, "迁移和锻造工艺测试完整执行")
 	_check(_play(game) == true, "流程测试完整执行")
+	_check(_test_armory() == true, "角色装备的对比和换装流程完整执行")
 	_check(_test_tribulation() == true, "天劫流程完整执行")
 	_check(_test_continuous_route() == true, "连战流程完整执行")
 	for path in [save_path, save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
-			save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp"]:
+			save_path + ".armory", save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp"]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 	print("实玩流程：%d 项失败" % failures)
@@ -57,8 +58,9 @@ func _play(game) -> bool:
 		and game.state == &"farm", "挂机死亡原地恢复")
 
 	var farming_kills: int = game.run.kills
-	if not _check(_press(game, "回炉坊") and game.state == &"forge", "挂机途中回炉"):
+	if not _check(_press(game, "行装") and game.state == &"forge", "挂机途中回炉"):
 		return false
+	_check(game.forge.inventory and _press(game, "打造第一件装备") and not game.forge.inventory, "空背包可以直接去锻造")
 	var farm_material: int = game.profile.stock("jia")
 	for _i in range(4):
 		game.forge.plus_buttons.geng.pressed.emit()
@@ -82,7 +84,7 @@ func _play(game) -> bool:
 	if not _check(game.state == &"boss" and game.boss_controls.visible and game.run.enemies.size() == 1
 			and game.run.archetype.name == "藤巨妖", "冲层后进入藤巨妖的手操战"):
 		return false
-	_check(game.mode_button.text == "自动普攻" and not game.manual_movement.visible, "挑战默认自动接敌与普攻")
+	_check(game.mode_button.text == "自动普攻" and not game.manual_movement.visible, "挑战默认原地自动普攻")
 	_check(_press(game, "1×") and game.battle_speed == 2, "战斗按钮切至两倍速")
 	var spawn_before: float = game.run.enemies[0].spawn
 	game._physics_process(1.0 / 60.0)
@@ -134,6 +136,57 @@ func _play(game) -> bool:
 	_check(int(reloaded.state.version) == 4 and reloaded.storage_error.is_empty(), "游戏存档确实写出 v4")
 	return true
 
+func _test_armory() -> bool:
+	var game = Main.instantiate()
+	game.profile.save_path = save_path + ".armory"
+	root.add_child(game)
+	game.set_physics_process(false)
+	_press(game, "入山")
+	var blade := Gear.new_draft()
+	blade.materials = {"geng": 4}
+	var bow := Gear.new_draft()
+	bow.weapon_form = "bow"
+	bow.materials = {"ren": 5}
+	game.profile.collect("geng", 4)
+	game.profile.collect("ren", 5)
+	game.profile.craft(blade)
+	game.profile.craft(bow)
+	game.profile.toggle_equip(blade.uid)
+	game._enter_farm()
+	var armory = game.forge.armory
+	game.gear_slots.weapon.pressed.emit()
+	_check(armory.selected_uid == blade.uid and armory.equip_button.text == "卸下", "点战场武器进入已穿戴的物品")
+	if not _check(_press(game, "查看同部位背包") and armory.bag_items.has(bow.uid) and not armory.bag_items.has(blade.uid),
+			"背包过滤同部位，排除已穿戴的物品"):
+		return false
+	armory.bag_items[bow.uid].pressed.emit()
+	var before: Dictionary = armory.current_stats.duplicate()
+	var table: GridContainer
+	for child in armory.detail_body.get_children():
+		if child is GridContainer:
+			table = child
+	_check(table != null and table.get_child_count() >= 6 and game.profile.equipped("weapon") == blade.uid,
+		"选择武器显示当前和换上后的对比，预览不会换装")
+	var displayed := {}
+	for index in range(3, table.get_child_count(), 3):
+		displayed[table.get_child(index).text] = table.get_child(index + 2).text.split(" ")[0]
+	_press(game, "装备")
+	var projected: Dictionary = armory.current_stats.duplicate()
+	_check(before.reach < projected.reach and displayed["攻击距离"] == str(roundi(projected.reach))
+		and displayed["物理攻击"] == str(roundi(projected.attack)), "预览的新数值与实际穿戴相符")
+	_press(game, "查看同部位背包")
+	_check(armory.bag_items.has(blade.uid) and not armory.bag_items.has(bow.uid), "替换后旧武器回到背包")
+	armory.outfit_slots.boots.pressed.emit()
+	_check(armory.empty_hint.visible and _press(game, "打造鞋子") and game.forge.draft.slot == "boots", "空槽能跳转到对应的锻造部位")
+	game.forge.close_requested.emit()
+	_check(game.run.weapon_form == "bow" and game.run.hero.damage == projected.attack and game.run.hero.reach == projected.reach
+		and game.run.max_hp == projected.hp, "角色装备所示数值与实战一致")
+	var reloaded := Gear.new(game.profile.save_path)
+	reloaded.load_profile()
+	_check(reloaded.equipped("weapon") == bow.uid and reloaded.items().size() == 2, "换装重启后仍保留两件物品")
+	game.queue_free()
+	return true
+
 func _test_tribulation() -> bool:
 	var game = Main.instantiate()
 	game.profile.save_path = save_path + ".jie"
@@ -142,7 +195,7 @@ func _test_tribulation() -> bool:
 	if not _check(_press(game, "入山"), "可创建天劫测试角色"):
 		game.queue_free()
 		return false
-	for _i in range(19):
+	for _i in range(18):
 		game.profile.advance_layer()
 	game.profile.collect("ren", 4)
 	var water := Gear.new_draft()
@@ -151,14 +204,35 @@ func _test_tribulation() -> bool:
 	game.profile.toggle_equip(water.uid)
 	game._enter_farm()
 	game.challenge_button.pressed.emit()
-	if not _check(game.state == &"jie_notice" and game.notice_text.text.contains("水属装备将落囚位")
-			and game.run.encounter_stem == "gui" and game.profile.realm().name == "筑基", "第20层告示覆盖前说明克劫囚位"):
+	for _wave in range(3):
+		_clear_wave(game)
+		if game.run.advancing:
+			_ticks(game, 55)
+	_ticks(game, 120)
+	var notice = game.tribulation_notice
+	if not _check(game.state == &"jie_notice" and notice.is_visible_in_tree() and game.profile.layer() == 20
+			and not game.run.challenging and game.run.encounter_stem == "gui" and game.profile.realm().name == "筑基",
+			"从第19层连战抵达火劫时停在告示，等待期间仍按癸水挂机"):
 		game.queue_free()
 		return false
-	_press(game, "先回炉坊")
+	_check(notice.get_node("%Description").text.contains("水行落囚位") and notice.table.get_child_count() == 6
+		and notice.table.get_child(4).text == "旺  1.30" and notice.table.get_child(5).text == "囚  0.85",
+		"火劫告示显示已装备水系武器的流年和渡劫倍率")
+	_press(game, "调整装备")
 	_check(game.state == &"forge" and game.forge.preview_ling == "bing", "备劫炉坊按丙火当令预演")
+	game.forge.armory.outfit_slots.weapon.pressed.emit()
+	_check(_press(game, "卸下"), "可在备劫时卸下武器")
 	game.forge.close_requested.emit()
-	game.challenge_button.pressed.emit()
+	_check(game.state == &"jie_notice" and notice.get_node("%Empty").is_visible_in_tree() and not notice.table.visible,
+		"备劫回炉后重新显示告示，并按实际穿戴刷新为空装")
+	_check(_press(game, "留在本层挂机") and game.state == &"farm" and game.run.encounter_stem == "gui",
+		"可以放弃本次渡劫并留在第20层挂机")
+	_press(game, "行装")
+	game.forge.armory.bag_items[water.uid].pressed.emit()
+	_check(_press(game, "装备"), "挂机回炉可重新穿上水系武器")
+	game.forge.close_requested.emit()
+	_check(game.state == &"farm" and _press(game, "准备渡劫 · 第20层") and notice.is_visible_in_tree(),
+		"普通回炉返回挂机，主动挑战也会先看到备战告示")
 	_press(game, "迎接天劫")
 	if not _check(game.state == &"boss" and game.run.encounter_stem == "bing"
 			and is_equal_approx(game.profile.describe(water, true, "bing").q, 0.85)
@@ -212,7 +286,11 @@ func _test_continuous_route() -> bool:
 	restored.load_profile()
 	_check(game.state == &"next_layer" and restored.layer() == 2 and restored.stock("jia") == old_stock + 3,
 		"通关先持久化层数并只结算一次奖励")
-	_ticks(game, 45)
+	var victory_x: float = game.run.position.x
+	_ticks(game, 18)
+	_check(game.run.enemy_fall_in_progress() and is_equal_approx(game.run.position.x, victory_x),
+		"层主倒地期间保留战场，通关演出随后再向前推进")
+	_ticks(game, 27)
 	_check(game.state == &"boss" and game.run.dungeon_layer == 2 and game.run.wave_index == 0
 		and game.run.continuous, "层主战之后自动开始下一层第一波")
 	_check(_press(game, "停止连战") and game.state == &"farm" and game.profile.layer() == 2, "中途停止可回到当前层挂机")

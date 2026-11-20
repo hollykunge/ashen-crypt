@@ -8,10 +8,14 @@ const Bazi = preload("res://scripts/rules/bazi.gd")
 const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
 const Appearance = preload("res://scripts/appearance.gd")
+const WornSprites = preload("res://scripts/worn_sprites.gd")
+const HeldWeapon = preload("res://scripts/held_weapon.gd")
+const SideArt = preload("res://scripts/side_art.gd")
 const Motion = preload("res://scripts/motion.gd")
 const Roster = preload("res://scripts/roster.gd")
 const Gear = preload("res://scripts/gear.gd")
 const Combat = preload("res://scripts/combat.gd")
+const MonsterArt = preload("res://scripts/monster_art.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -19,8 +23,8 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_motion, _test_blade_flurry,
-		_test_control_modes]
+		_test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
+		_test_control_modes, _test_monster_motion, _test_body_spacing]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -41,6 +45,91 @@ func _sum(values: Array) -> float:
 
 func _near(actual: float, expected: float, label: String, tolerance: float = 0.000001) -> void:
 	_check(absf(actual - expected) <= tolerance, "%s：实际 %.8f，预期 %.8f" % [label, actual, expected])
+
+func _test_monster_motion() -> bool:
+	var run := Combat.new()
+	run.reset(1, {}, "long_blade", false)
+	run.enemies.resize(1)
+	var foe := run.enemies[0]
+	foe.spawn = 0.0
+	run._step_enemies(0.12)
+	_check(foe.moving and MonsterArt.live_frame(foe) == 1, "精怪走路按位移切换步态")
+	foe.pos = run.position + Vector2(48.0, 0.0)
+	foe.cooldown = 0.0
+	var hp_before := run.hp
+	run._step_enemies(0.01)
+	_check(MonsterArt.live_frame(foe) == 4 and run.hp == hp_before, "普通攻击先起手")
+	run._step_enemies(Combat.ENEMY_ATTACK_WINDUP)
+	_check(MonsterArt.live_frame(foe) == 5 and run.hp < hp_before, "普通攻击在挥击帧造成伤害")
+	run._step_enemies(Combat.ENEMY_ATTACK_RECOVERY * 0.6)
+	_check(MonsterArt.live_frame(foe) == 6, "挥击后接收招动作")
+	foe.cooldown = 0.0
+	foe.attack_recovery = 0.0
+	run.invulnerable = 0.0
+	run._step_enemies(0.01)
+	hp_before = run.hp
+	run.position.x -= 75.0
+	run._step_enemies(Combat.ENEMY_ATTACK_WINDUP)
+	_check(MonsterArt.live_frame(foe) == 5 and run.hp == hp_before, "走出近战范围后挥击落空")
+	run._damage_enemy(foe, 100000, 0.0)
+	_check(run._nearest_enemy().is_empty() and run.kills == 1 and run.fallen_enemies.size() == 1
+		and MonsterArt.death_frame(run.fallen_enemies[0].age) == 8, "死亡精怪即时退出战斗并开始倒地")
+	run.advance_enemy_deaths(Combat.ENEMY_DEATH_DURATION)
+	_check(not run.enemy_fall_in_progress() and MonsterArt.death_frame(run.fallen_enemies[0].age) == 11,
+		"倒地完成后保留末帧")
+	run.advance_enemy_deaths(Combat.ENEMY_DEATH_LIFETIME)
+	_check(run.fallen_enemies.is_empty(), "死亡动画结束后清理")
+	run.reset(1, {}, "long_blade", true)
+	foe = run.enemies[0]
+	foe.spawn = 0.0
+	foe.pos = run.position + Vector2(68.0, 0.0)
+	foe.cooldown = 0.0
+	run._step_enemies(0.01)
+	_check(foe.windup > 0.0 and MonsterArt.live_frame(foe) == 4, "层主在红圈预警期间蓄势")
+	run._step_enemies(foe.windup_total)
+	_check(foe.windup == 0.0 and MonsterArt.live_frame(foe) == 5, "层主出招和红圈结算同步")
+	return true
+
+func _test_body_spacing() -> bool:
+	var run := Combat.new()
+	run.reset(1, {}, "dual_blades", true)
+	var foe := run.enemies[0]
+	foe.spawn = 0.0
+	foe.cooldown = 20.0
+	foe.stats.speed = 0.0
+	var clearance := run._enemy_contact_distance(foe)
+	var planted := run.position + Vector2(clearance + 38.0, 0.0)
+	foe.pos = planted
+	for _tick in range(90):
+		run.step(1.0 / 60.0, Vector2.RIGHT)
+	_near(foe.pos.x - run.position.x, clearance, "持续前进在身体边缘停下", 0.001)
+	_check(foe.pos == planted and is_zero_approx(run.stride) and not foe.moving, "双方停住后没有推挤或踏步")
+	_check(run._basic_attack_reaches(foe), "双刀够得着碰撞边缘处的层主")
+	run.attack()
+	var before_swing := run.position
+	run._step_player(0.1, Vector2.LEFT)
+	_check(run.position == before_swing, "挥击期间站稳脚底")
+	run.step(1.0 / 60.0, Vector2.LEFT)
+	_check(run.position.x < before_swing.x and run.stride > 0.0, "主动后退可以退出普攻并恢复步态")
+
+	run.reset(1, {}, "long_blade", true, "", true)
+	var front := run.enemies[0]
+	front.spawn = 0.0
+	front.pos = run.position + Vector2(run._enemy_contact_distance(front) + 10.0, 0.0)
+	front.cooldown = 20.0
+	run._spawn_enemy(0.01)
+	var behind := run.enemies[1]
+	behind.pos = front.pos
+	run._step_enemies(0.02)
+	_check(behind.spawn <= 0.0 and behind.pos != front.pos, "在已占据的位置生成时改用空位")
+	var before_block := Vector2(front.pos)
+	for _tick in range(180):
+		run.step(1.0 / 60.0)
+	var gap := Vector2(behind.pos) - Vector2(front.pos)
+	var combined := Vector2(front.body) + Vector2(behind.body) + Combat.BODY_MARGIN
+	_check(front.pos == before_block and (absf(gap.x) + 0.01 >= combined.x or absf(gap.y) + 0.01 >= combined.y),
+		"后排接敌时保留体积并且不推前排")
+	return true
 
 func _test_conservation_tables() -> bool:
 	_near(_sum(WuXing.JINGYU.values()), 5.0, "境遇守恒")
@@ -224,6 +313,66 @@ func _test_appearance() -> bool:
 	for element in WuXing.WUXING:
 		_check(Appearance.ROBE_TINTS.has(element) and Appearance.EDGE_TINTS.has(element),
 			"%s行有成套的袍色与刃色" % element)
+	for female in [false, true]:
+		var base: Texture2D = SideArt.SPRITES[int(female)]
+		_check(WornSprites.texture(female, bare) == base, "卸下服饰恢复男女各自的底图")
+		var sheet := WornSprites.texture(female, fire)
+		_check(sheet == WornSprites.texture(female, fire), "预览与战斗复用相同外观的图集")
+		var original := base.get_image()
+		var painted := sheet.get_image()
+		for frame in range(12):
+			var area := Rect2i(SideArt.frame_region(frame))
+			_check(original.get_region(area).get_data() != painted.get_region(area).get_data(), "穿戴在第 %d 格动作中可见" % frame)
+		for slot in ["armor", "gloves", "boots", "charm", "ring"]:
+			var one := Appearance.build({slot: entries[slot]}, {}, "long_blade")
+			var dressed := WornSprites.texture(female, one).get_image()
+			var rest := Rect2i(SideArt.frame_region(0))
+			_check(dressed.get_region(rest).get_data() != original.get_region(rest).get_data(), "单穿 %s 在站姿中可见" % slot)
+			var head := Rect2i(46, 14, 14, 16)
+			_check(dressed.get_region(head).get_data() == original.get_region(head).get_data(), "单穿 %s 保留脸部原画" % slot)
+	return true
+
+func _test_weapon_grips() -> bool:
+	var atlas := HeldWeapon.ATLAS.get_image()
+	for form in Gear.WEAPON_FORMS:
+		var spec: Dictionary = HeldWeapon.FORMS[form]
+		var grip := Vector2i(Vector2(spec.grip) * 0.5) + Vector2i(int(spec.cell) * 64, 0)
+		_check(atlas.get_pixelv(grip).a > 0.8, "%s 原画的握柄中心可见" % form)
+		if form in ["long_blade", "dual_blades"]:
+			# 沿人物右向出刀时，刀柄、护手、刀尖依次向前，亮刃随下劈朝地。
+			var pose := HeldWeapon.placement(form, Vector2.ZERO, 0.0)
+			var guard := pose * Vector2(78, 33)
+			var tip := pose * Vector2(5, 96)
+			var pommel := pose * Vector2(100, 5)
+			var edge := pose * Vector2(54, 72)
+			var spine := pose * Vector2(40, 72)
+			_check(pommel.x < 0 and guard.x > 0 and tip.x > guard.x and edge.y > spine.y,
+				"%s 柄尾留在拳后，开刃的一侧朝向下劈方向" % form)
+			var span := tip.distance_to(pommel)
+			_check(span > 24 and span < (45 if form == "long_blade" else 32), "%s 随角色身高定尺" % form)
+		for sex in [0, 1]:
+			var sprite: Texture2D = SideArt.SPRITES[sex]
+			var body := sprite.get_image()
+			for frame in range(12):
+				var pose := HeldWeapon.body_frame(form, frame)
+				var source := Vector2i(SideArt.frame_region(pose).position)
+				var hands := [HeldWeapon.LEAD[sex][pose]]
+				if form in ["long_blade", "dual_blades"]:
+					hands = [HeldWeapon.blade_hand(sex, pose)]
+				if form == "dual_blades":
+					hands.append(HeldWeapon.blade_hand(sex, pose, true))
+				if form == "hammer" and frame == 0:
+					hands.append(HeldWeapon.SUPPORT[sex][pose])
+				for hand: Vector2 in hands:
+					_check(body.get_pixelv(source + Vector2i(hand)).a > 0.5,
+						"%s 第 %d 帧握点落在人物手上" % [form, frame])
+			if form == "bow":
+				for release in [false, true]:
+					var archer := HeldWeapon.BowPose.texture(sprite, sex, release).get_image()
+					var nock := HeldWeapon.BowPose.nock_hand(sex, release)
+					var hand: Vector2 = HeldWeapon.LEAD[sex][10]
+					_check(archer.get_pixelv(Vector2i(nock)).a > 0.8 and absf(nock.y - hand.y) <= 1.0,
+						"拉弦手与弓把等高，满弓与撒放格均有手部原画")
 	return true
 
 # 动作曲线要首尾归位，否则动作之间会跳帧；每种兵器都得有自己的普攻。
@@ -287,22 +436,28 @@ func _test_control_modes() -> bool:
 	var enemy := run.enemies[0]
 	enemy.spawn = 0.0
 	enemy.cooldown = 30.0
-	enemy.stats.speed = 0.0
-	enemy.pos = Combat.HOME + Vector2(160, 0)
+	enemy.pos = Combat.HOME + Vector2(190, 0)
 	for tick in range(60):
 		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.ASSISTED)
-	_check(run.position.x > Combat.HOME.x and run.combo_hits > 0, "自动普攻追敌并实际伤害目标")
+	_check(run.position == Combat.HOME and run.combo_hits > 0, "原地等精怪接近后自动普攻")
 	_check(is_zero_approx(run.skill_left) and is_zero_approx(run.tactic_left), "自动普攻保留手动施法")
+	enemy.pos = run.position + Vector2(run._enemy_contact_distance(enemy) + 4.0, 0.0)
+	var stance := run.position
+	var enemy_stance := Vector2(enemy.pos)
+	for _tick in range(20):
+		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.ASSISTED)
+	_check(run.position == stance and enemy.pos == enemy_stance and is_zero_approx(run.stride), "进入普攻距离后双方都站定交手")
 	var x_before := run.position.x
 	run.step(1.0 / 60.0, Vector2.LEFT, false, Combat.ControlMode.ASSISTED)
-	_check(run.position.x < x_before, "手动走位优先于自动接敌")
+	_check(run.position.x < x_before, "主动移动时仍能手动走位")
 	for tick in range(32):
 		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)
 	_check(run.skill_left > 0.0 or run.tactic_left > 0.0, "全自动会释放技能")
 	enemy.windup = 0.20
 	enemy.strike_at = run.position
+	stance = run.position
 	run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.AUTOMATIC)
-	_check(run.dodge_left > 0.0 and run.retreat_left > 0.0, "全自动会在层主红圈命中前后撤")
+	_check(run.dodge_left > 0.0 and run.retreat_left > 0.0 and run.position == stance, "全自动在红圈命中前原地闪避")
 	return true
 
 func _weapon(materials: Dictionary, process: Array = ["forge_fine"]) -> Dictionary:
