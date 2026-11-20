@@ -17,6 +17,7 @@ const Gear = preload("res://scripts/gear.gd")
 const Combat = preload("res://scripts/combat.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
 const Places = preload("res://scripts/rules/places.gd")
+const FxArt = preload("res://scripts/fx_art.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -25,7 +26,7 @@ var _failures := 0
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
 		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
-		_test_control_modes, _test_monster_motion, _test_body_spacing]
+		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -536,3 +537,49 @@ func _weapon(materials: Dictionary, process: Array = ["forge_fine"]) -> Dictiona
 
 func _example_stat(result: Dictionary, stat: String, expected: float, label: String) -> void:
 	_near(result.stats.get(stat, -1.0), expected, label, 0.05)
+
+func _test_fx_art() -> bool:
+	_near(FxArt.ART_HEIGHT, MonsterArt.STANDING_HEIGHT, "特效像素与精怪像素同一张网格")
+	_near(Combat.HIT_LIFETIME, FxArt.duration(&"hit"), "普通击打寿命等于图集播放时长")
+	_near(Combat.CRIT_LIFETIME, FxArt.duration(&"crit"), "暴击寿命等于图集播放时长")
+	for kind in FxArt.SHEETS:
+		var sheet: Dictionary = FxArt.SHEETS[kind]
+		var cell: Vector2i = sheet.cell
+		var texture: Texture2D = sheet.texture
+		_check(Vector2i(texture.get_size()) == Vector2i(cell.x * int(sheet.frames), cell.y * FxArt.ROWS.size()),
+			"%s 图集尺寸 = 帧数 × 五行行数" % kind)
+		var pivot: Vector2 = sheet.pivot
+		_check(Rect2(Vector2.ZERO, Vector2(cell)).has_point(pivot), "%s 锚点落在格内" % kind)
+		var image := texture.get_image()
+		if image.is_compressed():
+			image.decompress()
+		for element in FxArt.ROWS:
+			var first := image.get_region(Rect2i(FxArt.region(kind, element, 0)))
+			_check(first.get_used_rect().size != Vector2i.ZERO, "%s 的 %s 行第一帧有画" % [kind, element])
+		_check(FxArt.frame_at(kind, -1.0) == 0 and FxArt.frame_at(kind, 1.0) == int(sheet.frames) - 1,
+			"%s 播放进度夹在帧数内" % kind)
+	_check(FxArt.row_of("huo") == 3 and FxArt.row_of("") == FxArt.ROWS.size() - 1
+		and FxArt.row_of("未知") == FxArt.ROWS.size() - 1, "认不得的五行落到空手那一行")
+
+	# 实战里真的打出击打特效：带着武器五行、出手方向与暴击标记。
+	# 暴击只在一刀的首次接触上显示 —— 连斩的后几段即便同属暴击也按普通击打画。
+	var run := Combat.new()
+	run.reset(1, {}, "long_blade", true)
+	run.hit_element = "huo"
+	run.facing = 0.0
+	var enemy := run.enemies[0]
+	enemy.spawn = 0.0
+	enemy.pos = Combat.HOME + Vector2(70, 0)
+	for case in [[false, true, false], [true, true, true], [true, false, false]]:
+		run.effects.clear()
+		enemy.hp = enemy.max_hp
+		run._damage_enemy(enemy, 5, 0.0, case[0], false, Vector2(0.0, 1.0), case[1])
+		var hits := run.effects.filter(func(effect: Dictionary) -> bool: return effect.type == &"impact")
+		_check(hits.size() == 1, "每次命中恰好一个击打特效")
+		if hits.size() != 1:
+			continue
+		var hit: Dictionary = hits[0]
+		_check(hit.critical == case[2], "暴击标记：暴击 %s · 首次接触 %s" % [case[0], case[1]])
+		_check(hit.element == "huo" and cos(float(hit.angle)) > 0.0, "击打带着武器五行与出手方向")
+		_near(hit.duration, Combat.CRIT_LIFETIME if case[2] else Combat.HIT_LIFETIME, "击打寿命按暴击与否")
+	return true

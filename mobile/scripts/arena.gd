@@ -5,6 +5,7 @@ const ForgeArt = preload("res://scripts/forge_art.gd")
 
 const Combat = preload("res://scripts/combat.gd")
 const CombatFX = preload("res://scripts/combat_fx.gd")
+const FxArt = preload("res://scripts/fx_art.gd")
 const Roster = preload("res://scripts/roster.gd")
 const Motion = preload("res://scripts/motion.gd")
 const Figure = preload("res://scripts/figure.gd")
@@ -590,6 +591,15 @@ func _draw_drops() -> void:
 		_square(point - Vector2(3, -9), 6.0, ink)
 		_square(point - Vector2(3, 0), 6.0, Color("#fff2d4"))
 
+# 击打特效贴在受击者脚下，用与 _draw_enemy 相同的变换与像素比例 —— 特效的像素和精怪的像素是同一张网格。
+# 图集里的火花朝右飞，出手朝左时整体翻过来。
+func _draw_impact(effect: Dictionary, origin: Vector2, progress: float) -> void:
+	var side := -1.0 if cos(float(effect.get("angle", 0.0))) < 0.0 else 1.0
+	_at_actor(origin, side, FOE_SCALE * actor_zoom)
+	FxArt.draw(self, &"crit" if effect.get("critical", false) else &"hit", String(effect.get("element", "")),
+		progress, float(effect.radius))
+	_world_transform()
+
 func _draw_effect(effect: Dictionary) -> void:
 	var progress: float = 1.0 - effect.life / effect.duration
 	var ink: Color = effect.color
@@ -598,7 +608,7 @@ func _draw_effect(effect: Dictionary) -> void:
 	if effect.type == &"flurry":
 		CombatFX.slash(self, origin, effect, progress, actor_zoom)
 	elif effect.type == &"impact":
-		CombatFX.impact(self, origin, float(effect.radius) * actor_zoom, ink, progress)
+		_draw_impact(effect, origin, progress)
 	elif effect.type in [&"seal_burst", &"quake_seal", &"arrow_seal", &"spell_seal", &"arrow_impact", &"spell_impact"]:
 		CombatFX.cast(self, origin, effect, progress)
 	elif effect.type == &"thunder":

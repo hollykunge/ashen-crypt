@@ -50,11 +50,17 @@ const ENEMY_ATTACK_WINDUP := 0.22
 const ENEMY_ATTACK_RECOVERY := 0.26
 const ENEMY_DEATH_DURATION := 0.46
 const ENEMY_DEATH_LIFETIME := 0.75
+# 击打特效的寿命按图集的播放帧数定（FxArt：普通 10 帧、暴击 14 帧，30 fps）。
+# 战斗不 preload 画面层，两边由测试对齐。
+const HIT_LIFETIME := 10.0 / 30.0
+const CRIT_LIFETIME := 14.0 / 30.0
 enum ControlMode { MANUAL, ASSISTED, AUTOMATIC }
 
 var weapon_form := "long_blade"
 # 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
 var trail_color := Color("#e5cb93")
+# 武器主行，决定击打特效取哪一行配色；空手为空串。由画面层按外观写入。
+var hit_element := ""
 var hero: Dictionary = PLAYER
 var position := HOME
 var hp := 156
@@ -622,8 +628,15 @@ func _cast_effect(kind: StringName, point: Vector2, color: Color, radius: float)
 		"radius": radius, "life": DURATION, "duration": DURATION})
 
 func _ring(point: Vector2, color: Color, radius: float, effect_type: StringName = &"ring") -> void:
-	var lifetime := 0.16 if effect_type == &"impact" else 0.38
-	effects.append({"type": effect_type, "pos": point, "color": color, "radius": radius, "life": lifetime, "duration": lifetime})
+	const LIFETIME := 0.38
+	effects.append({"type": effect_type, "pos": point, "color": color, "radius": radius, "life": LIFETIME, "duration": LIFETIME})
+
+# 击中：只记下在哪、打的是多高的东西、暴没暴、用哪一行五行配色、朝哪边飞溅。画面层查图集。
+# 暴击只在一刀的首次接触上显示，与 _pulse 的「crit」口径一致，免得连斩每一段都炸一次。
+func _impact(enemy: Dictionary, critical: bool) -> void:
+	var lifetime := CRIT_LIFETIME if critical else HIT_LIFETIME
+	effects.append({"type": &"impact", "pos": enemy.pos, "radius": enemy.stats.size, "angle": facing,
+		"critical": critical, "element": hit_element, "color": trail_color, "life": lifetime, "duration": lifetime})
 
 # 只记录「发生了什么、在哪里、多重」，画面层自行决定震多少、顿多久。
 func _pulse(kind: StringName, point: Vector2, power: float) -> void:
@@ -661,7 +674,7 @@ func _damage_enemy(enemy: Dictionary, damage: int, force: float, critical: bool 
 		combo_left = COMBO_WINDOW
 		var stagger := combo_hits % 3 - 1
 		popup_offset = Vector2(stagger * 22.0, -absf(stagger) * 16.0)
-		_ring(enemy.pos, trail_color.lerp(Color("#ffd3a2"), 0.35), enemy.stats.size, &"impact")
+		_impact(enemy, critical and primary_hit)
 		_pulse(&"crit" if critical and primary_hit else &"hit", enemy.pos, clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2))
 	popups.append({"pos": enemy.pos, "height": enemy.stats.size, "offset": popup_offset,
 		"text": str(damage), "life": 0.6, "critical": critical})

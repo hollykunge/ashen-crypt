@@ -50,6 +50,9 @@ func _run() -> void:
 	game._enter_farm()
 	if mode != "farm":
 		game.challenge_button.pressed.emit()
+		# 进层先过本层告示；截图要的是战斗，直接接敕。
+		if game.state == &"place_notice":
+			game._accept_edict()
 	for frame in range(settle):
 		game._physics_process(1.0 / 60.0)
 		if mode == "stick" and frame == settle - 18:

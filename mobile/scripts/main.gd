@@ -566,6 +566,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	# 六个槽位的五行与阴阳同时决定数值和外观：换一件装备，场上的人就跟着换一身。
 	field.look = Appearance.build(outfit.entries, outfit.patterns, form)
 	run.trail_color = field.look.trail
+	run.hit_element = String(field.look.pieces.get("weapon", {}).get("element", ""))
 	if state == &"forge" and not challenge and run.dungeon_layer == profile.layer():
 		run.refresh_equipment(bonuses, form)
 	else:

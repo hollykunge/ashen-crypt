@@ -85,7 +85,7 @@ godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 3
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。
+`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。
 
 ## 网页原型
 
@@ -97,4 +97,4 @@ python3 -m http.server 8000
 
 网页入口是 [index.html](index.html)，游戏逻辑位于 [game.js](game.js)。
 
-字体的版权与 SIL 开源字体许可证见 [mobile/art/fonts](mobile/art/fonts)。两端共用的神仙画像、战斗造型、场景与法器图集位于 [mobile/art/immortals](mobile/art/immortals)。
+字体的版权与 SIL 开源字体许可证见 [mobile/art/fonts](mobile/art/fonts)。击打特效改编自 [pixelfx](https://github.com/patch-gg/pixelfx)，来源与 MIT 许可全文见 [mobile/art/fx/NOTICE.md](mobile/art/fx/NOTICE.md)。两端共用的神仙画像、战斗造型、场景与法器图集位于 [mobile/art/immortals](mobile/art/immortals)。

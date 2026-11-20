@@ -19,14 +19,6 @@ static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: 
 	_crescent(canvas, pivot, axes * 0.94, side, lean + 0.09, 3.0, Color(IVORY, opacity))
 	_sparks(canvas, pivot + Vector2(swing * 0.68 * side, slant * 22.0), side, age, Color(tint, opacity), 10 if final else 6)
 
-static func impact(canvas: CanvasItem, point: Vector2, size: float, tint: Color, age: float) -> void:
-	var center := point - Vector2(0.0, size * 0.66)
-	var opacity := (1.0 - age) * (1.0 - age)
-	for i in range(7):
-		var ray := Vector2.from_angle(i * TAU / 7.0 + size * 0.09) * (12.0 + i % 3 * 4.0 + age * 24.0)
-		canvas.draw_line(center + ray * 0.50, center + ray, Color(tint, opacity), 2.0, true)
-	canvas.draw_circle(center, 6.0 * (1.0 - age), Color(IVORY, opacity), true, -1.0, true)
-
 static func cast(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float) -> void:
 	var strength := pow(1.0 - age, 1.28)
 	var tint: Color = effect.color
