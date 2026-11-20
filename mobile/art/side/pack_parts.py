@@ -512,8 +512,92 @@ def wands():
     out["ruyi_wand"] = {"layers": [(pen, "trim"), (glow, "glow")], "length": 56.0, "width": 9.0, "hold": 9.0}
     return out
 
+# ---------- 弓 ----------
 
-def painted(name, spec):
+def limb(pen, bend, length, width, start, end, fill_back, fill_belly, edge=True):
+    """弓臂的一段：从握把正中往上长，bend(t) 是横向偏移（负值弯向弓弦一侧），width(t) 是半宽。
+    外侧（+u，背向射手）受光，内侧（弓腹）背光。只画 t 在 [start, end] 这一段。"""
+    cx, base = BASE
+    center = lambda t: (cx + bend(t), base - length * t)
+    t0, t1 = start, end
+    sub = lambda t: center(t0 + (t1 - t0) * t)
+    w = lambda t: width(t0 + (t1 - t0) * t)
+    lefts, rights, mids = strip(sub, w, w, 60)
+    outline = lefts + rights[::-1]
+    pen.poly(outline, fill_belly)
+    pen.poly(inset(lefts, mids, 0.1) + inset(rights, mids, 0.95)[::-1], fill_back)
+    pen.line(inset(rights, mids, 0.5)[2:-2], HIGH, 0.45)
+    if edge:
+        pen.line(outline + [outline[0]], INK, 0.7)
+    return center
+
+
+def bows():
+    cx, base = BASE
+    out = {}
+
+    def make(name, length, bend, width, ear_from, ear_width, extras=None, belly=False, likes_cloud=False):
+        body, horn, ears = Pen(), Pen(), Pen()
+        center = limb(body, bend, length, width, 0.0, ear_from + 0.02, LIGHT, MID)
+        if belly:
+            # 角弓的弓腹贴一条牛角，浅色，单独一层按骨色染。
+            limb(horn, lambda t: bend(t) - width(t) * 0.55, length, lambda t: width(t) * 0.42,
+                0.1, ear_from, HIGH, LIGHT, edge=False)
+        limb(ears, bend, length, ear_width, ear_from, 1.0, LIGHT, MID)
+        tip = center(1.0)
+        if likes_cloud:
+            # 云头弓弰：弰尖卷成一个小涡。
+            ears.ellipse((tip[0] + 1.6, tip[1] + 0.4), 2.6, 2.6, MID, INK, 0.7)
+            ears.ellipse((tip[0] + 1.6, tip[1] + 0.4), 1.2, 1.2, HIGH)
+        # 弦扣：弰尖一道刻口。
+        ears.line([(tip[0] - 1.6, tip[1] + 2.4), (tip[0] + 0.4, tip[1] + 1.4)], INK, 0.6)
+        if extras:
+            extras(body, center)
+        layers = [(body, "wood")]
+        if belly:
+            layers.append((horn, "bone"))
+        layers.append((ears, "trim"))
+        reach = max(abs(bend(i / 40)) + width(i / 40) for i in range(41)) + 3.0
+        out[name] = {"layers": layers, "length": length + 2.0, "width": reach, "tip": tip}
+
+    def bands(pen, center):
+        for t in (0.26, 0.42, 0.58):
+            x, y = center(t)
+            pen.line([(x - 3.4, y + 0.6), (x + 3.4, y - 0.6)], INK, 1.6)
+            pen.line([(x - 3.0, y + 0.6), (x + 3.0, y - 0.6)], HIGH, 0.7)
+
+    # 反曲弓：弓臂往弦一侧弯，到弓弰再往前折出去。弰尖仍得落在弓把后面（弦一侧），不然弦会跑到弓前头。
+    make("fanqu", 60.0, lambda t: -18.0 * t ** 2 + 11.0 * max(0.0, (t - 0.78) / 0.22) ** 1.8,
+        lambda t: 3.4 - 1.6 * t if t > 0.14 else 3.6, 0.78, lambda t: 1.9 - 0.8 * (t - 0.78) / 0.22)
+    # 角弓：短而反曲得狠，弓腹贴一条牛角。
+    make("jiao", 52.0, lambda t: -17.0 * t ** 2 + 11.0 * max(0.0, (t - 0.70) / 0.30) ** 1.6,
+        lambda t: 3.8 - 1.8 * t if t > 0.14 else 4.0, 0.72, lambda t: 2.0 - 0.9 * (t - 0.70) / 0.30, belly=True)
+    # 长弓：一道平平的弧，弰头只包一小截。
+    make("chang", 66.0, lambda t: -12.0 * t ** 2, lambda t: 3.0 - 1.4 * t if t > 0.12 else 3.3, 0.93,
+        lambda t: 1.7 - 0.5 * (t - 0.93) / 0.07)
+    # 云纹弓：反曲弓的身形，弓臂缠三道箍，弰头卷云。
+    make("yun", 58.0, lambda t: -16.0 * t ** 2 + 10.0 * max(0.0, (t - 0.80) / 0.20) ** 1.8,
+        lambda t: 3.5 - 1.6 * t if t > 0.14 else 3.7, 0.80, lambda t: 1.9 - 0.7 * (t - 0.80) / 0.20,
+        extras=bands, likes_cloud=True)
+    return out
+
+
+def trim_stub(art):
+    """出图常在刃根多带一截细细的刀茎，接到护手里会压在握柄上：从底往上，比刃根窄一截的行都切掉。"""
+    alpha = np.asarray(art.getchannel("A")) > 128
+    widths = alpha.sum(1)
+    rows = np.where(widths > 0)[0]
+    if rows.size == 0:
+        return art
+    lower = widths[rows[int(rows.size * 0.7)]:rows[-1] + 1]
+    reference = np.median(lower[lower > 0])
+    cut = rows[-1]
+    while cut > rows[0] and widths[cut] < reference * 0.8:
+        cut -= 1
+    return art.crop((0, 0, art.width, cut + 1))
+
+
+def painted(name, kind, spec):
     """读 source/parts/<name>.png 顶替脚本画的零件；没有就返回 None。"""
     path = HERE / "source" / "parts" / (name + ".png")
     if not path.exists():
@@ -524,20 +608,47 @@ def painted(name, spec):
         print("原画零件是空的，仍用脚本画的：%s" % path.name)
         return None
     art = art.crop(bounds)
-    height = round(spec["length"] * SCALE)
-    width = max(1, min(round(art.width * height / art.height), (SPACE - 4) * SCALE))
+    if kind == "blade":
+        art = trim_stub(art)
+    if kind in ("guard", "pommel"):
+        # 护手、柄首又扁又宽，按宽度对齐，厚度随原画；拼的时候刃和握柄按新的厚度接。
+        width = round(spec["width"] * 2 * SCALE)
+        height = max(1, round(art.height * width / art.width))
+        spec["length"] = height / SCALE
+    else:
+        height = round(spec["length"] * SCALE)
+        # 出图的弓臂都偏细，缩到游戏里只剩一根线：横向加宽一些。
+        stretch = 1.6 if kind == "bow" else 1.0
+        width = max(1, min(round(art.width * height / art.height * stretch), (SPACE - 4) * SCALE))
     art = art.resize((width, height), Image.LANCZOS)
     pixels = np.asarray(art).astype(np.float32)
     light = pixels[..., 0] * 0.2126 + pixels[..., 1] * 0.7152 + pixels[..., 2] * 0.0722
     solid = pixels[..., 3] > 128
+    # 拉开明暗：最暗的一小撮压到 60，最亮的推到 245。深色漆面（朱漆弓、黑漆杆）不拉的话，乘上漆色就只剩一团黑。
+    bottom = np.percentile(light[solid], 4) if solid.any() else 0.0
     top = np.percentile(light[solid], 99) if solid.any() else 255.0
-    light = np.clip(light * (245.0 / max(top, 1.0)), 0, 255)
-    gray_art = np.dstack([light, light, light, pixels[..., 3]]).astype(np.uint8)
-    pen = Pen()
-    pen.image.alpha_composite(Image.fromarray(gray_art), (round(BASE[0] * SCALE - width / 2), round(BASE[1] * SCALE) - height))
+    light = np.clip(60.0 + (light - bottom) * (185.0 / max(top - bottom, 1.0)), 0, 255)
+    alpha = pixels[..., 3]
+    # 钢、骨做底的零件，原画里描金、铜箍那些有色的地方分出来按饰色染，不然一件零件只剩一种材质。
+    tint = spec["layers"][0][1]
+    split = tint in ("steel", "bone")
+    if split:
+        high = pixels[..., :3].max(-1)
+        low = pixels[..., :3].min(-1)
+        saturation = (high - low) / np.maximum(high, 1.0)
+        gilt = np.clip((saturation - 0.12) / 0.12, 0.0, 1.0)
+    else:
+        gilt = np.zeros_like(light)
+    place = (round(BASE[0] * SCALE - width / 2), round(BASE[1] * SCALE) - height)
+    pens = []
+    for share in (1.0 - gilt, gilt):
+        pen = Pen()
+        layer = np.dstack([light, light, light, alpha * share]).astype(np.uint8)
+        pen.image.alpha_composite(Image.fromarray(layer), place)
+        pens.append(pen)
     spec["width"] = max(spec["width"], width / SCALE / 2)
     spec.pop("groove", None)
-    return pen
+    return [(pens[0], tint)] + ([(pens[1], "trim")] if split and gilt.max() > 0.05 else [])
 
 
 def gd_vector(point):
@@ -549,15 +660,17 @@ def main():
     parser.add_argument("--preview")
     args = parser.parse_args()
     groups = [("blade", blades()), ("guard", guards()), ("grip", grips()), ("pommel", pommels()),
-        ("head", heads()), ("wand", wands())]
+        ("head", heads()), ("wand", wands()), ("bow", bows())]
     cells = []
     table = []
     for kind, parts in groups:
         for name, spec in parts.items():
             layers = []
-            source = painted(name, spec)
+            source = painted(name, kind, spec)
             if source is not None:
-                spec["layers"] = [(source, spec["layers"][0][1])]
+                # 七星这类沿中脊的灵光点还对得上直刃，留着；别的附加层（刃口高光、宝石）随原画作废。
+                keep = [layer for layer in spec["layers"][1:] if layer[1] == "glow" and kind == "blade"]
+                spec["layers"] = source + keep
             for pen, tint in spec["layers"]:
                 if pen is None:
                     continue
@@ -575,8 +688,9 @@ def main():
         "",
         "# 由 art/side/pack_parts.py 生成，别手改。",
         "# 每格 128×128 素材空间，零件竖着画，接口在 BASE，朝上长出去。length 是沿轴长度，width 是半宽，",
-        "# groove 是血槽走线（以接口为原点、沿轴为 +y），hold 是短杖从柄尾到握点的距离。",
-        "# layers 每层是 [格序, 染色]：steel 钢色、trim 饰色、wrap 缠绳、bone 骨色、glow 灵光，空串不染。",
+        "# groove 是血槽走线（以接口为原点、沿轴为 +y），hold 是短杖从柄尾到握点的距离，tip 是弓弰挂弦处（同一坐标）。",
+        "# 弓只画上半张，下半张由游戏沿弓把镜像。",
+        "# layers 每层是 [格序, 染色]：steel 钢色、trim 饰色、wrap 缠绳、bone 骨色、wood 弓臂与杆的漆色、glow 灵光，空串不染。",
         "",
         "const SHEET = preload(\"res://art/side/weapon-parts.png\")",
         "const GRID := Vector2(%d, %d)" % (COLUMNS, rows),
@@ -588,6 +702,8 @@ def main():
             '"layers": [%s]' % ", ".join('[%d, "%s"]' % layer for layer in layers)]
         if "groove" in spec:
             fields.append('"groove": [%s]' % ", ".join(gd_vector(p) for p in spec["groove"]))
+        if "tip" in spec:
+            fields.append('"tip": %s' % gd_vector(spec["tip"]))
         if "hold" in spec:
             fields.append('"hold": %.1f' % spec["hold"])
         lines.append('\t"%s": {%s},' % (name, ", ".join(fields)))

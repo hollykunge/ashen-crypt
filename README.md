@@ -79,7 +79,7 @@
 
 手持兵器有八种形制：长刃、长剑、双刀、长枪、重锤、长弓、法杖、短杖。兵器原画由 [pack_weapons.py](mobile/art/side/pack_weapons.py) 从法器原画里抠出（长剑是脚本按同一套配色画的），握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器握在靠镜头的右手（人物朝右，身前那只拳是远侧的左手），单手垂在身侧：刀剑刃尖斜指前方地面，锤头垂到脚边，杖和枪竖着拄地，弓和短杖斜提。长剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；短杖是法杖的轻便版，出手快、射程近。炉坊与行装里的形制图标出自同一批原画。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
 
-每件兵器有自己的样子：刀剑由刃、护手、握柄、柄首加一挂穗子拼成，长柄兵器换杆头和杆色，短杖整根换。[weapon_design.gd](mobile/scripts/weapon_design.gd) 按这件装备的主行挑刃形或杆头、按次行挑护手和穗色、按阴阳定钢色深浅和缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎五行的几样里定下一样，所以同一件装备永远是同一个样子，两把同行的刀也未必一样。原画兵器也是选项之一，按它的配色只在两行里出现；弓目前只有原画。行装、背包和炉坊的兵器格画的就是拼好的这一件。零件由 [pack_parts.py](mobile/art/side/pack_parts.py) 画成灰度出图，游戏里按五行乘色；把原画零件放进 `art/side/source/parts/<零件名>.png` 再跑一遍脚本，就会顶替同名的脚本零件，出图规格见 [parts-prompts.json](mobile/art/side/parts-prompts.json)。
+每件兵器有自己的样子：刀剑由刃、护手、握柄、柄首加一挂穗子拼成，长柄兵器换杆头和杆色，短杖整根换，弓是上半张弓臂镜像出下半张、握把缠绳，弓臂按杆色上漆。[weapon_design.gd](mobile/scripts/weapon_design.gd) 按这件装备的主行挑刃形或杆头、按次行挑护手和穗色、按阴阳定钢色深浅和缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎五行的几样里定下一样，所以同一件装备永远是同一个样子，两把同行的刀也未必一样。原画兵器也是选项之一，按它的配色只在两行里出现。行装、背包和炉坊的兵器格画的就是拼好的这一件。零件由 [pack_parts.py](mobile/art/side/pack_parts.py) 画成灰度出图，游戏里按五行乘色；把原画零件放进 `art/side/source/parts/<零件名>.png` 再跑一遍脚本，就会顶替同名的脚本零件，出图规格见 [parts-prompts.json](mobile/art/side/parts-prompts.json)。[gen_parts.sh](mobile/art/side/gen_parts.sh) 用 ChatGPT 桌面版自带的 codex 按这份提示词逐件出图（走 ChatGPT 登录，不要 API key）；要按五行发光的宝珠杖头仍用脚本画的，七星剑的星点在原画刃上照样叠一层灵光。
 
 精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
 

@@ -3,7 +3,7 @@ extends RefCounted
 # 每件兵器自己的样子。
 #
 # 兵器由零件拼成（零件图见 art/side/pack_parts.py）：刀剑是刃、护手、握柄、柄首加一挂穗子，
-# 长柄兵器换杆头和杆色，短杖整根一件。这里只决定「这一件用哪几样零件、上什么色」，
+# 长柄兵器换杆头和杆色，短杖整根一件，弓是弓臂加握把缠绳，弓臂按杆色上漆。这里只决定「这一件用哪几样零件、上什么色」，
 # 怎么拼、怎么握在 held_weapon.gd 里。
 #
 # 挑法全由装备推导结果决定，同一件装备每次都拼成同一个样子：
@@ -18,7 +18,7 @@ const Atlas = preload("res://scripts/weapon_parts_atlas.gd")
 const ELEMENTS := ["jin", "mu", "shui", "huo", "tu"]
 const PAINTED := "painted"
 
-# 每种形制能用的刃或杆头，以及它们偏好的五行。原画也是一样，按原画的配色只合两行；弓暂时只有原画。
+# 每种形制能用的刃或杆头（弓是弓臂），以及它们偏好的五行。原画也是一样，按原画的配色只合两行。
 const BLADES := {
 	"long_blade": {"painted": ["jin", "huo"], "liuye": ["shui", "mu"], "yanling": ["jin", "tu", "shui"], "guitou": ["tu", "huo"]},
 	"dual_blades": {"painted": ["huo", "jin"], "liuye": ["shui", "mu", "huo"], "yanling": ["jin", "tu"]},
@@ -29,7 +29,8 @@ const HEADS := {
 	"hammer": {"painted": ["tu", "jin"], "gua": ["mu", "huo", "shui"], "fang": ["tu", "jin"]},
 	"staff": {"painted": ["tu", "mu"], "orb": ["shui", "mu", "huo"], "moon": ["jin", "tu"]},
 	"wand": {"painted": ["mu"], "bone": ["huo", "tu", "shui"], "ruyi_wand": ["mu", "jin"]},
-	"bow": {"painted": []},
+	"bow": {"painted": ["huo", "jin"], "fanqu": ["mu", "huo", "tu"], "jiao": ["tu", "jin", "shui"],
+		"chang": ["mu", "shui"], "yun": ["jin", "shui", "huo"]},
 }
 const GUARDS := {"ruyi": ["jin", "tu"], "disc": ["shui", "tu"], "bar": ["jin", "mu"], "crescent": ["huo", "shui"]}
 const GRIPS := ["cord", "bands", "ray"]
