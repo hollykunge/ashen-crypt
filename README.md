@@ -67,6 +67,8 @@
 
 战场采用侧视构图，远山、残祠、石路和场上精灵沿着同一条地面线排列。[战场渲染](mobile/scripts/arena.gd) 把场上的前后走位投影成石路上的小幅纵深，也按同一套投影绘制预警和弹道。
 
+底图跟着地方走：六个地域各有一条长卷（陇右旱、河东疫、太行矿、朔方兵、江淮涝、上界），每条由四幅拼成、约 7800 像素宽，一个地域的十层沿长卷从左走到右，天劫那层在最右端。各地域另有自己的远景雾色、前景天气（热尘、灰烬、煤尘、斜雨、云絮）与脚下阴影色。长卷按需加载，只常驻当前一张。出图规格、生成脚本与拼接工具见 [mobile/art/side/plates](mobile/art/side/plates)。
+
 男女修行人各用一张 4 列 × 3 行的像素图集，每格为 96 × 96 像素，脚底锚点和武器握点定义在 [side_art.gd](mobile/scripts/side_art.gd)。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。装备页与战斗共用换装图集。护甲、护手和靴子随每一帧的肩、肘、腕和脚踝改变位置，手持武器沿握点绘制。 [侧视素材与生成提示词](mobile/art/side/prompts.json)
 
 手操战的走位用浮动摇杆（[stick.gd](mobile/scripts/stick.gd)）：在战场区按下即生摇杆，松手即收，键盘 WASD 与前后键同时保留。
@@ -85,7 +87,7 @@ godot --path mobile --script res://tests/_dress.gd -- shot.png huo hammer pose 3
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。
+`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
 
 ## 网页原型
 

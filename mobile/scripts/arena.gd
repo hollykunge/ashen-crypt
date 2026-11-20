@@ -66,7 +66,10 @@ var hero_pose: Dictionary = Motion.REST
 var floor_height := 0.0
 var street_floor := SideArt.FLOOR
 var lane_depth := SIDE_DEPTH
-var snow_pass := false
+# 连战取景：推近、地面线压低、镜头沿长卷跑。原来叫 snow_pass，那时连战只有雪道一张图。
+var route_view := false
+# 当前地域的长卷（SideArt.plate_for），带地面线、远景雾色、天气与阴影色。
+var plate: Dictionary = SideArt.FALLBACK_PLATE
 var layer_travel := false
 var snow_drift := 0.0
 var backdrop := TextureRect.new()
@@ -76,13 +79,14 @@ var cut_in_name := ""
 
 func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
-	backdrop.texture = SideArt.STREET
+	backdrop.texture = SideArt.FALLBACK_PLATE.texture
 	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	backdrop.texture_filter = TEXTURE_FILTER_LINEAR
 	backdrop.show_behind_parent = true
 	backdrop.mouse_filter = MOUSE_FILTER_IGNORE
 	haze.shader = SNOW_HAZE
 	haze.set_shader_parameter("floor_line", SideArt.SNOW_FLOOR)
+	backdrop.material = haze
 	add_child(backdrop)
 	var mist := Gradient.new()
 	mist.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
@@ -97,11 +101,19 @@ func _ready() -> void:
 func set_camp_view(active: bool) -> void:
 	camp_view = active
 	layer_travel = false
-	snow_pass = not active and run != null and run.continuous
-	backdrop.texture = SideArt.SNOW_PASS if snow_pass else SideArt.STREET
-	backdrop.material = haze if snow_pass else null
-	street_floor = SideArt.SNOW_FLOOR if snow_pass else SideArt.FLOOR
-	lane_depth = 0.30 if snow_pass else SIDE_DEPTH
+	route_view = not active and run != null and run.continuous
+	# 底图跟着地方走：旱村、疫城、矿山、边塞、泽国、上界各一条长卷。所有取景都加远景空气透视，
+	# 人物和精怪因此从背景里跳出来。
+	plate = SideArt.plate_for(run.dungeon_layer if run != null else 1)
+	backdrop.texture = plate.texture
+	haze.set_shader_parameter("floor_line", plate.floor)
+	haze.set_shader_parameter("haze_color", plate.haze)
+	var depth: float = plate.depth
+	haze.set_shader_parameter("haze", 0.24 * depth)
+	haze.set_shader_parameter("flatten", 0.16 * depth)
+	haze.set_shader_parameter("desaturate", 0.24 * depth)
+	street_floor = plate.floor
+	lane_depth = 0.30 if route_view else SIDE_DEPTH
 	follow = Vector2.ZERO
 	shake = 0.0
 	glare = 0.0
@@ -113,7 +125,7 @@ func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	ash_time = fposmod(ash_time + delta, 120.0)
-	if snow_pass and run != null:
+	if run != null:
 		snow_drift = fposmod(snow_drift + delta * (0.39 if run.advancing or layer_travel else 0.06), 4.0)
 	_drain_pulses()
 	_track_camera(delta)
@@ -174,30 +186,39 @@ func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
 	var wide := size.x >= size.y * 1.17
-	var stage_height := 435.0 if snow_pass else (590.0 if camp_view else 510.0)
-	var zoom := (LANDSCAPE_BATTLE_ZOOM if wide else PORTRAIT_BATTLE_ZOOM) if snow_pass else 1.0
+	var stage_height := 435.0 if route_view else (590.0 if camp_view else 510.0)
+	var zoom := (LANDSCAPE_BATTLE_ZOOM if wide else PORTRAIT_BATTLE_ZOOM) if route_view else 1.0
 	scale_to_screen = minf(size.x / (445.0 if camp_view else 414.0), size.y / stage_height) * zoom
 	# 取景按原来的地面线算，推近后再把地面线挪到新位置。
-	var framing_floor := size.y * ((0.79 if wide else 0.72) if snow_pass else (0.755 if wide else 0.70))
-	var portrait_battle := snow_pass and not wide
+	var framing_floor := size.y * ((0.79 if wide else 0.72) if route_view else (0.755 if wide else 0.70))
+	var portrait_battle := route_view and not wide
 	floor_height = size.y * PORTRAIT_BATTLE_FLOOR if portrait_battle else framing_floor
 	world_center_x = PORTRAIT_BATTLE_CENTER_X if portrait_battle else WORLD_CENTER_X
 	var native := backdrop.texture.get_size()
-	var margin := 340.0 if snow_pass else 104.0
+	var margin := 340.0 if route_view else 104.0
 	# 地面锚点对齐角色脚底，同时覆盖地面上、下两段视口。
 	var framing := maxf(framing_floor / street_floor, (size.y - framing_floor) / (1.0 - street_floor))
 	var cover := maxf(floor_height / street_floor, (size.y - floor_height) / (1.0 - street_floor))
 	var backdrop_scale := maxf(maxf((size.x + margin) / native.x, framing / native.y) * zoom, cover / native.y)
 	var street_size := native * backdrop_scale
 	# 人物随原画缩放，战斗坐标仍使用原来的投影。窄屏至少容下两个人物分格（推近时同比放宽）。
-	var art_scale := SideArt.SNOW_ACTOR_SCALE if snow_pass else SideArt.STREET_ACTOR_SCALE
+	var art_scale := SideArt.SNOW_ACTOR_SCALE if route_view else SideArt.STREET_ACTOR_SCALE
 	if wide:
 		art_scale *= LANDSCAPE_ACTOR_MAGNIFICATION
 	hero_pixels = minf(street_size.y * art_scale, size.x / (2.0 * SideArt.CELL.x) * zoom)
 	actor_zoom = hero_pixels / (HERO_SCALE * scale_to_screen)
 	# 地面和脚底共用同一段镜头位移，图片边缘同时限制镜头的行程。
 	var overflow := street_size.x - size.x
-	var initial_left := -minf(76.0 * scale_to_screen, overflow * 0.20) if snow_pass else -overflow * 0.5
+	# 一个地域十层沿长卷从左走到右（SideArt.plate_progress）。连战每层还要留出自己两段波距加过层的行程给镜头。
+	var progress := SideArt.plate_progress(run.dungeon_layer) if run != null else 0.0
+	var initial_left: float
+	if route_view:
+		var edge := street_size.x * float(plate.margin)
+		var start := maxf(minf(76.0 * scale_to_screen, overflow * 0.20), edge)
+		var stride := minf(overflow, (Combat.WAVE_SPACING * 2.0 + 160.0) * scale_to_screen)
+		initial_left = -lerpf(start, maxf(start, overflow - stride - edge), progress)
+	else:
+		initial_left = -overflow * lerpf(0.06, 0.94, progress)
 	camera_limits = Vector2(initial_left, initial_left + overflow) / scale_to_screen
 	follow.x = clampf(follow.x, camera_limits.x, camera_limits.y)
 	var anchor := Vector2(world_center_x + follow.x, Combat.HOME.y)
@@ -276,10 +297,10 @@ func _draw() -> void:
 		draw_string_outline(font, lifted, popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels, 5 if critical else 4,
 			Color(0.08, 0.05, 0.10, opacity))
 		draw_string(font, lifted, popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels, ink)
-	if snow_pass:
-		_draw_snow()
-	else:
-		_draw_ash()
+	match StringName(plate.weather):
+		&"snow": _draw_snow()
+		&"rain": _draw_rain()
+		var kind: _draw_motes(kind)
 	_draw_glare()
 	_draw_combo()
 	_draw_cut_in()
@@ -355,19 +376,41 @@ func _draw_glare() -> void:
 		draw_rect(Rect2(inset, 0.0, thickness, size.y), Color(ink, alpha * 0.7))
 		draw_rect(Rect2(size.x - inset - thickness, 0.0, thickness, size.y), Color(ink, alpha * 0.7))
 
-func _draw_ash() -> void:
+# 前景飘的东西随地域换：疫与兵灾是灰烬夹火星，旱是热尘，矿是煤尘，上界是云絮。
+# ash 的参数就是原来 _draw_ash 的数值，换图之前的挂机画面不变。
+const MOTES := {
+	&"ash": {"count": 24, "ink": Color("#b1b7c1"), "ember": Color("#ed9c5d"), "rise": 1.0, "size": 1.0},
+	&"dust": {"count": 22, "ink": Color("#d9c39a"), "ember": Color("#f4e2b8"), "rise": 0.55, "size": 1.15},
+	&"grit": {"count": 28, "ink": Color("#8d9196"), "ember": Color("#c9a46a"), "rise": 0.35, "size": 0.9},
+	&"mist": {"count": 14, "ink": Color("#eef3fa"), "ember": Color("#ffffff"), "rise": 0.22, "size": 2.8},
+}
+
+func _draw_motes(kind: StringName) -> void:
+	var motes: Dictionary = MOTES.get(kind, MOTES[&"ash"])
+	var rise: float = motes.rise
+	var grain: float = motes.size
 	draw_set_transform(Vector2.ZERO)
-	for i in range(24):
+	for i in range(int(motes.count)):
 		var drift := float(i) * 0.61803399
 		var x := fposmod(drift + sin(i * 2.48 + ash_time * 0.40) * 0.048, 1.0)
-		var path := fposmod(i * 0.346 - ash_time * (0.034 + (i % 3) * 0.012), 1.0)
+		var path := fposmod(i * 0.346 - ash_time * (0.034 + (i % 3) * 0.012) * rise, 1.0)
 		var point := Vector2(x * size.x, (0.89 - path * 0.72) * size.y)
 		var ember := i % 4 == 0
 		var alpha := sin(path * PI) * (0.52 if ember else 0.24)
-		var ink := Color("#ed9c5d") if ember else Color("#b1b7c1")
+		var ink: Color = motes.ember if ember else motes.ink
 		if ember:
-			draw_circle(point, 3.1, Color(ink, alpha * 0.15), true, -1.0, true)
-		draw_circle(point, 1.25 if ember else 0.72, Color(ink, alpha), true, -1.0, true)
+			draw_circle(point, 3.1 * grain, Color(ink, alpha * 0.15), true, -1.0, true)
+		draw_circle(point, (1.25 if ember else 0.72) * grain, Color(ink, alpha), true, -1.0, true)
+
+# 江淮泽国的斜雨。
+func _draw_rain() -> void:
+	draw_set_transform(Vector2.ZERO)
+	for i in range(46):
+		var u := fposmod(i * 0.618 + ash_time * 0.05, 1.0)
+		var v := fposmod(i * 0.371 + ash_time * (0.9 + float(i % 4) * 0.18), 1.0)
+		var top := Vector2(u * size.x, v * size.y * 1.1 - size.y * 0.05)
+		var length := 16.0 + float(i % 5) * 7.0
+		draw_line(top, top + Vector2(-length * 0.28, length), Color("#c9d6dc", 0.16 + float(i % 3) * 0.06), 1.0, true)
 
 func _draw_snow() -> void:
 	draw_set_transform(Vector2.ZERO)
@@ -439,8 +482,8 @@ func _draw_hero() -> void:
 	var ink: Color = Roster.ELEMENT_TINTS.get(hero_element, Color.WHITE).lerp(Color.WHITE, 0.88)
 	ink = ink.lerp(Color(1.45, 1.32, 1.22), float(hero_pose.flash) * 0.60)
 	ink.a = float(hero_pose.fade)
-	_shadow(base + Vector2(nudge.x, 0.0), Vector2(25, 4) * actor_zoom, Color("#23364a9e") if snow_pass else Color("#0c090ae0"))
-	if snow_pass and running and not gait.is_empty():
+	_shadow(base + Vector2(nudge.x, 0.0), Vector2(25, 4) * actor_zoom, plate.shadow)
+	if plate.weather == &"snow" and running and not gait.is_empty():
 		var stamp := base + _step_vector() * float(gait.plant)
 		for i in range(3):
 			if run.stride < i * float(gait.step_length):
@@ -475,7 +518,7 @@ func _draw_hero() -> void:
 
 # 官宦随侍与随侍伤害共用同一个人数。
 func _draw_retinue() -> void:
-	var spread := snow_pass and size.x >= size.y * 1.17
+	var spread := route_view and size.x >= size.y * 1.17
 	for index in range(run.companions):
 		var offset := Vector2(56.0 + index * 44.0, 9.0 - index * 14.0) if spread else Vector2(42.0 + index * 28.0, 2.0 - index * 2.0)
 		var point := _floor(run.position) - offset
@@ -506,7 +549,7 @@ func _draw_enemy(enemy: Dictionary) -> void:
 	var facing := -1.0 if enemy.pos.x > run.position.x else 1.0
 	var frame := MonsterArt.live_frame(enemy)
 	var art := MonsterArt.variant(enemy.art, run.encounter_stem)
-	_shadow(point, Vector2(height * 0.30, height * 0.052) * actor_zoom, Color("#23364aa8") if snow_pass else Color("#0c090ae0"))
+	_shadow(point, Vector2(height * 0.30, height * 0.052) * actor_zoom, plate.shadow)
 	_at_actor(point, facing, foe_scale)
 	var flash := pow(clampf((enemy.hit - 0.04) / 0.11, 0.0, 1.0), 1.7)
 	var ink := Color.WHITE.lerp(tint, 0.16).lerp(Color(1.52, 1.40, 1.32), flash)
@@ -569,7 +612,7 @@ func _draw_telegraphs() -> void:
 				Vector2(1.0, Combat.TELEGRAPH_ASPECT * lane_depth) * scale_to_screen)
 			draw_circle(Vector2.ZERO, radius, Color("#d94f3e42"))
 			draw_circle(Vector2.ZERO, radius * phase, Color("#ee6c5445"))
-			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 56, Color("#a23247") if snow_pass else Color("#ff9578"), 3.0, true)
+			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 56, Color("#a23247"), 3.0, true)
 			_world_transform()
 		elif enemy.spawn > 0.0 and enemy.spawn < 0.75:
 			var width: float = 13.0 + 17.0 * enemy.spawn

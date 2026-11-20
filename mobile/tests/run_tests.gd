@@ -26,7 +26,7 @@ var _failures := 0
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
 		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry,
-		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art]
+		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -582,4 +582,29 @@ func _test_fx_art() -> bool:
 		_check(hit.critical == case[2], "暴击标记：暴击 %s · 首次接触 %s" % [case[0], case[1]])
 		_check(hit.element == "huo" and cos(float(hit.angle)) > 0.0, "击打带着武器五行与出手方向")
 		_near(hit.duration, Combat.CRIT_LIFETIME if case[2] else Combat.HIT_LIFETIME, "击打寿命按暴击与否")
+	return true
+
+func _test_plates() -> bool:
+	# 每个地域都有自己的长卷，而且真出了图：足够长、手机装得下、地面线在合理范围。
+	for block in Places.BLOCKS:
+		_check(SideArt.PLATES.has(String(block.plate)), "%s 地域有长卷配置" % block.plate)
+	for key in SideArt.PLATES:
+		var spec: Dictionary = SideArt.PLATES[key]
+		_check(ResourceLoader.exists(spec.path), "%s 长卷已出图" % key)
+		if not ResourceLoader.exists(spec.path):
+			continue
+		var size: Vector2 = (load(spec.path) as Texture2D).get_size()
+		_check(size.x <= 8192.0, "%s 长卷宽 %d，不超过手机常见的贴图上限" % [key, size.x])
+		_check(size.x / size.y >= 6.0, "%s 长卷够长（宽高比 %.1f）" % [key, size.x / size.y])
+		_check(float(spec.floor) > 0.5 and float(spec.floor) < 0.95, "%s 地面线落在下半幅" % key)
+		_check(StringName(spec.weather) in [&"snow", &"rain", &"ash", &"dust", &"grit", &"mist"], "%s 天气有画法" % key)
+	# 一个地域十层沿长卷从左走到右，天劫那层在最右，换地域从头开始。
+	_near(SideArt.plate_progress(1), 0.0, "第 1 层在长卷最左")
+	_near(SideArt.plate_progress(10), 1.0, "木劫那层在长卷最右")
+	_near(SideArt.plate_progress(11), 0.0, "进入筑基换新长卷，从头开始")
+	_near(SideArt.plate_progress(15), 4.0 / 9.0, "第 15 层在长卷中段")
+	_near(SideArt.plate_progress(60), 1.0, "待诏期最后一层在最右")
+	_check(SideArt.plate_for(3).key == "drought" and SideArt.plate_for(25).key == "mine"
+		and SideArt.plate_for(57).key == "court", "层号对上地域长卷")
+	_check(SideArt._plate_cache.size() == 1, "长卷只常驻当前一张")
 	return true
