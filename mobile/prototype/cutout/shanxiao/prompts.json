@@ -1,0 +1,11 @@
+{
+ "style": "Painterly dark-fantasy game art, ancient Chinese folklore, muted desaturated browns and greys with a dark crimson cloth accent, soft light from the upper left, clean readable silhouettes, crisp edges, no outline glow.",
+ "parts": {
+  "ref": "../../../art/side/monsters/shanxiao.png",
+  "prompt": "A cut-out animation parts sheet (shadow-puppet / paper-cutout rig) for a 2D side-view game monster: the Shanxiao, a hunched, shaggy dark-furred mountain ape demon with long arms, clawed hands and feet, bone charms tied in its fur and a ragged dark crimson loincloth sash. Match the creature design and colours of the attached reference sheet exactly.\nDraw these 6 body parts as SEPARATE pieces, spread out on the canvas in two rows with wide empty gaps between them, no piece touching another:\n1. head in side profile facing RIGHT, with a short neck stub at the back-bottom;\n2. torso with shoulders, back fur and hips, the loincloth hanging from the hips, NO head, NO arms, NO legs (the shoulder and hip areas are plain fur where limbs will attach);\n3. upper arm, hanging straight down, rounded at both ends;\n4. forearm with clawed hand, hanging straight down, fingers relaxed;\n5. thigh, straight down, rounded at both ends;\n6. shin with clawed foot, straight down, foot pointing RIGHT.\nEvery limb piece is perfectly straight and vertical, with generous rounded overlap caps at the joints so pieces can rotate without gaps. All pieces at the same scale as each other (the assembled creature would be about as tall as the canvas). Plain flat pure white background, no shadows on the ground, no text, no labels, no numbers, no arrows."
+ },
+ "armor": {
+  "ref": "source/parts.png",
+  "prompt": "Edit the attached parts sheet. Keep every piece in EXACTLY the same position, size, outline and pose; do not move, rescale or redraw the fur. Only add armour on top: a dented old bronze shoulder pauldron and chest plate strapped over the torso piece (piece 2), a bronze bracer around the forearm piece (piece 4), and a bronze knee guard on the thigh piece (piece 5). Head, upper arm and shin stay unchanged. Armour stays inside each piece's silhouette, except the pauldron may stick out a little above the shoulder. Plain flat pure white background, no text."
+ }
+}

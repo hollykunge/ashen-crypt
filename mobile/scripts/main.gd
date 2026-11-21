@@ -16,6 +16,11 @@ const TribulationNotice = preload("res://scripts/tribulation_notice.gd")
 const PlaceNotice = preload("res://scripts/place_notice.gd")
 const SideArt = preload("res://scripts/side_art.gd")
 const BattleStrip = preload("res://scripts/battle_strip.gd")
+const CampPouch = preload("res://scripts/camp_pouch.gd")
+const TitlePage = preload("res://scripts/title_page.gd")
+const CharacterSelect = preload("res://scripts/character_select.gd")
+const HeroSheet = preload("res://scripts/hero_sheet.gd")
+const OfflineCard = preload("res://scripts/offline_card.gd")
 const CAMP = preload("res://art/immortals/ruined-shrine-flagstones.webp")
 const FORGE_BG = preload("res://art/immortals/soot-furnace-flagstones.webp")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
@@ -40,7 +45,19 @@ const SPELL_INDEX := {
 var run := Combat.new()
 var profile := Gear.new()
 var sounds := Sound.new()
-var state: StringName = &"selection"
+var state: StringName = &"title"
+# 三个角色各一份存档，save_base 是第一格的文件名；测试把它换成临时文件。
+var save_base := Gear.SAVE_PATH
+var active_slot := -1
+# 本次挂机的统计，换角色时清零。灵砂按击杀掉落，攒一会儿再一起写进存档。
+const CHECKPOINT_INTERVAL := 15.0
+var farm_seconds := 0.0
+var farm_kills := 0
+var farm_silver := 0
+var farm_materials := 0
+var pending_silver := 0
+var checkpoint_left := CHECKPOINT_INTERVAL
+var silver_rng := RandomNumberGenerator.new()
 var touches: Dictionary = {}
 var action_buttons: Dictionary = {}
 var action_glyphs: Dictionary = {}
@@ -57,19 +74,20 @@ var battle_shade: TextureRect
 var battle_portrait: TextureRect
 var retinue_faces: HBoxContainer
 var selection: CharacterPage
+var title_page: TitlePage
+var roster_page: CharacterSelect
+var hero_sheet: HeroSheet
+var offline_card: OfflineCard
+var hero_chip: Button
+var hero_face: TextureRect
+var roster_button: Button
 var battle: VBoxContainer
 var battle_header: GridContainer
 var battle_tools: HBoxContainer
-var battle_info: Control
-var battle_context: Label
-var encounter_label: Label
-var ling_label: Label
-var farm_readout: VBoxContainer
-var farm_health: Gothic.Meter
-var farm_status: Label
-var loot_line: Label
-var recent_loot := ""
-var loot_animation: Tween
+var pouch: CampPouch
+var challenge_sweep: Gothic.Sweep
+# 上一次报过地名的层；从炉坊、告示回到挂机不再报一遍。
+var announced_layer := 0
 var farm_actions: HBoxContainer
 var challenge_button: Button
 var challenge_caption := ""
@@ -82,9 +100,6 @@ var stop_route_button: Button
 var next_layer_left := 0.0
 var control_mode := Combat.ControlMode.ASSISTED
 var battle_speed := 1
-var boss_readout: VBoxContainer
-var boss_health: Gothic.Meter
-var boss_hint: Label
 var gear_slots := {}
 var tribulation_notice: TribulationNotice
 var place_notice: PlaceNotice
@@ -121,15 +136,13 @@ func _ready() -> void:
 	theme = ui_style
 	add_child(sounds)
 	run.feedback.connect(sounds.play)
-	profile.load_profile()
+	silver_rng.randomize()
 	run.material_collected.connect(_stash_material)
+	run.enemy_slain.connect(_on_enemy_slain)
 	_build_view()
 	resized.connect(_adapt_safe_area)
 	_adapt_safe_area()
-	if profile.has_character():
-		_enter_farm()
-	else:
-		_show_selection()
+	_show_title()
 
 func _build_view() -> void:
 	var base := ColorRect.new()
@@ -160,6 +173,20 @@ func _build_view() -> void:
 	var page := _vbox(0)
 	safe.add_child(page)
 
+	title_page = TitlePage.new()
+	title_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	title_page.build(self)
+	title_page.start_requested.connect(_show_roster)
+	page.add_child(title_page)
+	roster_page = CharacterSelect.new()
+	roster_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	roster_page.build(self)
+	roster_page.play_requested.connect(_play_slot)
+	roster_page.create_requested.connect(_create_in_slot)
+	roster_page.back_requested.connect(_show_title)
+	roster_page.hide()
+	page.add_child(roster_page)
+
 	selection = CharacterPage.new()
 	selection.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_build_selection()
@@ -185,7 +212,8 @@ func _build_view() -> void:
 func _build_selection() -> void:
 	selection.ui = self
 	selection.profile = profile
-	selection.journey_requested.connect(_enter_farm)
+	selection.journey_requested.connect(_begin_new_character)
+	selection.back_requested.connect(_show_roster)
 
 func _build_battle() -> void:
 	battle.add_theme_constant_override("separation", 7)
@@ -197,53 +225,30 @@ func _build_battle() -> void:
 	stage_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	battle_header.add_child(stage_info)
 
-	# 层数与地气并进标题行右侧，顶栏少一整条，把高度让给战场。
-	var info := _hud_card(stage_info, 9, 0.79)
-	battle_info = info.get_parent()
-	battle_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var heading := _hbox(6)
-	info.add_child(heading)
-	encounter_label = _label("", 21, INK)
-	encounter_label.add_theme_font_override("font", HEADING_FONT)
-	encounter_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	encounter_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	heading.add_child(encounter_label)
-	var year := _vbox(0)
-	year.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	heading.add_child(year)
-	battle_context = _label("", 11, MUTED)
-	battle_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	year.add_child(battle_context)
-	ling_label = _label("", 12, GOLD)
-	ling_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	year.add_child(ling_label)
-
-	farm_readout = _vbox(4)
-	info.add_child(farm_readout)
-	var feed := Control.new()
-	feed.clip_contents = true
-	feed.custom_minimum_size.y = 24
-	farm_readout.add_child(feed)
-	loot_line = _label("", 13, Color("#c4e0a4"))
-	_fill(loot_line)
-	feed.add_child(loot_line)
-	farm_health = _meter(Color("#8cb286"), 5)
-	farm_readout.add_child(farm_health)
-	farm_status = _label("", 11, MUTED)
-	farm_readout.add_child(farm_status)
-
+	# 顶栏左边不写字：挂机时是头像和一只材料袋，连战时是日暮月三波。层数、地名在进层那一下用正中大字报。
+	var camp_row := _hbox(8)
+	stage_info.add_child(camp_row)
+	hero_chip = _button("", false, 56)
+	hero_chip.custom_minimum_size = Vector2(46, 56)
+	hero_chip.clip_contents = true
+	_describe(hero_chip, "角色信息")
+	hero_chip.pressed.connect(_open_hero_sheet)
+	hero_face = _image(SideArt.PORTRAITS[0])
+	hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	hero_chip.add_child(hero_face)
+	_fill(hero_face)
+	hero_face.offset_left = 2.0
+	hero_face.offset_top = 2.0
+	hero_face.offset_right = -2.0
+	hero_face.offset_bottom = -2.0
+	camp_row.add_child(hero_chip)
+	pouch = CampPouch.new()
+	pouch.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	camp_row.add_child(pouch)
 	strip = BattleStrip.new()
 	strip.waves = Combat.WAVE_SIZES.size()
 	strip.hide()
 	stage_info.add_child(strip)
-
-	boss_readout = _vbox(5)
-	info.add_child(boss_readout)
-	boss_health = _meter(Color("#c65c4c"), 9, 5)
-	boss_readout.add_child(boss_health)
-	boss_hint = _label("", 12, INK)
-	boss_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	boss_readout.add_child(boss_hint)
 
 	var switches := _hbox(7)
 	switches.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -261,17 +266,20 @@ func _build_battle() -> void:
 	stop_route_button.pressed.connect(_stop_route)
 	stop_route_button.hide()
 	battle_tools.add_child(stop_route_button)
+	roster_button = _icon_button(&"leave", "返回选角", false, Vector2(44, 44))
+	roster_button.pressed.connect(_show_roster)
+	switches.add_child(roster_button)
 	switches.add_child(_sound_button())
 
 	var tags := _hud_card(battle, 6)
 	gear_card = tags.get_parent()
-	var strip := _hbox(8)
-	strip.alignment = BoxContainer.ALIGNMENT_CENTER
-	tags.add_child(strip)
+	var slot_row := _hbox(8)
+	slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	tags.add_child(slot_row)
 	for slot in Gear.SLOTS:
 		var frame := EquipmentSlot.new(44)
 		frame.pressed.connect(_press_camp_slot.bind(slot))
-		strip.add_child(frame)
+		slot_row.add_child(frame)
 		gear_slots[slot] = frame
 
 	var spring := _space(1)
@@ -293,19 +301,28 @@ func _build_battle() -> void:
 	banner.hide()
 	farm_actions = _hbox(7)
 	battle.add_child(farm_actions)
-	var forge_button := _button("行装", false, 53.0)
-	forge_button.custom_minimum_size.x = 89
+	# 底栏三枚图标：行囊、告示牌、出发。调息时出发键上转一圈读条，不报秒数。
+	var forge_button := _icon_button(&"pack", "行装", false, Vector2(56, 56))
 	forge_button.pressed.connect(_open_forge)
 	farm_actions.add_child(forge_button)
-	var notice_button := _button("本层告示", false, 53.0)
-	notice_button.custom_minimum_size.x = 89
+	var notice_button := _icon_button(&"notice", "本层告示", false, Vector2(56, 56))
 	notice_button.pressed.connect(_show_place_notice)
 	farm_actions.add_child(notice_button)
-	challenge_button = _button("", true, 53.0)
-	challenge_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	challenge_button.add_theme_font_size_override("font_size", 16)
+	var push := Control.new()
+	push.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	farm_actions.add_child(push)
+	challenge_button = _icon_button(&"march", "", true, Vector2(96, 56))
 	challenge_button.pressed.connect(_challenge)
+	challenge_sweep = Gothic.Sweep.new()
+	challenge_button.add_child(challenge_sweep)
+	_fill(challenge_sweep)
 	farm_actions.add_child(challenge_button)
+	for tile in [forge_button, notice_button, challenge_button]:
+		var glyph: Control = tile.get_node("Glyph")
+		glyph.offset_left = -18.0
+		glyph.offset_right = 18.0
+		glyph.offset_top = -18.0
+		glyph.offset_bottom = 18.0
 
 	boss_controls = _vbox(5)
 	battle.add_child(boss_controls)
@@ -392,6 +409,7 @@ func _hold_vitals(event: InputEvent) -> void:
 # 正中一行大字，淡入、停一下、淡出。只在过层、层主登场这种时刻用。
 func _announce(title: String, sub := "") -> void:
 	banner_title.text = title
+	banner_title.visible = not title.is_empty()
 	banner_sub.text = sub
 	banner_sub.visible = not sub.is_empty()
 	if banner_fade != null:
@@ -447,7 +465,25 @@ func _build_overlay() -> void:
 	add_child(turnover)
 	turnover.hide()
 
+	hero_sheet = HeroSheet.new()
+	add_child(hero_sheet)
+	_fill(hero_sheet)
+	hero_sheet.build(self)
+	hero_sheet.roster_requested.connect(_show_roster)
+	offline_card = OfflineCard.new()
+	add_child(offline_card)
+	_fill(offline_card)
+	offline_card.build(self)
+
 func _physics_process(delta: float) -> void:
+	if active_slot >= 0 and state not in [&"title", &"roster", &"selection"]:
+		checkpoint_left -= delta
+		if checkpoint_left <= 0.0:
+			checkpoint_left = CHECKPOINT_INTERVAL
+			_checkpoint()
+	if state in [&"farm", &"jie_notice", &"place_notice"]:
+		farm_seconds += delta
+	hero_sheet.tick(self, delta)
 	if field.visible:
 		run.advance_enemy_deaths(delta)
 	if state == &"next_layer":
@@ -483,7 +519,6 @@ func _physics_process(delta: float) -> void:
 				continue
 			if run.result == &"victory" and not run.continuous:
 				_clear_input()
-				boss_health.set_amount(0.0, 1.0)
 			else:
 				_finish_challenge(run.result)
 			break
@@ -503,7 +538,14 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.physical_keycode if event.physical_keycode else event.keycode
 		if key == KEY_ESCAPE:
+			if offline_card.visible or hero_sheet.visible:
+				offline_card.close()
+				hero_sheet.close()
+				get_viewport().set_input_as_handled()
+				return
 			match state:
+				&"roster": _show_title()
+				&"selection": _show_roster()
 				&"forge":
 					if forge.inventory and not forge.armory.selected_uid.is_empty():
 						forge.armory.inspect("")
@@ -573,23 +615,142 @@ func _fit_stick() -> void:
 func _notification(what: int) -> void:
 	if what in [NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT]:
 		_clear_input()
+		_checkpoint()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_checkpoint()
 	elif what == NOTIFICATION_APPLICATION_RESUMED and is_instance_valid(safe):
 		_adapt_safe_area()
+		# 手机切到后台时整个循环停了，回来按离开的时长补发挂机收益。
+		if state in [&"farm", &"jie_notice", &"place_notice", &"forge"]:
+			_settle_offline()
 
-func _show_selection() -> void:
-	state = &"selection"
+# 开机、选角、创角三页共用山门背景，其余都收起。
+func _show_camp_page(page: Control) -> void:
+	_clear_input()
 	battle.hide()
 	field.hide()
 	battle_shade.hide()
 	forge.hide()
 	stick.hide()
+	tribulation_notice.hide()
+	place_notice.hide()
+	turnover.dismiss()
+	hero_sheet.hide()
+	offline_card.hide()
+	banner.hide()
+	_fit_forge()
 	camp.texture = CAMP
 	camp.self_modulate = Color.WHITE
 	camp_shade.texture = _camp_gradient()
 	camp.show()
 	camp_shade.show()
-	selection.show()
-	selection.show_home()
+	for other in [title_page, roster_page, selection]:
+		other.visible = other == page
+
+func _show_title() -> void:
+	_leave_character()
+	state = &"title"
+	_show_camp_page(title_page)
+	roster_page.save_base = save_base
+	title_page.refresh(roster_page.count())
+
+func _show_roster() -> void:
+	_leave_character()
+	state = &"roster"
+	_show_camp_page(roster_page)
+	roster_page.save_base = save_base
+	roster_page.refresh()
+
+func _show_selection() -> void:
+	state = &"selection"
+	_show_camp_page(selection)
+	selection.start_new()
+
+# 选中一格：换成那一格的存档，本次挂机的统计从零记。
+func _use_slot(slot: int) -> void:
+	_leave_character()
+	active_slot = slot
+	profile.save_path = Gear.slot_path(slot, save_base)
+	profile.load_profile()
+	farm_seconds = 0.0
+	farm_kills = 0
+	farm_silver = 0
+	farm_materials = 0
+	pending_silver = 0
+	checkpoint_left = CHECKPOINT_INTERVAL
+	announced_layer = 0
+	retry_until = 0.0
+	run.drops.clear()
+
+func _create_in_slot(slot: int) -> void:
+	_use_slot(slot)
+	if profile.has_character():
+		_show_roster()
+		return
+	if not profile.storage_error.is_empty():
+		_show_roster()
+		roster_page.show_error(profile.storage_error)
+		return
+	_show_selection()
+
+func _play_slot(slot: int) -> void:
+	_use_slot(slot)
+	if not profile.has_character():
+		_show_roster()
+		roster_page.show_error(profile.storage_error if not profile.storage_error.is_empty() else "这一格没有角色")
+		return
+	_enter_farm()
+	_settle_offline()
+
+func _begin_new_character() -> void:
+	_enter_farm()
+	_checkpoint()
+
+# 离开当前角色前：场上没捡的材料收进袋，攒着的灵砂入账，记下离开的时刻。
+func _leave_character() -> void:
+	if active_slot < 0 or not profile.has_character():
+		return
+	if state in [&"farm", &"jie_notice", &"place_notice", &"forge"] and not run.challenging:
+		run.collect_pending_materials()
+	_checkpoint()
+
+func _checkpoint() -> void:
+	if active_slot < 0 or not profile.has_character() or state in [&"title", &"roster", &"selection"]:
+		return
+	var measured := farm_kills / farm_seconds * 3600.0 if farm_seconds >= 120.0 else 0.0
+	if profile.checkpoint(Time.get_unix_time_from_system(), pending_silver, measured):
+		pending_silver = 0
+
+func _drop_multiplier() -> float:
+	return float(profile.bonuses().get("material_drop_multiplier", 1.0)) * float(Combat.MINION.drop)
+
+func _settle_offline() -> void:
+	if active_slot < 0 or not profile.has_character():
+		return
+	var now := Time.get_unix_time_from_system()
+	var report := profile.offline_report(now, _drop_multiplier())
+	if not profile.claim_offline(report, now):
+		_announce("", profile.storage_error)
+		return
+	if report.is_empty():
+		return
+	if state == &"farm":
+		_update_battle()
+	offline_card.present(self, report)
+
+func _on_enemy_slain(_boss: bool) -> void:
+	if run.challenging or active_slot < 0:
+		return
+	farm_kills += 1
+	var coins := Gear.roll_farm_silver(silver_rng, profile.layer(), profile.silver_multiplier())
+	pending_silver += coins
+	farm_silver += coins
+
+func _open_hero_sheet() -> void:
+	if state != &"farm" or not profile.has_character():
+		return
+	_clear_input()
+	hero_sheet.present(self)
 
 func _enter_farm() -> void:
 	_start_encounter(false)
@@ -609,6 +770,8 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	var element := Gear.WuXing.stem_element(person.day_stem)
 	field.portrait_id = Roster.portrait_id(person.day_stem, person.gender == "female")
 	battle_portrait.texture = SideArt.PORTRAITS[field.portrait_id % 2]
+	hero_face.texture = battle_portrait.texture
+	hero_face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)
 	field.hero_element = element
 	var outfit := profile.loadout()
 	var form: String = weapon.get("weapon_form", "sword")
@@ -628,25 +791,15 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 		run.reset(profile.layer(), bonuses, form, challenge, ling, continuous_route)
 		boss_announced = false
 	state = &"boss" if challenge else &"farm"
-	battle_context.text = profile.layer_caption()
-	# 抬头三路：渡劫 / 层主 / 挂机。挂机时报这个地方正在遭的灾。
-	if not tribulation.is_empty():
-		encounter_label.text = "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(ling)]
-	elif challenge:
-		encounter_label.text = run.archetype.name + " · 层主"
-	else:
-		var calamity := String(profile.place().get("calamity", ""))
-		encounter_label.text = calamity + "灾" if not calamity.is_empty() else "挂机刷怪"
-	ling_label.text = Gear.ling_caption(ling) + "当令"
-	ling_label.add_theme_color_override("font_color", Gear.MATERIAL_COLORS[Gear.WuXing.stem_element(ling)])
 	_set_loadout_slots(outfit.entries, person, challenge)
 	farm_actions.visible = not challenge
 	challenge_caption = ("开始连战 · 第%d层" if layer_tribulation.is_empty() else "准备渡劫 · 第%d层") % profile.layer()
-	farm_readout.visible = not challenge
-	boss_readout.visible = challenge
+	_set_icon(challenge_button, &"march" if layer_tribulation.is_empty() else &"jie")
 	boss_controls.visible = challenge
 	battle_tools.visible = challenge
-	battle_info.visible = not challenge
+	pouch.visible = not challenge
+	hero_chip.visible = not challenge
+	roster_button.visible = not challenge
 	strip.visible = challenge
 	strip.single = challenge and not run.continuous
 	_layout_header()
@@ -657,10 +810,15 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	stop_route_button.visible = challenge and run.continuous
 	gear_card.visible = not challenge
 	stick.visible = challenge
-	if not challenge and recent_loot.is_empty():
-		loot_line.text = "材料流水  ·  " + Gear.material(ling).name
+	if not challenge and announced_layer != profile.layer():
+		announced_layer = profile.layer()
+		var place := profile.place()
+		var calamity := String(place.get("calamity", ""))
+		_announce(String(place.get("name", "")), "第 %d 层%s" % [profile.layer(), " · %s灾" % calamity if not calamity.is_empty() else ""])
 
 	selection.hide()
+	title_page.hide()
+	roster_page.hide()
 	forge.hide()
 	_fit_forge()
 	camp.hide()
@@ -695,12 +853,11 @@ func _update_battle() -> void:
 	if state == &"next_layer":
 		return
 	if state != &"boss":
-		farm_health.set_amount(run.hp, run.max_hp)
-		farm_status.text = "生命 %d/%d   ·   本层击退 %d" % [run.hp, run.max_hp, run.kills]
-		if profile.relief_pending():
-			farm_status.text += "   ·   蒙荫（死位按囚位）"
+		var ling := profile.ling()
+		pouch.show_state(Gear.material(ling), profile.stock(ling), run.hp, run.max_hp, profile.relief_pending())
 		var wait := maxi(profile.challenge_wait(), ceili(retry_until - Time.get_unix_time_from_system()))
-		challenge_button.text = ("调息 %d 秒\n" % wait + challenge_caption) if wait > 0 else challenge_caption
+		_describe(challenge_button, ("调息 %d 秒 · " % wait + challenge_caption) if wait > 0 else challenge_caption)
+		challenge_sweep.show_amount(wait, 30.0, false)
 		return
 	var enemy: Dictionary = run.enemies[0] if not run.enemies.is_empty() else {}
 	strip.current = run.wave_index
@@ -717,8 +874,6 @@ func _update_battle() -> void:
 	strip.boss_ratio = float(remaining_health) / maxf(total_health, 1) if boss_up else -1.0
 	strip.foes_total = 0 if run.boss_wave() else int(Combat.WAVE_SIZES[run.wave_index])
 	strip.foes = 0 if run.advancing else living
-	if not enemy.is_empty():
-		boss_health.set_amount(remaining_health, total_health)
 	# 层主蓄力时不报字：地上有红圈，后撤键跟着一明一暗。
 	var preparing: bool = not enemy.is_empty() and enemy.windup > 0.0
 	strip.warning = preparing and boss_up
@@ -780,22 +935,21 @@ func _accept_edict() -> void:
 func _aid_place() -> void:
 	var place := profile.place()
 	if not profile.aid_layer():
-		loot_line.text = profile.storage_error
+		_announce("", profile.storage_error)
 		_close_place_notice()
 		return
 	# 重入挂机，让谢礼进的材料和下一层的蒙荫立刻反映到场上；它会顺手收起告示。
-	# 文案必须放在之后 —— _start_encounter 会重写材料流水那一行。
 	_enter_farm()
-	loot_line.text = "%s · %s" % [place.name, place.aid]
+	_announce(place.name, place.aid)
 
 func _refuse_edict() -> void:
 	var place := profile.place()
 	if not profile.refuse_edict():
-		loot_line.text = profile.storage_error
+		_announce("", profile.storage_error)
 		_close_place_notice()
 		return
 	_close_place_notice()
-	loot_line.text = "抗敕 · %s" % place.name
+	_announce("抗敕", place.name)
 
 func _show_place_notice() -> void:
 	if not profile.has_character():
@@ -821,25 +975,19 @@ func _stop_route() -> void:
 
 func _stash_material(id: String, quantity: int) -> void:
 	if not profile.collect(id, quantity):
-		loot_line.text = profile.storage_error
+		_announce("", profile.storage_error)
 		return
-	var material := Gear.material(id)
-	recent_loot = "+%d %s" % [quantity, material.name]
-	loot_line.text = "材料流水  ·  %s   /   库存 %d" % [recent_loot, profile.stock(id)]
-	loot_line.add_theme_color_override("font_color", material.tint.lerp(INK, 0.3))
-	if loot_animation != null:
-		loot_animation.kill()
-	loot_line.position.y = 7.0
-	loot_line.modulate.a = 0.30
-	loot_animation = create_tween().set_parallel(true)
-	loot_animation.tween_property(loot_line, "position:y", 0.0, 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	loot_animation.tween_property(loot_line, "modulate:a", 1.0, 0.26)
+	if not run.challenging:
+		farm_materials += quantity
+	if id == profile.ling():
+		pouch.bump()
 
 func _open_forge(slot: String = "") -> void:
 	if state not in [&"farm", &"jie_notice"]:
 		return
 	var preview_ling := Gear.Realm.jie_ling_of(profile.layer())
 	run.collect_pending_materials()
+	_checkpoint()
 	forge_return_to_notice = state == &"jie_notice"
 	state = &"forge"
 	_clear_input()
@@ -878,10 +1026,9 @@ func _finish_challenge(outcome: StringName) -> void:
 		rewards["relic_core"] = 1
 	if not profile.advance_layer(rewards):
 		_enter_farm()
-		loot_line.text = profile.storage_error
+		_announce("", profile.storage_error)
 		return
 	retry_until = 0.0
-	recent_loot = ""
 	sounds.play(&"level")
 	var is_breakthrough := not Gear.Realm.jie_ling_of(old_layer).is_empty()
 	if run.continuous:
@@ -894,7 +1041,6 @@ func _finish_challenge(outcome: StringName) -> void:
 		run.stride = 0.0
 		if is_breakthrough:
 			_announce("破境", String(profile.realm().name))
-		boss_health.set_amount(0.0, 1.0)
 		for action in [&"attack", &"skill", &"tactic", &"retreat"]:
 			action_buttons[action].disabled = true
 		return
@@ -937,21 +1083,20 @@ func _adapt_safe_area() -> void:
 	safe.add_theme_constant_override("margin_right", right)
 	var wide := size.x >= size.y * 1.17
 	_layout_header()
-	battle_info.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN if wide else Control.SIZE_FILL
-	battle_info.custom_minimum_size.x = 340.0 if wide else 0.0
 	gear_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
 	farm_actions.size_flags_horizontal = Control.SIZE_SHRINK_END if wide else Control.SIZE_FILL
-	farm_actions.custom_minimum_size.x = minf(530.0, size.x * 0.50) if wide else 0.0
+	farm_actions.custom_minimum_size.x = minf(320.0, size.x * 0.30) if wide else 0.0
 	skill_row.custom_minimum_size.x = minf(355.0, size.x * 0.31) if wide else 0.0
 	battle_portrait.custom_minimum_size.x = 58.0 if wide else 43.0
 	_update_retinue()
-	selection.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
-	selection.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
+	for page in [selection, roster_page, title_page]:
+		page.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
+		page.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
 	_fit_forge()
 
-# 战斗时顶栏很窄，竖屏也和工具按钮并排；挂机那张信息卡竖屏时独占一行。
+# 顶栏左边只有袋子或三波记号，都很窄，横竖屏都和右边的按钮并排。
 func _layout_header() -> void:
-	battle_header.columns = 2 if size.x >= size.y * 1.17 or strip.visible else 1
+	battle_header.columns = 2
 
 func _fit_forge() -> void:
 	if forge == null:

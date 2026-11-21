@@ -30,15 +30,16 @@ const PORTRAIT_BATTLE_FLOOR := 0.765
 const PORTRAIT_BATTLE_CENTER_X := 493.0
 const SNOW_HAZE = preload("res://scripts/snow_haze.gdshader")
 const ATMOSPHERE = preload("res://scripts/atmosphere.gdshader")
-const WATER = preload("res://scripts/water.gdshader")
 # 挂机时一整天的长度（秒）。前一半是白天，再走过黄昏入夜，最后经过拂晓回到白天。
 const DAY_LENGTH := 300.0
 # 天色每秒最多变多少。连战换波时跑图那几秒，正好从一段天色走到下一段。
 const DAYLIGHT_PACE := 0.22
 # 最前面那层剪影相对镜头的速度：长卷走 1，它走 1.6。
 const NEAR_PARALLAX := 1.6
-# 水线在主角站位以下多远（战斗坐标）。
-const WATER_GAP := 6.0
+# 暗黑调色的力度（0 关掉，1 全开）和四角压暗。挂机取景远，压角轻一点。
+const GRADE := 1.0
+const VIGNETTE := 0.7
+const VIGNETTE_CAMP := 0.6
 
 var run: Combat
 var portrait_id := 0
@@ -62,8 +63,22 @@ var look: Dictionary = Appearance.bare():
 		if look.form == "bow":
 			HeldWeapon.BowPose.texture(hero_sprite, portrait_id % 2, false)
 # 打击反馈：震屏、闪白、顿感都只影响画面，不碰结算。
+# shake 是「创伤值」0~1：每次打击往上加，按秒线性回落；画面位移按它的 1.5 次方算，
+# 小打小闹几乎不抖，连续重击才明显。抖动偏向打击方向（shake_dir），另有一下沿打击方向的镜头冲击（kick）。
+const SHAKE_PIXELS := 14.0
+const SHAKE_EXPONENT := 1.5
 var shake := 0.0
 var shake_seed := 0.0
+var shake_dir := Vector2.RIGHT
+var kick := Vector2.ZERO
+# 打击溅出的血雾、火星和灰烬，只在画面层，单位是战场坐标。
+const MAX_SPARKS := 180
+const ICHOR := Color("#7a1712")
+const ICHOR_DARK := Color("#2a0b0a")
+const EMBER := Color("#ff8a3d")
+const ASH := Color("#8f8a86")
+var sparks: Array[Dictionary] = []
+var spark_rng := RandomNumberGenerator.new()
 var glare := 0.0
 var glare_ink := Color("#ffd9a8")
 var hold := 0.0
@@ -91,16 +106,11 @@ var daylight := 0.0
 var day_clock := 0.0
 var light := ShaderMaterial.new()
 var atmosphere := ColorRect.new()
-var ripple := ShaderMaterial.new()
-var water := ColorRect.new()
 var near := Control.new()
-# 人和精怪在水里的倒影。画在水面之上、人物之下，只在水线以下露出来（clip_contents）。
-# 倒影用的是上一帧记下的站位（mirrors），差一帧看不出来。
-var reflections := Control.new()
-var mirrors: Array[Dictionary] = []
 
 func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
+	spark_rng.randomize()
 	backdrop.texture = SideArt.FALLBACK_PLATE.texture
 	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	backdrop.texture_filter = TEXTURE_FILTER_LINEAR
@@ -110,26 +120,11 @@ func _ready() -> void:
 	haze.set_shader_parameter("floor_line", SideArt.SNOW_FLOOR)
 	backdrop.material = haze
 	add_child(backdrop)
-	# 子节点的先后就是画的先后：长卷、水面（都在本层的人物之下），然后是人物，再是最前面的剪影，最后一层天光。
-	ripple.shader = WATER
-	water.material = ripple
-	water.show_behind_parent = true
-	water.mouse_filter = MOUSE_FILTER_IGNORE
-	water.set_anchors_preset(PRESET_FULL_RECT)
-	add_child(water)
-	reflections.show_behind_parent = true
-	reflections.clip_contents = true
-	reflections.mouse_filter = MOUSE_FILTER_IGNORE
-	reflections.draw.connect(_draw_reflections)
-	add_child(reflections)
+	# 子节点的先后就是画的先后：长卷在本层的人物之下，然后是人物，再是最前面的剪影，最后一层天光。
 	near.mouse_filter = MOUSE_FILTER_IGNORE
 	near.set_anchors_preset(PRESET_FULL_RECT)
 	near.draw.connect(_draw_near)
 	add_child(near)
-	# 画面一帧只自动读回一次（给了水面），天光要读人物画完之后的画面，得再拷一次。
-	var copy := BackBufferCopy.new()
-	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	add_child(copy)
 	light.shader = ATMOSPHERE
 	atmosphere.material = light
 	atmosphere.mouse_filter = MOUSE_FILTER_IGNORE
@@ -160,13 +155,11 @@ func set_camp_view(active: bool) -> void:
 	haze.set_shader_parameter("flatten", 0.16 * depth)
 	haze.set_shader_parameter("desaturate", 0.24 * depth)
 	street_floor = plate.floor
-	ripple.set_shader_parameter("water", plate.water)
-	ripple.set_shader_parameter("water_tint", plate.tint)
-	water.visible = plate.water > 0.0
-	reflections.visible = water.visible
 	lane_depth = 0.30 if route_view else SIDE_DEPTH
 	follow = Vector2.ZERO
 	shake = 0.0
+	kick = Vector2.ZERO
+	sparks.clear()
 	glare = 0.0
 	hold = 0.0
 	cut_in_left = 0.0
@@ -181,7 +174,9 @@ func _process(delta: float) -> void:
 		snow_drift = fposmod(snow_drift + delta * (0.39 if run.advancing or layer_travel else 0.06), 4.0)
 	_drain_pulses()
 	_track_camera(delta)
-	shake = maxf(0.0, shake - delta * (9.0 if camp_view else 6.5))
+	shake = maxf(0.0, shake - delta * (2.6 if camp_view else 1.7))
+	kick = kick.lerp(Vector2.ZERO, 1.0 - exp(-delta * 20.0))
+	_step_sparks(delta if run == null or run.hitstop <= 0.0 else delta * 0.15)
 	glare = maxf(0.0, glare - delta * 4.2)
 	hold = maxf(0.0, hold - delta)
 	cut_in_left = maxf(0.0, cut_in_left - delta)
@@ -192,8 +187,6 @@ func _process(delta: float) -> void:
 	_update_light()
 	queue_redraw()
 	near.queue_redraw()
-	if reflections.visible:
-		reflections.queue_redraw()
 
 func _target_daylight() -> float:
 	if run == null:
@@ -211,20 +204,18 @@ func _target_daylight() -> float:
 		return float(run.wave_index) / float(Combat.WAVE_SIZES.size() - 1)
 	return 1.0 if run.challenging else 0.0
 
-# 把水线交给 water.gdshader，天色和主角身边那圈光交给 atmosphere.gdshader。白天整层天光关掉，省一次读屏。
+# 天色和主角身边那圈光交给 atmosphere.gdshader。白天整层天光关掉，省一次读屏。
 func _update_light() -> void:
 	if run == null or size.y <= 0.0:
 		return
-	# 水从石路前沿往下铺：最靠后的那条走位线以下就是水，靠前走的人和精怪站在浅水里。
-	var bank := world_offset.y + (_floor(Combat.HOME).y + WATER_GAP) * scale_to_screen
-	ripple.set_shader_parameter("water_line", bank / size.y)
-	reflections.position = Vector2(0.0, bank)
-	reflections.size = Vector2(size.x, maxf(0.0, size.y - bank))
 	var warm := clampf(1.0 - absf(daylight - 0.5) * 2.0, 0.0, 1.0)
 	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
-	atmosphere.visible = warm > 0.01 or dark > 0.01
+	# 暗黑调色常开：白天也是阴天，压饱和、压暗、冷灰阴影，只留血色和火光。
+	atmosphere.visible = GRADE > 0.0 or warm > 0.01 or dark > 0.01
 	if not atmosphere.visible:
 		return
+	light.set_shader_parameter("grade", GRADE)
+	light.set_shader_parameter("vignette", VIGNETTE_CAMP if camp_view else VIGNETTE)
 	var body := world_offset + jitter + _floor(run.position) * scale_to_screen - Vector2(0.0, 40.0 * hero_pixels)
 	light.set_shader_parameter("warm", warm * 0.85)
 	light.set_shader_parameter("night", dark * 0.82)
@@ -242,23 +233,29 @@ func _drain_pulses() -> void:
 		if not camp_view and pulse.kind in [&"cast", &"stomp"]:
 			cut_in_left = CUT_IN_TIME
 			cut_in_name = "破阵" if pulse.kind == &"cast" else "震慑"
+		# 打击方向：从主角指向挨打的一方；主角挨打时反过来。
+		var origin: Vector2 = pulse.get("from", run.position)
+		var away := Vector2(signf(pulse.pos.x - origin.x), 0.0)
+		if away.x == 0.0:
+			away = Vector2.RIGHT
 		match pulse.kind:
 			&"hit":
-				shake = maxf(shake, 0.16 * power * damp)
+				_trauma(0.16 * power * damp, away, 2.4 * power * damp)
+				_splash(pulse, away, 8 + roundi(power * 4.0), false)
 			&"crit":
-				shake = maxf(shake, 0.34 * power * damp)
+				_trauma(0.34 * power * damp, away, 5.0 * damp)
 				_glare(Color("#ffd9a8"), 0.5 * damp)
+				_splash(pulse, away, 12 + roundi(power * 4.0), true)
 			&"kill":
-				shake = maxf(shake, 0.22 * power * damp)
+				_trauma(0.24 * power * damp, away, 3.5 * damp)
+				_cinders(pulse, away, 10 + roundi(power * 8.0))
 			&"hurt":
-				shake = maxf(shake, 0.40 * power * damp)
-				_glare(Color("#ff9d86"), 0.85 * damp)
-				_rumble(roundi(28.0 * power))
+				_trauma(0.42 * power * damp, Vector2(-signf(run.facing) if run.facing != 0.0 else -1.0, 0.0), 5.0 * damp)
+				_glare(Color("#b3261c"), 0.9 * damp)
 			&"stomp", &"quake":
-				shake = maxf(shake, 0.46 * power * damp)
-				_rumble(22)
+				_trauma(0.5 * power * damp, Vector2.DOWN, 6.0 * damp)
 			&"cast":
-				shake = maxf(shake, 0.20 * power * damp)
+				_trauma(0.2 * power * damp, away, 0.0)
 				_glare(run.trail_color, 0.22 * damp)
 			&"revive":
 				_glare(Color("#b6f0a8"), 0.7)
@@ -274,9 +271,59 @@ func _glare(ink: Color, amount: float) -> void:
 	glare = amount
 	glare_ink = ink
 
-func _rumble(milliseconds: int) -> void:
-	if OS.has_feature("mobile") and milliseconds > 0:
-		Input.vibrate_handheld(milliseconds)
+func _trauma(amount: float, direction: Vector2, punch: float) -> void:
+	shake = minf(1.0, shake + amount)
+	shake_dir = direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
+	kick += shake_dir * punch
+
+# 普攻溅一小蓬暗红血雾，暴击多一倍还夹火星。顺着打击方向喷，带重力落地。
+func _splash(pulse: Dictionary, away: Vector2, count: int, heavy: bool) -> void:
+	var height := float(pulse.get("height", 48.0))
+	var at := _floor(pulse.pos) - Vector2(away.x * height * 0.18, height * 0.55) * FOE_SCALE * actor_zoom
+	for i in range(count):
+		var angle := spark_rng.randf_range(-0.9, 0.45)
+		var speed := spark_rng.randf_range(70.0, 190.0) * (1.35 if heavy else 1.0)
+		var velocity := Vector2(cos(angle) * away.x, sin(angle)) * speed
+		var ember := heavy and i % 3 == 0
+		_spark(at, velocity, spark_rng.randf_range(0.28, 0.55), EMBER if ember else (ICHOR if i % 2 else ICHOR_DARK),
+			spark_rng.randf_range(3.0, 6.0) if not ember else 3.0, 0.0 if ember else 520.0, ember)
+
+# 倒下化灰：一阵往上飘的火星和灰片，扣「余烬」这个题。
+func _cinders(pulse: Dictionary, away: Vector2, count: int) -> void:
+	var height := float(pulse.get("height", 48.0))
+	var at := _floor(pulse.pos) - Vector2(0.0, height * 0.4) * FOE_SCALE * actor_zoom
+	for i in range(count):
+		var spread := Vector2(spark_rng.randf_range(-0.5, 0.5) * height, spark_rng.randf_range(-0.4, 0.4) * height) * actor_zoom
+		var velocity := Vector2(away.x * spark_rng.randf_range(10.0, 70.0), -spark_rng.randf_range(40.0, 120.0))
+		var ember := i % 2 == 0
+		_spark(at + spread, velocity, spark_rng.randf_range(0.6, 1.2), EMBER if ember else ASH,
+			spark_rng.randf_range(2.0, 3.5), -30.0, ember)
+
+func _spark(at: Vector2, velocity: Vector2, life: float, ink: Color, pixels: float, gravity: float, glow: bool) -> void:
+	if sparks.size() >= MAX_SPARKS:
+		sparks.remove_at(0)
+	sparks.append({"pos": at, "vel": velocity, "life": life, "total": life, "ink": ink, "size": pixels,
+		"gravity": gravity, "glow": glow})
+
+func _step_sparks(delta: float) -> void:
+	if sparks.is_empty() or delta <= 0.0:
+		return
+	for spark in sparks:
+		spark.life -= delta
+		spark.vel = spark.vel * exp(-delta * 2.2) + Vector2(0.0, spark.gravity * delta)
+		spark.pos += spark.vel * delta
+	sparks = sparks.filter(func(spark: Dictionary) -> bool: return spark.life > 0.0)
+
+func _draw_sparks() -> void:
+	_world_transform()
+	for spark in sparks:
+		var fade: float = clampf(spark.life / spark.total, 0.0, 1.0)
+		var ink: Color = spark.ink
+		var pixels: float = spark.size * (0.6 + 0.4 * fade)
+		if spark.glow:
+			draw_circle(spark.pos, pixels * 2.2, Color(ink, 0.18 * fade))
+			ink = ink.lerp(Color("#ffd28a"), fade * 0.5)
+		draw_rect(Rect2(spark.pos - Vector2.ONE * pixels * 0.5, Vector2.ONE * pixels), Color(ink, fade))
 
 func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -344,8 +391,11 @@ func _track_camera(delta: float) -> void:
 func _draw() -> void:
 	if run == null or size.x <= 0.0 or size.y <= 0.0:
 		return
-	jitter = Vector2(0.0, cos(shake_seed * 2.3) * 4.0) * shake * scale_to_screen
-	mirrors.clear()
+	var amplitude := SHAKE_PIXELS * pow(shake, SHAKE_EXPONENT)
+	var along := sin(shake_seed * 2.9) + 0.5 * sin(shake_seed * 6.1 + 1.3)
+	var across := cos(shake_seed * 3.7) + 0.4 * sin(shake_seed * 7.9)
+	var perpendicular := Vector2(-shake_dir.y, shake_dir.x)
+	jitter = ((shake_dir * along * 0.7 + perpendicular * across * 0.35) * amplitude + kick) * scale_to_screen
 	_draw_mist()
 	_world_transform()
 	_draw_telegraphs()
@@ -369,6 +419,7 @@ func _draw() -> void:
 		_draw_projectile(shot)
 	for effect in run.effects:
 		_draw_effect(effect)
+	_draw_sparks()
 	var font := get_theme_default_font()
 	for popup in run.popups:
 		var opacity := minf(popup.life * 3.0, 1.0)
@@ -550,24 +601,6 @@ func _draw_near() -> void:
 			_:
 				_near_blades(x, seed, unit, ink, kind == &"reed")
 
-# 倒影：同一张原画按脚底上下翻过来，压进水色、调淡，随水波左右轻轻错开。
-func _draw_reflections() -> void:
-	var tint: Color = plate.get("tint", Color.WHITE)
-	var ink := Color(tint.lerp(Color.WHITE, 0.55), clampf(float(plate.water) * 0.75, 0.0, 0.6))
-	for mirror in mirrors:
-		var point: Vector2 = mirror.point
-		var facing: float = mirror.facing
-		var origin := world_offset + point * scale_to_screen - reflections.position
-		var wobble := sin(ash_time * 2.1 + point.x * 0.05) * 0.05
-		var mirror_scale: float = scale_to_screen * float(mirror.scale)
-		var tilt := Transform2D(-float(mirror.lean) * facing, Vector2(facing, -1.0) * mirror_scale, wobble, origin)
-		reflections.draw_set_transform_matrix(tilt)
-		if mirror.has("art"):
-			MonsterArt.draw_frame(reflections, mirror.art, mirror.frame, mirror.height, ink)
-		else:
-			HeldWeapon.draw_actor(reflections, mirror.sprite, mirror.sex, mirror.frame, mirror.look, ink, mirror.gait, mirror.feet)
-	reflections.draw_set_transform(Vector2.ZERO)
-
 # 一丛草：每片叶子从根部斜出去再顺风弯下来，叶尖随风摆。外面先描一圈淡的，像镜头没对上焦。
 func _near_blades(x: float, seed: float, unit: float, ink: Color, reed: bool) -> void:
 	var count := (6 if reed else 9) + int(seed * 6.0)
@@ -702,8 +735,6 @@ func _draw_hero() -> void:
 			{}, Vector2.ZERO, Vector2(offset, 0))
 	var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, hero_scale, lean)
 	HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, ink, gait, feet)
-	mirrors.append({"point": point, "facing": facing, "scale": hero_scale, "lean": lean, "sprite": sprite,
-		"sex": sprite_index, "frame": frame, "look": look, "gait": gait, "feet": feet})
 	draw_set_transform(Vector2.ZERO)
 	Figure.hands(self, rig, look)
 	Figure.charms(self, rig, look, ash_time)
@@ -733,8 +764,6 @@ func _draw_retinue() -> void:
 		var ink := Color("#929896e0")
 		var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, actor_scale, lean)
 		HeldWeapon.draw_actor(self, SideArt.SPRITES[0], 0, frame, retinue_look, ink, gait, feet)
-		mirrors.append({"point": point, "facing": facing, "scale": actor_scale, "lean": lean, "sprite": SideArt.SPRITES[0],
-			"sex": 0, "frame": frame, "look": retinue_look, "gait": gait, "feet": feet})
 		_world_transform()
 
 func _draw_enemy(enemy: Dictionary) -> void:
@@ -750,8 +779,6 @@ func _draw_enemy(enemy: Dictionary) -> void:
 	var flash := pow(clampf((enemy.hit - 0.04) / 0.11, 0.0, 1.0), 1.7)
 	var ink := Color.WHITE.lerp(tint, 0.16).lerp(Color(1.52, 1.40, 1.32), flash)
 	MonsterArt.draw_frame(self, art, frame, height, ink)
-	mirrors.append({"point": point, "facing": facing, "scale": foe_scale, "lean": 0.0, "art": art, "frame": frame,
-		"height": height})
 	_world_transform()
 	if enemy.hit > 0.0 and not enemy.boss:
 		var width := 34.0
@@ -760,14 +787,19 @@ func _draw_enemy(enemy: Dictionary) -> void:
 		draw_rect(Rect2(origin, Vector2(width * float(enemy.hp) / float(enemy.max_hp), 3.0)), Color("#f0a580"))
 
 func _draw_fallen_enemy(fallen: Dictionary) -> void:
-	var point := _floor(fallen.pos)
+	# 被打飞一段再落地；身子从受击的颜色烧成焦黑，最后化灰淡掉。
+	var flight := 1.0 - exp(-float(fallen.age) * 9.0)
+	var launch: Vector2 = fallen.get("launch", Vector2.ZERO)
+	var point := _floor(fallen.pos + launch * flight)
 	var height: float = fallen.height
 	var art := MonsterArt.variant(fallen.art, run.encounter_stem)
 	var alpha := 1.0 - smoothstep(Combat.ENEMY_DEATH_DURATION, Combat.ENEMY_DEATH_LIFETIME, fallen.age)
 	var tint: Color = Roster.ELEMENT_GLOW[Gear.WuXing.stem_element(run.encounter_stem)]
 	_shadow(point, Vector2(height * 0.34, height * 0.05) * actor_zoom, Color("#0c090a", 0.65 * alpha))
 	_at_actor(point, fallen.facing, FOE_SCALE * actor_zoom)
-	MonsterArt.draw_frame(self, art, MonsterArt.death_frame(fallen.age), height, Color(Color.WHITE.lerp(tint, 0.16), alpha))
+	var char_amount := smoothstep(0.08, Combat.ENEMY_DEATH_DURATION, fallen.age)
+	var ink := Color.WHITE.lerp(tint, 0.16).lerp(Color(0.16, 0.07, 0.06), char_amount * 0.85)
+	MonsterArt.draw_frame(self, art, MonsterArt.death_frame(fallen.age), height, Color(ink, alpha))
 	_world_transform()
 
 func _draw_projectile(shot: Dictionary) -> void:

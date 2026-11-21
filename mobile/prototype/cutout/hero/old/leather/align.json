@@ -1,0 +1,83 @@
+[
+ {
+  "part": "head",
+  "shift": [
+   10,
+   0
+  ],
+  "cover": 0.99,
+  "grow": 0.007
+ },
+ {
+  "part": "torso",
+  "shift": [
+   -7,
+   0
+  ],
+  "cover": 0.993,
+  "grow": 0.033
+ },
+ {
+  "part": "upper_arm",
+  "shift": [
+   -13,
+   -5
+  ],
+  "cover": 0.999,
+  "grow": 0.08
+ },
+ {
+  "part": "forearm",
+  "shift": [
+   -2,
+   0
+  ],
+  "cover": 0.994,
+  "grow": 0.033
+ },
+ {
+  "part": "thigh",
+  "shift": [
+   0,
+   0
+  ],
+  "cover": 0.998,
+  "grow": 0.003
+ },
+ {
+  "part": "shin",
+  "shift": [
+   -1,
+   0
+  ],
+  "cover": 0.995,
+  "grow": 0.022
+ },
+ {
+  "part": "skirt_front",
+  "shift": [
+   0,
+   -1
+  ],
+  "cover": 0.997,
+  "grow": 0.053
+ },
+ {
+  "part": "skirt_back",
+  "shift": [
+   0,
+   0
+  ],
+  "cover": 0.996,
+  "grow": 0.027
+ },
+ {
+  "part": "weapon",
+  "shift": [
+   -1,
+   -1
+  ],
+  "cover": 0.968,
+  "grow": 0.02
+ }
+]

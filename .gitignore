@@ -11,3 +11,6 @@
 *.xcarchive/
 *.xcuserstate
 xcuserdata/
+
+# 原画工程（Blender/PSD，单个 300MB+），不进仓库
+art-source/

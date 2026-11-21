@@ -2,6 +2,7 @@ extends RefCounted
 
 signal feedback(cue: StringName)
 signal material_collected(id: String, quantity: int)
+signal enemy_slain(boss: bool)
 
 const Gear = preload("res://scripts/gear.gd")
 
@@ -98,6 +99,8 @@ var loot_rng := RandomNumberGenerator.new()
 var combat_rng := RandomNumberGenerator.new()
 var skill_left := 0.0
 var tactic_left := 0.0
+var hitstop := 0.0
+var hitstop_scale := 1.0
 var retreat_left := 0.0
 var invulnerable := 0.0
 var dodge_left := 0.0
@@ -142,6 +145,17 @@ var popups: Array[Dictionary] = []
 var pulses: Array[Dictionary] = []
 
 const MAX_PULSES := 12
+# 顿帧：打中那一下整场停住几十毫秒，攻守双方一起停，手上才有「砍进去」的感觉。
+# 挂机减半，免得挂着挂着节奏发黏。数值都乘 hitstop_scale，调手感时只改它。
+const HITSTOP := {&"hit": 0.045, &"crit": 0.085, &"kill": 0.07, &"boss_kill": 0.2, &"hurt": 0.06}
+const FARM_HITSTOP := 0.5
+# 普攻击退：每一下把小怪往外推一小步，暴击推得更远，层主几乎推不动。
+# shove 是初速度，按 SHOVE_DECAY 指数衰减，总位移 = 初速度 / SHOVE_DECAY。
+const KNOCKBACK := 9.0
+const SHOVE_DECAY := 16.0
+const HIT_STAGGER := 0.09
+# 倒地时被打飞的距离。
+const DEATH_LAUNCH := 34.0
 
 func _init() -> void:
 	loot_rng.randomize()
@@ -168,6 +182,7 @@ func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = fal
 	kills = 0
 	materials_found = 0
 	result = &""
+	hitstop = 0.0
 	mana = max_mana
 	skill_cost = SKILL_COST
 	tactic_cost = TACTIC_COST
@@ -310,6 +325,9 @@ func retreat(travel := true) -> void:
 func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = false,
 		control_mode: ControlMode = ControlMode.MANUAL) -> void:
 	if result != &"":
+		return
+	if hitstop > 0.0:
+		hitstop = maxf(0.0, hitstop - delta)
 		return
 	var assisted := challenging and not advancing and control_mode != ControlMode.MANUAL \
 		and direction.is_zero_approx() and not hold_attack
@@ -668,8 +686,8 @@ func _impact(enemy: Dictionary, critical: bool) -> void:
 		"critical": critical, "element": hit_element, "color": trail_color, "life": lifetime, "duration": lifetime})
 
 # 只记录「发生了什么、在哪里、多重」，画面层自行决定震多少、顿多久。
-func _pulse(kind: StringName, point: Vector2, power: float) -> void:
-	pulses.append({"kind": kind, "pos": point, "power": power})
+func _pulse(kind: StringName, point: Vector2, power: float, height: float = 0.0) -> void:
+	pulses.append({"kind": kind, "pos": point, "power": power, "height": height, "from": position})
 	if pulses.size() > MAX_PULSES:
 		pulses = pulses.slice(pulses.size() - MAX_PULSES)
 
@@ -704,7 +722,11 @@ func _damage_enemy(enemy: Dictionary, damage: int, force: float, critical: bool 
 		var stagger := combo_hits % 3 - 1
 		popup_offset = Vector2(stagger * 22.0, -absf(stagger) * 16.0)
 		_impact(enemy, critical and primary_hit)
-		_pulse(&"crit" if critical and primary_hit else &"hit", enemy.pos, clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2))
+		var power := clampf(float(damage) / maxf(float(hero.damage), 1.0), 0.3, 2.2)
+		var heavy := critical and primary_hit
+		_pulse(&"crit" if heavy else &"hit", enemy.pos, power, float(enemy.stats.size))
+		_freeze(HITSTOP[&"crit" if heavy else &"hit"])
+		_shove(enemy, (KNOCKBACK + 6.0 * power) * (1.8 if heavy else 1.0))
 	popups.append({"pos": enemy.pos, "height": enemy.stats.size, "offset": popup_offset,
 		"text": str(damage), "life": 0.6, "critical": critical})
 	if not secondary and primary_hit:
@@ -727,8 +749,12 @@ func _damage_enemy(enemy: Dictionary, damage: int, force: float, critical: bool 
 	if enemy.hp > 0:
 		return true
 	kills += 1
+	enemy_slain.emit(bool(enemy.boss))
+	var away := -1.0 if enemy.pos.x < position.x else 1.0
 	fallen_enemies.append({"pos": enemy.pos, "art": enemy.art, "height": enemy.stats.size,
-		"facing": -1.0 if enemy.pos.x > position.x else 1.0, "age": 0.0})
+		"facing": -1.0 if enemy.pos.x > position.x else 1.0, "age": 0.0,
+		"launch": Vector2(away * DEATH_LAUNCH * (0.35 if enemy.boss else 1.0), 0.0)})
+	_freeze(HITSTOP[&"boss_kill" if enemy.boss else &"kill"])
 	if kill_heal > 0:
 		_heal(float(kill_heal))
 	if not challenging:
@@ -738,12 +764,25 @@ func _damage_enemy(enemy: Dictionary, damage: int, force: float, critical: bool 
 			drops.append({"pos": enemy.pos, "material": encounter_stem, "quantity": amount,
 				"age": 0.0, "collected": false})
 	_ring(enemy.pos - Vector2(0, 12), Color("#d28f58"), 41)
-	_pulse(&"kill", enemy.pos, 1.6 if enemy.boss else 0.7)
+	_pulse(&"kill", enemy.pos, 1.6 if enemy.boss else 0.7, float(enemy.stats.size))
 	if not secondary:
 		_trigger("击杀时", enemy)
 		if kill_heal > 0:
 			_trigger("击杀回血时", enemy)
 	return true
+
+func _freeze(seconds: float) -> void:
+	hitstop = maxf(hitstop, seconds * hitstop_scale * (1.0 if challenging else FARM_HITSTOP))
+
+func _shove(enemy: Dictionary, distance: float) -> void:
+	if enemy.hp <= 0:
+		return
+	var away := -1.0 if enemy.pos.x < position.x else 1.0
+	var push := distance * (0.15 if enemy.boss else 1.0)
+	var current: Vector2 = enemy.get("shove", Vector2.ZERO)
+	enemy.shove = Vector2(away * maxf(absf(current.x), push * SHOVE_DECAY), 0.0)
+	if not enemy.boss:
+		enemy.stagger = maxf(float(enemy.stagger), HIT_STAGGER)
 
 func _stagger_enemy(enemy: Dictionary, force: float) -> void:
 	var duration := minf(force / 1600.0, 0.22) * (0.28 if enemy.boss else 1.0)
@@ -787,6 +826,8 @@ func _damage_player(damage: int, attacker: Dictionary = {}) -> void:
 	_start_motion(&"hurt", 0.34)
 	_ring(position, Color("#ec756f"), 34)
 	_pulse(&"hurt", position, clampf(float(loss) / maxf(float(max_hp) * 0.12, 1.0), 0.5, 2.4))
+	if loss > 0:
+		_freeze(HITSTOP[&"hurt"])
 	feedback.emit(&"hurt")
 	damage_taken += 1
 	_trigger("受击时", attacker)
@@ -834,6 +875,10 @@ func _step_enemies(delta: float) -> void:
 		enemy.hit = maxf(0.0, enemy.hit - delta)
 		enemy.slow = maxf(0.0, enemy.slow - delta)
 		enemy.stagger = maxf(0.0, enemy.stagger - delta)
+		var shove: Vector2 = enemy.get("shove", Vector2.ZERO)
+		if shove.length_squared() > 1.0:
+			enemy.pos = _move_body(enemy.pos, shove * delta, enemy.body, bounds, enemy)
+			enemy.shove = shove * exp(-SHOVE_DECAY * delta)
 		enemy.attack_recovery = maxf(0.0, enemy.attack_recovery - delta)
 		var attacking := _step_boss_skill(enemy, delta, gap.length()) if enemy.boss else _step_enemy_attack(enemy, delta, engaged)
 		enemy.moving = false

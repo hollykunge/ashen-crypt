@@ -256,7 +256,13 @@ func refresh() -> void:
 	_adapt()
 	var weapon := profile.item(profile.equipped("weapon"))
 	var form: String = weapon.get("weapon_form", "sword")
-	stage.display(config, person, form)
+	# 点开背包里一件还没穿的装备，正中的人物先试穿给你看；穿着的那件或没选东西时照实显示。
+	var trying: bool = not input.is_empty() and profile.equipped(input.slot) != input.uid
+	if trying:
+		var worn_form: String = input.get("weapon_form", form) if input.slot == "weapon" else form
+		stage.display(profile.loadout(input, true, preview_ling), person, worn_form, true)
+	else:
+		stage.display(config, person, form)
 	current_stats = _combat_values(config, form)
 	for slot in Gear.SLOTS:
 		var cell: Slot = outfit_slots[slot]

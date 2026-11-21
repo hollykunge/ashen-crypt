@@ -13,6 +13,17 @@ const Loadout = preload("res://scripts/loadout.gd")
 
 const SAVE_PATH := "user://forge-profile.json"
 const VERSION := Realm.SAVE_VERSION
+# 一台机器最多三个角色，各占一份存档：第一格沿用旧存档的文件名，老玩家的角色原地留在第一格。
+const MAX_CHARACTERS := 3
+const NAME_LIMIT := 8
+# 离线挂机：离开超过一分钟才结算，最多算十二个时辰的一半（12 小时），按挂机效率的五成发。
+const OFFLINE_MIN_SECONDS := 60
+const OFFLINE_CAP_SECONDS := 12 * 3600
+const OFFLINE_RATE := 0.5
+# 还没量过挂机效率的角色按这个估：赤手空拳的第一层大约每时五千八，取保守值。
+const DEFAULT_KILLS_PER_HOUR := 4000.0
+# 挂机击杀掉灵砂：两成概率，每十层多一枚，再乘出身的灵砂倍率（富商 2、穷人 0）。
+const SILVER_DROP_CHANCE := 0.2
 const SLOTS := Equipment.SLOTS
 const SLOT_NAMES := Equipment.SLOT_NAMES
 const WEAPON_FORMS := {
@@ -135,6 +146,106 @@ func has_character() -> bool:
 func character() -> Dictionary:
 	return state.character
 
+# ── 角色栏位 ────────────────────────────────────────────────────────
+
+static func slot_path(index: int, base: String = SAVE_PATH) -> String:
+	if index <= 0:
+		return base
+	return "%s-%d.%s" % [base.get_basename(), index + 1, base.get_extension()]
+
+# 读出某一格的存档给选角页看；空格或读坏的格返回的档案没有角色。
+static func peek(index: int, base: String = SAVE_PATH) -> RefCounted:
+	var profile = load("res://scripts/gear.gd").new(slot_path(index, base))
+	profile.load_profile()
+	return profile
+
+static func delete_slot(index: int, base: String = SAVE_PATH) -> bool:
+	var path := slot_path(index, base)
+	var removed := true
+	for file in [path, path + ".tmp"]:
+		if FileAccess.file_exists(file):
+			removed = DirAccess.remove_absolute(file) == OK and removed
+	return removed
+
+# 没起道号的老角色按日干和性别叫：庚金道人、甲木仙子。
+func display_name() -> String:
+	var person := character()
+	var title := String(person.get("name", "")).strip_edges()
+	if not title.is_empty():
+		return title
+	var stem := String(person.get("day_stem", ""))
+	if stem.is_empty():
+		return ""
+	return ling_caption(stem) + ("仙子" if person.get("gender") == "female" else "道人")
+
+static func clean_name(title: String) -> String:
+	return title.replace("\n", "").replace("\r", "").replace("\t", "").strip_edges().left(NAME_LIMIT)
+
+# ── 挂机与离线收益 ──────────────────────────────────────────────────
+
+static func silver_per_kill(layer_number: int, multiplier: float) -> int:
+	return roundi((1 + floori((maxi(1, layer_number) - 1) / 10.0)) * maxf(0.0, multiplier))
+
+static func roll_farm_silver(random: RandomNumberGenerator, layer_number: int, multiplier: float) -> int:
+	var amount := silver_per_kill(layer_number, multiplier)
+	if amount <= 0 or random.randf() >= SILVER_DROP_CHANCE:
+		return 0
+	return amount
+
+func silver_multiplier() -> float:
+	return float(origin().get("silver_drop_multiplier", 1.0))
+
+# 与 roll_farm_quantity 同一套概率的期望值；drop 已含小怪自身的掉率。
+static func expected_materials_per_kill(drop: float) -> float:
+	return minf(1.0, 0.84 * drop) * (1.0 + minf(1.0, 0.27 * drop))
+
+func last_seen() -> float:
+	return float(state.get("last_seen", 0.0))
+
+func kills_per_hour() -> float:
+	var measured := float(state.get("farm_kph", 0.0))
+	return measured if measured > 0.0 else DEFAULT_KILLS_PER_HOUR
+
+# 记下此刻还在挂机，顺手把攒着的灵砂和量到的挂机效率写进存档。
+func checkpoint(now: float, silver_gain: int = 0, measured_kph: float = 0.0) -> bool:
+	if not has_character():
+		return false
+	var next := state.duplicate(true)
+	next.last_seen = now
+	if silver_gain > 0:
+		next.character.silver = silver() + silver_gain
+	if measured_kph > 0.0:
+		next.farm_kph = measured_kph
+	return _commit(next)
+
+# 离开这段时间应得多少。只算不发，由 claim_offline 一并入账。
+func offline_report(now: float, drop: float) -> Dictionary:
+	var since := last_seen()
+	if not has_character() or since <= 0.0:
+		return {}
+	var away := now - since
+	if away < OFFLINE_MIN_SECONDS:
+		return {}
+	var counted := minf(away, OFFLINE_CAP_SECONDS)
+	var kills := floori(kills_per_hour() * OFFLINE_RATE * counted / 3600.0)
+	var stem := ling()
+	var materials := roundi(kills * expected_materials_per_kill(drop))
+	var coins := roundi(kills * SILVER_DROP_CHANCE * silver_per_kill(layer(), silver_multiplier()))
+	return {"away": away, "counted": counted, "kills": kills, "silver": coins,
+		"material": stem, "materials": materials}
+
+func claim_offline(report: Dictionary, now: float) -> bool:
+	if not has_character():
+		return false
+	var next := state.duplicate(true)
+	next.last_seen = now
+	if not report.is_empty():
+		next.character.silver = silver() + int(report.silver)
+		var stem := String(report.material)
+		if Materials.MATERIALS.has(stem):
+			next.materials[stem] = mini(999999, stock(stem) + int(report.materials))
+	return _commit(next)
+
 func origin() -> Dictionary:
 	return Origins.ORIGINS.get(character().get("origin", ""), {})
 
@@ -147,8 +258,12 @@ func create_character(draft: Dictionary) -> bool:
 	var person := Realm.new_profile(draft.gender, draft.day_stem, draft.month_branch, draft.hour_branch, draft.origin)
 	if person.is_empty():
 		return false
+	var title := clean_name(String(draft.get("name", "")))
+	if not title.is_empty():
+		person.name = title
 	var next := state.duplicate(true)
 	next.character = person
+	next.created_at = Time.get_unix_time_from_system()
 	var stockpile: Dictionary = STARTING_MATERIALS.get(draft.origin, {})
 	for id in stockpile:
 		next.materials[id] = stock(id) + int(stockpile[id])
@@ -189,6 +304,13 @@ func place() -> Dictionary:
 func layer_caption() -> String:
 	return "第 %d 层 · %s · 地气 %s · %s" % [layer(), place().name,
 		ling_caption(ling()), realm().name]
+
+# 命格的写法：庚（阳金）。选角页和角色信息共用。
+static func fate_caption(stem: String) -> String:
+	if not WuXing.STEMS.has(stem):
+		return ""
+	return "%s（%s%s）" % [stem_name(stem), "阳" if WuXing.stem_polarity(stem) > 0 else "阴",
+		WuXing.ELEMENT_NAMES[WuXing.stem_element(stem)]]
 
 static func ling_caption(stem: String) -> String:
 	return stem_name(stem) + String(WuXing.ELEMENT_NAMES[WuXing.stem_element(stem)])

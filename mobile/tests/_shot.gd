@@ -22,7 +22,7 @@ func _initialize() -> void:
 	var scene: PackedScene = load("res://main.tscn")
 	var game = scene.instantiate()
 	if args.size() > 2:
-		game.profile.save_path = args[2]
+		game.save_base = args[2]
 	if args.size() > 3:
 		_settle_frames = maxi(_settle_frames, int(args[3]))
 	root.add_child(game)

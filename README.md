@@ -57,7 +57,7 @@
 
 ## Godot 手机版
 
-用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。立下命籍后点击「入山」进入山门，点「行装」查看穿戴和背包（正中是人物的正面半身像），点背包物品预览本层换装后的属性。锻造入口在行装右上角。手机版支持横屏和竖屏。
+用 Godot 4.7.2 导入 [mobile/project.godot](mobile/project.godot)，再运行工程。开机是标题页，「进入游戏」到**列仙图录**选角：一台机器最多三个角色，各存一份档（第一格沿用旧存档 `forge-profile.json`，另两格是 `forge-profile-2.json`、`-3.json`），空位点「创建角色」去立命籍、可起道号，删角色要按两下。选好角色进挂机页：左上角头像打开**角色信息**（命格、境界、属性、本次挂机的击杀／灵砂／材料与每时效率，以及「返回选角」），右上角的门形按钮也能回选角。挂机击杀两成概率掉灵砂（每十层多一枚，乘出身倍率）。**离线收益**：离开超过一分钟，回来时按挂机效率（挂满两分钟后量出的每时击杀，量到之前按 4000）的五成补发灵砂和本层材料，最多计 12 小时；手机切后台回来也会结算。挂机页里，点「行装」查看穿戴和背包（正中是人物的正面全身像，衣袍、镶边、绑腕、靴子和符牌随穿戴换色），点背包物品预览本层换装后的属性，人物也会先试穿那件给你看。锻造入口在行装右上角。手机版支持横屏和竖屏。
 
 点「开始连战」或「本层告示」会先看到**本层告示**：这是什么地方、正在遭什么灾、仙界派你来做什么，以及在身的规矩和违规的代价。三条路 —— **接敕**进战斗；**驻留行善**不进层，救这个地方（换材料、下一层蒙荫、随侍士气，渡过木劫之后要赔一个境界）；**抗敕**要到炼神才做得到。
 
@@ -69,11 +69,13 @@
 
 底图跟着地方走：六个地域各有一条长卷（陇右旱、河东疫、太行矿、朔方兵、江淮涝、上界），每条由四幅拼成、约 7800 像素宽，一个地域的十层沿长卷从左走到右，天劫那层在最右端。各地域另有自己的远景雾色、前景天气（热尘、灰烬、煤尘、斜雨、云絮）与脚下阴影色。长卷按需加载，只常驻当前一张。出图规格、生成脚本与拼接工具见 [mobile/art/side/plates](mobile/art/side/plates)。
 
-长卷之外还有三层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**水面**：主角站位往下就是水，[water.gdshader](mobile/scripts/water.gdshader) 把长卷倒映进去，人和精怪再按脚底各画一份淡倒影，水的浓度和水色按地域给（江淮最浓，上界是玉石地面的反光，陇右旱地没有水）。水和倒影都画在人物之下，站进浅水的精怪和地上的预警圈不会被盖住。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
+**打击感**按层叠：打中时整场停顿几十毫秒（顿帧，[combat.gd](mobile/scripts/combat.gd) 的 `HITSTOP`，暴击、击杀、层主倒地依次加长，挂机减半），每一下普攻把小怪往外推一小步并带极短硬直，层主几乎推不动；倒下的精怪被打飞一段、烧成焦黑再化灰。画面层（[arena.gd](mobile/scripts/arena.gd)）的震屏按「创伤值」累加、按 1.5 次方换算位移，偏向打击方向，另有一下沿打击方向的镜头冲击；打中溅暗红血雾，暴击夹火星，击杀腾起火星与灰片。不用手机震动。调手感只改 `HITSTOP`、`KNOCKBACK`、`SHAKE_PIXELS` 这几个常量，`hitstop_scale` 为 0 即关掉顿帧。
 
-长卷之外还有三层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**水面**：主角站位往下就是水，[water.gdshader](mobile/scripts/water.gdshader) 把长卷倒映进去，人和精怪再按脚底各画一份淡倒影，水的浓度和水色按地域给（江淮最浓，上界是玉石地面的反光，陇右旱地没有水）。水和倒影都画在人物之下，站进浅水的精怪和地上的预警圈不会被盖住。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
+**暗黑调色**常开（[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 的 `gothic()`）：去掉大半饱和、拉对比、阴影偏冷灰青、亮部偏旧骨黄，只有真正的朱红（血、布穗、火）和亮处保留颜色，四角压暗。力度由 `arena.gd` 的 `GRADE`、`VIGNETTE` 控制。
 
-男女修行人各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
+长卷之外还有两层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
+
+人物分男女两身：男的魁梧粗犷、一脸胡子茬，女的妩媚、丰胸细腰。正、侧、背、四分之三的四面设定图在 `art/side/source/hero/`，半身像、战斗图集和设定图都由 [gen_hero.sh](mobile/art/side/gen_hero.sh) 调 codex 按 [hero-prompts.json](mobile/art/side/hero-prompts.json) 出图，半身像再由 [pack_portraits.py](mobile/art/side/pack_portraits.py) 裁成游戏用的尺寸。男女各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
 
 换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。
 
@@ -99,12 +101,14 @@ godot --path mobile --script res://tests/_dress.gd -- shot.png huo spear pose 30
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 godot --path mobile --resolution 900x1946 --script res://tests/_poses.gd -- poses.png 0,5 huo   # 八种兵器在指定几格上的持械姿态
 godot --path mobile --resolution 1800x1800 --script res://tests/_weapons.gd -- weapons.png 5 7   # 每种形制随手打几把，看零件拼出来的样子
+godot --path mobile --resolution 2304x1152 --script res://tests/_grip.gd -- grip.png sword 0 3   # 放大一格：左边空手标出两拳心，右边持械，校握点与兵器角度
 python mobile/art/side/pack_frames.py --preview out    # 重出人物图集与染色图层，另存五行染色对照图
+python3 mobile/art/side/pack_portraits.py             # 把 source/hero 的半身像裁成 portrait-*.webp
 python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标
 python mobile/art/side/pack_monsters.py --preview out  # 把精怪的像素图集平滑放大
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态；末尾可再跟 `female`，模式写 `bag` 则截行装页。三个 `pack_*.py` 需要 Pillow、NumPy 和 SciPy，改过关节标定（`worn_sprites.gd` 的 `MALE` / `FEMALE`）或换了原画（[art/side/source](mobile/art/side/source)）之后重跑，再让 Godot 重新导入。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
+`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态；末尾可再跟 `female`，模式写 `bag` 则截行装页。`pack_*.py` 需要 Pillow、NumPy 和 SciPy。换装染哪块布以分区遮罩 [art/side/masks](mobile/art/side/masks) 为准：每张遮罩和对应的人物图一样大，用纯色涂出袍（蓝）、交领袖口（黄）、腰带（橙）、绑腕（绿）、靴（红）、符牌（紫），不染的地方留透明，颜色约定见 `pack_frames.py` 开头。在 Krita 或 Photoshop 里把人物图垫在下面修遮罩，修完跑 `pack_frames.py`（战斗图集）或 `pack_portraits.py --dye-only fullbody-male fullbody-female`（行装页全身像）重出染色图层；遮罩不存在时脚本会自动分一次，加 `--reclassify` 则丢掉手修的遮罩重新自动分。战斗图集换装时合成一次，行装页全身像由 [dye.gdshader](mobile/scripts/dye.gdshader) 每帧现染。改过关节标定（`worn_sprites.gd` 的 `MALE` / `FEMALE`）或换了原画（[art/side/source](mobile/art/side/source)）之后重跑，再让 Godot 重新导入。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
 
 ## 网页原型
 

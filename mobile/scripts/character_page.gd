@@ -1,6 +1,7 @@
 extends VBoxContainer
 
 signal journey_requested
+signal back_requested
 
 const Gear = preload("res://scripts/gear.gd")
 const Loadout = preload("res://scripts/loadout.gd")
@@ -45,6 +46,7 @@ var talent_summary: Label
 var origin_good: Label
 var origin_bad: Label
 var error: Label
+var name_field: LineEdit
 var page_area: PanelContainer
 var pages: Array[VBoxContainer] = []
 var tabs: Array[Button] = []
@@ -67,10 +69,17 @@ func _ready() -> void:
 func show_home() -> void:
 	gallery.hide()
 	creator.show()
+	error.hide()
 	_refresh_creator()
 
+# 每次从选角页进来都是一张新命籍：道号清空，回到日干页。
+func start_new() -> void:
+	name_field.text = ""
+	_show_page(1)
+	show_home()
+
 func _build_creator() -> void:
-	_header(creator, "立下命籍", "昆仑山门")
+	_header(creator, "立下命籍", "昆仑山门", true, true)
 	_build_portrait()
 
 	var tab_row: HBoxContainer = ui._hbox(4)
@@ -135,6 +144,16 @@ func _build_creator() -> void:
 	error = _text("", 12, BAD)
 	error.hide()
 	creator.add_child(error)
+	name_field = LineEdit.new()
+	name_field.placeholder_text = "道号（可不填，最多 %d 字）" % Gear.NAME_LIMIT
+	name_field.max_length = Gear.NAME_LIMIT
+	name_field.custom_minimum_size.y = 40
+	name_field.add_theme_font_size_override("font_size", 15)
+	name_field.add_theme_color_override("font_color", ui.INK)
+	name_field.add_theme_color_override("font_placeholder_color", ui.MUTED)
+	name_field.add_theme_stylebox_override("normal", ui._box(Color(ui.NIGHT, 0.96), ui.BORDER, 1, 9))
+	name_field.add_theme_stylebox_override("focus", ui._box(Color(ui.NIGHT, 0.96), ui.GOLD, 1, 9))
+	creator.add_child(name_field)
 	var commit := _button("入山", 50, _create)
 	commit.add_theme_font_override("font", ui.HEADING_FONT)
 	commit.add_theme_font_size_override("font_size", 23)
@@ -145,7 +164,7 @@ func _build_creator() -> void:
 
 func _build_portrait() -> void:
 	var frame := Control.new()
-	frame.custom_minimum_size.y = 398
+	frame.custom_minimum_size.y = 360
 	frame.clip_contents = true
 	creator.add_child(frame)
 	var backing := Panel.new()
@@ -272,7 +291,9 @@ func _refresh_creator() -> void:
 	talent_summary.text = "%s时天赋  ·  %s" % [WuXing.BRANCHES[draft.hour_branch].name, TALENTS[hour_index][1]]
 
 func _create() -> void:
-	if profile.create_character(draft):
+	var named := draft.duplicate()
+	named.name = name_field.text
+	if profile.create_character(named):
 		journey_requested.emit()
 	else:
 		error.text = profile.storage_error if not profile.storage_error.is_empty() else "无法立下命籍"
@@ -294,9 +315,13 @@ class PortraitFrame extends Control:
 			draw_polyline(corner, Color(tint, 0.76), 1.0, true)
 
 
-func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bool = true) -> void:
+func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bool = true, back: bool = false) -> void:
 	var row: HBoxContainer = ui._hbox(6)
 	parent.add_child(row)
+	if back:
+		var leave := _button("返回", 39, func() -> void: back_requested.emit())
+		leave.custom_minimum_size.x = 56.0
+		row.add_child(leave)
 	var stack: VBoxContainer = ui._vbox(0)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(stack)

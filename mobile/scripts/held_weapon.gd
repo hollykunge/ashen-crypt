@@ -17,23 +17,33 @@ const HEAD_SCALE := {"spear": 0.30}
 
 # 两手取自男女各自动作原画里的拳心。第一只手领招，第二只手持副刀或拉弦。
 const LEAD := [
-	[Vector2(59, 56), Vector2(66, 53), Vector2(63, 53), Vector2(65, 59), Vector2(38, 33), Vector2(78, 41),
-	 Vector2(70, 64), Vector2(61, 43), Vector2(51, 50), Vector2(61, 45), Vector2(79, 32), Vector2(63, 52)],
-	[Vector2(59, 55), Vector2(62, 52), Vector2(61, 55), Vector2(63, 58), Vector2(34, 33), Vector2(75, 45),
-	 Vector2(65, 64), Vector2(60, 50), Vector2(53, 56), Vector2(59, 42), Vector2(77, 37), Vector2(60, 55)]
+	[Vector2(64, 58), Vector2(69, 55), Vector2(62, 52), Vector2(72, 58), Vector2(35, 23), Vector2(82, 41),
+	 Vector2(73, 61), Vector2(64, 46), Vector2(55, 53), Vector2(62, 43), Vector2(84, 32), Vector2(64, 54)],
+	[Vector2(58, 58), Vector2(62, 54), Vector2(58, 55), Vector2(64, 58), Vector2(36, 28), Vector2(74, 42),
+	 Vector2(67, 62), Vector2(58, 49), Vector2(53, 53), Vector2(54, 45), Vector2(78, 34), Vector2(58, 58)]
 ]
 const SUPPORT := [
-	[Vector2(46, 57), Vector2(41, 55), Vector2(36, 55), Vector2(40, 56), Vector2(36, 35), Vector2(75, 42),
-	 Vector2(67, 62), Vector2(57, 46), Vector2(39, 59), Vector2(34, 52), Vector2(42, 50), Vector2(51, 54)],
-	[Vector2(44, 56), Vector2(36, 56), Vector2(36, 56), Vector2(42, 58), Vector2(35, 35), Vector2(72, 46),
-	 Vector2(63, 64), Vector2(47, 49), Vector2(33, 58), Vector2(32, 51), Vector2(40, 54), Vector2(51, 54)]
+	[Vector2(38, 57), Vector2(36, 56), Vector2(36, 54), Vector2(34, 58), Vector2(38, 26), Vector2(79, 43),
+	 Vector2(70, 62), Vector2(48, 47), Vector2(33, 58), Vector2(38, 49), Vector2(38, 53), Vector2(49, 56)],
+	[Vector2(40, 58), Vector2(37, 57), Vector2(38, 57), Vector2(40, 58), Vector2(38, 30), Vector2(71, 44),
+	 Vector2(65, 60), Vector2(48, 49), Vector2(38, 58), Vector2(36, 50), Vector2(41, 53), Vector2(44, 58)]
 ]
-# 刀由近手持握，依每一格衣袖的走向选拳心。迈步时前后手会交替出现在轮廓外。
+# 剑由哪只手握，依每一格衣袖的走向选拳心。迈步时前后手会交替出现在轮廓外；
+# 架势以后各格交给身前那只拳，剑从拳前出去，不横穿身子。
 const NEAR_IS_LEAD := [
-	[true, false, true, false, true, true, true, false, false, false, false, false],
-	[true, false, false, false, true, true, true, false, false, false, false, false]
+	[true, false, true, true, true, true, true, true, true, true, true, false],
+	[true, false, false, true, true, true, true, true, true, true, true, false]
 ]
-const SWING := [-0.76, 0.18, -0.12, -0.34, -2.04, -0.16, 0.55, -0.74, -0.48, -0.24, -0.42, 0.09]
+# 剑在每一格从握点指出去的方向（弧度，0 朝前，正值往下），男女各一行。
+# 剑柄横穿拳眼，剑刃从虎口那头出去：大致是前臂方向往虎口一侧转 60° 上下（垂手时剑尖斜指前下，
+# 平伸的拳剑尖斜指前上），手腕能再往小指一侧掰一点。双手握的几格（4、5、6）剑柄顺着两拳的连线。
+const SWING := [
+	[0.50, 0.48, -0.10, -0.50, -2.20, -0.50, -0.25, -1.35, -0.55, -1.30, -0.95, 0.05],
+	[0.55, 0.85, 0.70, -0.50, -2.20, -0.50, 0.00, -1.15, -0.60, -1.25, -1.05, 0.40]
+]
+# 长枪单手提着的几格：迈步时枪尖斜指前上，闪避、受击、施法时随前手略抬。
+const SPEAR_HELD := {8: -0.48, 9: -0.24, 10: -0.42}
+const SPEAR_CARRY := -0.98
 
 # 三种兵形：剑由零件拼，长枪是杆加枪头，弓是弓臂。
 const KINDS := ["sword", "spear", "bow"]
@@ -54,9 +64,9 @@ const POLES := {
 const SPEAR_AIM := {4: -0.07, 5: -0.03, 6: 0.16, 7: -0.46}
 # 握拳处从人物贴图上再盖一小块回来，半径是逻辑像素。
 const FIST := 3.2
-# 待机一律用直立的第 0 格，兵器单手垂在身侧：剑尖斜指前方地面，枪竖着拄地，弓斜提。
+# 待机一律用直立的第 0 格，兵器单手垂在身侧：剑横穿垂着的拳、剑尖斜指前下，枪竖着拄地，弓斜提。
 # 数值是兵器从握点指出去的方向（弧度，0 朝前，正值往下）。
-const IDLE := {"sword": 1.10, "spear": -1.50, "bow": -1.36}
+const IDLE := {"sword": 0.50, "spear": -1.50, "bow": -1.36}
 const IDLE_RIGHT := [SUPPORT[0][0], SUPPORT[1][0]]
 const IDLE_LEFT := [LEAD[0][0], LEAD[1][0]]
 # 拄地的长柄兵器，柄尾落在脚底线往上这么多。
@@ -182,7 +192,7 @@ static func draw_actor(canvas: CanvasItem, sprite: Texture2D, sex: int, frame: i
 		lead = origin + IDLE_RIGHT[sex]
 		rear = origin + IDLE_LEFT[sex]
 		primary = lead
-	var angle: float = SWING[frame]
+	var angle: float = SWING[sex][frame]
 	if idle:
 		angle = IDLE[form]
 	var metal: Color = ink * Color.WHITE.lerp(look.weapon, 0.34)
@@ -219,8 +229,8 @@ static func draw_actor(canvas: CanvasItem, sprite: Texture2D, sex: int, frame: i
 				else:
 					angle = SPEAR_AIM.get(frame, angle)
 					rear_grip = lead - Vector2.from_angle(angle) * 5.5
-			elif frame in [1, 2, 11]:
-				angle = -0.98
+			elif not idle:
+				angle = SPEAR_HELD.get(frame, SPEAR_CARRY)
 			if not shouldered:
 				_draw_pole(canvas, form, rear_grip, angle, metal, offset.y if idle and form in GROUNDED else INF, design, ink)
 		_:

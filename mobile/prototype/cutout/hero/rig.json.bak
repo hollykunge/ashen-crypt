@@ -1,0 +1,355 @@
+{
+ "base_dir": "res://prototype/cutout/hero/parts",
+ "scale": 0.36,
+ "parts": {
+  "head": {
+   "pivot": [
+    109.0,
+    180.0
+   ],
+   "scale": 0.72,
+   "behind": true,
+   "tilt": 0.0
+  },
+  "torso": {
+   "pivot": [
+    95.0,
+    290.0
+   ],
+   "neck": [
+    84.0,
+    28.0
+   ],
+   "shoulder": [
+    75.0,
+    62.0
+   ],
+   "scale": [
+    0.95,
+    0.84
+   ],
+   "hip": [
+    95.0,
+    373.3
+   ],
+   "tilt": 4
+  },
+  "upper_arm": {
+   "pivot": [
+    68.0,
+    35.0
+   ],
+   "end": [
+    68.0,
+    262.0
+   ],
+   "scale": 0.754
+  },
+  "forearm": {
+   "pivot": [
+    50.0,
+    35.0
+   ],
+   "hand": [
+    70.0,
+    272.0
+   ],
+   "scale": [
+    0.661,
+    0.5
+   ],
+   "split": 230.0,
+   "split_x": 60.0,
+   "overlap": 0.0,
+   "cleaned": true
+  },
+  "thigh": {
+   "pivot": [
+    75.0,
+    115.9
+   ],
+   "end": [
+    75.0,
+    312.0
+   ],
+   "scale": 0.815
+  },
+  "shin": {
+   "pivot": [
+    65.0,
+    30.0
+   ],
+   "sole": [
+    95.0,
+    314.0
+   ],
+   "scale": [
+    0.788,
+    0.873
+   ],
+   "ankle": [
+    65,
+    240
+   ]
+  },
+  "weapon": {
+   "pivot": [
+    76.0,
+    37.0
+   ],
+   "scale": 1.15,
+   "tip": [
+    520,
+    37
+   ]
+  },
+  "hand": {
+   "pivot": [
+    285.0,
+    290.0
+   ],
+   "grip": [
+    302.0,
+    612.0
+   ],
+   "grip_angle": -9.5,
+   "scale": [
+    0.134,
+    0.13
+   ]
+  },
+  "far_upper_arm": {
+   "same_as": "upper_arm"
+  },
+  "far_forearm": {
+   "same_as": "forearm",
+   "cleaned": false
+  },
+  "_skirt_front": {
+   "pivot": [
+    95.0,
+    10.0
+   ],
+   "at": [
+    110.0,
+    282.0
+   ],
+   "scale": 0.797,
+   "split": 150.0
+  },
+  "_skirt_back": {
+   "pivot": [
+    150.0,
+    12.0
+   ],
+   "at": [
+    80.0,
+    282.0
+   ],
+   "scale": 0.741,
+   "split": 150.0
+  },
+  "pelvis": {
+   "pivot": [
+    330,
+    30
+   ],
+   "at": [
+    95,
+    290
+   ],
+   "hip": [
+    370,
+    400
+   ],
+   "scale": [
+    0.26,
+    0.14
+   ]
+  },
+  "_crotch": {
+   "pivot": [
+    180,
+    140
+   ],
+   "scale": 0.26
+  },
+  "boot": {
+   "same_as": "shin",
+   "split": 240,
+   "split_x": 65,
+   "foot_scale": 0.85
+  },
+  "_collar": {
+   "pivot": [
+    400,
+    190
+   ],
+   "at": [
+    92.0,
+    26.0
+   ],
+   "scale": 0.1
+  }
+ },
+ "idle": {
+  "torso": 0.0,
+  "neck": -2.0,
+  "arm_near_up": 3.5,
+  "arm_near_lo": 21.0,
+  "blade": -7.5,
+  "arm_far_up": -4.0,
+  "arm_far_lo": 14.0,
+  "hip": 0.99,
+  "foot_near_x": 0.126,
+  "foot_far_x": 0.027
+ },
+ "walk": {
+  "lean": 2,
+  "stride": 0.55,
+  "lift": 0.11,
+  "bob": 0.021,
+  "arm": 15.5,
+  "elbow": 13.0,
+  "period": 1.05,
+  "duty": 0.593,
+  "hip": 0.96,
+  "near_arm": 0.853,
+  "near_up": -10.0,
+  "near_lo": 28.0,
+  "near_blade": 0.0,
+  "head": 0.239,
+  "reach": 0.3,
+  "push": 0.3,
+  "knee": 0.146
+ },
+ "attack": [
+  [
+   0.0,
+   {}
+  ],
+  [
+   0.3,
+   {
+    "torso": -6,
+    "neck": 2,
+    "arm_near_up": 175,
+    "arm_near_lo": 40,
+    "blade": 0,
+    "arm_far_up": 45,
+    "arm_far_lo": 50,
+    "dx": -0.05,
+    "hip": 0.97,
+    "step": 0.0
+   }
+  ],
+  [
+   0.38,
+   {
+    "torso": 6,
+    "neck": -2,
+    "arm_near_up": 120,
+    "arm_near_lo": 10,
+    "blade": 0,
+    "arm_far_up": 10,
+    "arm_far_lo": 50,
+    "dx": 0.05,
+    "hip": 0.95,
+    "step": 0.18
+   }
+  ],
+  [
+   0.43,
+   {
+    "torso": 18,
+    "neck": -6,
+    "arm_near_up": 32,
+    "arm_near_lo": 0,
+    "blade": 40,
+    "arm_far_up": -35,
+    "arm_far_lo": 60,
+    "dx": 0.15,
+    "hip": 0.92,
+    "step": 0.32
+   }
+  ],
+  [
+   0.51,
+   {
+    "torso": 18,
+    "neck": -6,
+    "arm_near_up": 32,
+    "arm_near_lo": 0,
+    "blade": 40,
+    "arm_far_up": -35,
+    "arm_far_lo": 60,
+    "dx": 0.15,
+    "hip": 0.92,
+    "step": 0.32
+   }
+  ],
+  [
+   0.68,
+   {
+    "torso": 22,
+    "neck": -8,
+    "arm_near_up": -8,
+    "arm_near_lo": 12,
+    "blade": 40,
+    "arm_far_up": -30,
+    "arm_far_lo": 55,
+    "dx": 0.17,
+    "hip": 0.91,
+    "step": 0.33
+   }
+  ],
+  [
+   1.1,
+   {}
+  ]
+ ],
+ "run": {
+  "lean": 16,
+  "head": 0.45,
+  "reach": 0.3,
+  "push": 0.42,
+  "kick": 0.38,
+  "knee": 0.4,
+  "lift": 0.34,
+  "bob": 0.035,
+  "hip": 0.9,
+  "duty": 0.365,
+  "period": 0.66,
+  "arm": 55,
+  "elbow": 45.0,
+  "pump": 33.0,
+  "near_arm": 0.35,
+  "near_up": -8,
+  "near_lo": 35,
+  "near_blade": 8.5,
+  "hold": 0.0,
+  "drag": 35.0
+ },
+ "far_tint": 0.631,
+ "slots": {
+  "armor": [
+   "torso",
+   "upper_arm",
+   "far_upper_arm"
+  ],
+  "gloves": [
+   "forearm",
+   "hand",
+   "far_forearm"
+  ],
+  "pants": [
+   "pelvis",
+   "thigh",
+   "shin"
+  ],
+  "boots": [
+   "boot"
+  ]
+ },
+ "attack_wrist": 40
+}

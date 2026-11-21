@@ -230,6 +230,25 @@ class Glyph extends Control:
 						var direction := Vector2.from_angle(k * PI * 0.5)
 						draw_line(star - direction * 4.0, star + direction * 4.0, ink, 1.2, true)
 					draw_circle(star, 1.6, ink, true, -1.0, true)
+			# 挂机底栏：行囊、告示牌、出发（渡劫层换成一道雷）。
+			&"pack":
+				draw_arc(Vector2(15, 9), 4.5, PI, TAU, 12, ink, 1.8, true)
+				draw_colored_polygon(PackedVector2Array([Vector2(7, 11), Vector2(23, 11), Vector2(25, 25), Vector2(5, 25)]), ink)
+				draw_line(Vector2(7, 16), Vector2(23, 16), Color(0.08, 0.07, 0.08, 0.8), 1.4, true)
+				draw_rect(Rect2(13, 14, 4, 5), Color(0.08, 0.07, 0.08, 0.8))
+			&"notice":
+				_path([Vector2(8, 27), Vector2(8, 6)], 2.0)
+				_path([Vector2(22, 27), Vector2(22, 6)], 2.0)
+				_path([Vector2(5, 6), Vector2(25, 6)], 2.2)
+				draw_rect(Rect2(10, 9, 10, 12), Color(ink, 0.9))
+				for row in [12.5, 15.5, 18.5]:
+					draw_line(Vector2(12, row), Vector2(18, row), Color(0.08, 0.07, 0.08, 0.75), 1.0, true)
+			&"march":
+				_path([Vector2(6, 8), Vector2(13, 15), Vector2(6, 22)], 2.4)
+				_path([Vector2(14, 8), Vector2(21, 15), Vector2(14, 22)], 2.4)
+				_path([Vector2(22, 9), Vector2(26, 15), Vector2(22, 21)], 1.6)
+			&"jie":
+				draw_colored_polygon(PackedVector2Array([Vector2(17, 3), Vector2(8, 17), Vector2(14, 17), Vector2(11, 27), Vector2(22, 12), Vector2(16, 12)]), ink)
 			# 战斗速度：一、二、三个三角。
 			&"speed1", &"speed2", &"speed3":
 				var count := int(String(symbol).right(1))

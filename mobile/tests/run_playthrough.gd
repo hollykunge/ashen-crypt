@@ -11,7 +11,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var game = Main.instantiate()
-	game.profile.save_path = save_path
+	game.save_base = save_path
 	root.add_child(game)
 	game.set_physics_process(false)
 	await process_frame
@@ -21,6 +21,12 @@ func _run() -> void:
 	_check(_test_tribulation() == true, "天劫流程完整执行")
 	_check(_test_continuous_route() == true, "连战流程完整执行")
 	_check(_test_relief() == true, "驻留行善与抗敕流程完整执行")
+	_check(_test_roster(game) == true, "多角色、离线收益与角色信息流程完整执行")
+	for slot in range(Gear.MAX_CHARACTERS):
+		var slot_file := Gear.slot_path(slot, save_path)
+		for path in [slot_file, slot_file + ".tmp"]:
+			if FileAccess.file_exists(path):
+				DirAccess.remove_absolute(path)
 	for path in [save_path, save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
 			save_path + ".armory", save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp",
 			save_path + ".relief", save_path + ".relief.tmp"]:
@@ -30,6 +36,11 @@ func _run() -> void:
 	quit(1 if failures else 0)
 
 func _play(game) -> bool:
+	_check(game.state == &"title" and game.title_page.visible and not game.battle.visible, "开机先看到标题页")
+	_check(_press(game, "进入游戏") and game.state == &"roster" and game.roster_page.visible, "标题页进入选角页")
+	_check(_count_text(game.roster_page, "创建角色") == Gear.MAX_CHARACTERS, "没有存档时三个角色位都是空的")
+	if not _check(_press(game, "创建角色") and game.state == &"selection" and game.active_slot == 0, "空位进入创角"):
+		return false
 	_press(game, "性别")
 	_check(_press(game, "女"), "性别页可更换角色")
 	_press(game, "日干")
@@ -51,7 +62,7 @@ func _play(game) -> bool:
 	_ticks(game, 340)
 	if not _check(game.state == &"farm" and game.run.result.is_empty() and game.profile.layer() == 1
 			and game.profile.stock("jia") > 0 and game.profile.stock("geng") == stock_before
-			and game.loot_line.text.contains("硬木心") and not game.boss_controls.visible,
+			and game.pouch.drop.name == "硬木心" and not game.boss_controls.visible,
 			"无输入持续刷甲年材料，不推进、不结算"):
 		return false
 	var farm_position: Vector2 = game.run.position
@@ -61,7 +72,7 @@ func _play(game) -> bool:
 		and game.state == &"farm", "挂机死亡原地恢复")
 
 	var farming_kills: int = game.run.kills
-	if not _check(_press(game, "行装") and game.state == &"forge", "挂机途中回炉"):
+	if not _check(_press_named(game, "行装") and game.state == &"forge", "挂机途中回炉"):
 		return false
 	_check(game.forge.inventory and _press(game, "打造第一件装备") and not game.forge.inventory, "空背包可以直接去锻造")
 	var farm_material: int = game.profile.stock("jia")
@@ -117,7 +128,7 @@ func _play(game) -> bool:
 		and game.run.encounter_stem == "yi" and not game.boss_controls.visible,
 		"六个槽位演出使用前后推导，下一层装备与当令已刷新")
 	_ticks(game, 400)
-	_check(game.profile.stock("yi") > 0 and game.loot_line.text.contains("藤筋"), "新层继续自动掉落")
+	_check(game.profile.stock("yi") > 0 and game.pouch.drop.name == "藤筋", "新层继续自动掉落")
 	game.challenge_button.pressed.emit()
 	if not _check(game.state == &"place_notice" and game.place_notice.is_visible_in_tree(),
 			"点击连战先看本层告示"):
@@ -133,7 +144,7 @@ func _play(game) -> bool:
 			and game.profile.challenge_wait() >= 29, "战败仅触发调息，保留层数与材料"):
 		return false
 	game.challenge_button.pressed.emit()
-	_check(game.state == &"farm" and game.challenge_button.text.contains("调息"), "调息期间留在挂机")
+	_check(game.state == &"farm" and game.challenge_button.accessibility_name.begins_with("调息") and game.challenge_button.text.is_empty(), "调息期间留在挂机")
 	var reloaded := Gear.new(save_path)
 	reloaded.load_profile()
 	_check(reloaded.layer() == 2 and reloaded.equipped("weapon") == item.uid
@@ -145,9 +156,10 @@ func _play(game) -> bool:
 
 func _test_armory() -> bool:
 	var game = Main.instantiate()
-	game.profile.save_path = save_path + ".armory"
+	game.save_base = save_path + ".armory"
 	root.add_child(game)
 	game.set_physics_process(false)
+	_to_creator(game)
 	_press(game, "入山")
 	var blade := Gear.new_draft()
 	blade.materials = {"geng": 4}
@@ -196,9 +208,12 @@ func _test_armory() -> bool:
 
 func _test_tribulation() -> bool:
 	var game = Main.instantiate()
-	game.profile.save_path = save_path + ".jie"
+	game.save_base = save_path + ".jie"
 	root.add_child(game)
 	game.set_physics_process(false)
+	_to_creator(game)
+	# 流程测试按帧数推进，顿帧会拖慢节奏，这里关掉。
+	game.run.hitstop_scale = 0.0
 	if not _check(_press(game, "入山"), "可创建天劫测试角色"):
 		game.queue_free()
 		return false
@@ -235,11 +250,11 @@ func _test_tribulation() -> bool:
 		"备劫回炉后重新显示告示，并按实际穿戴刷新为空装")
 	_check(_press(game, "留在本层挂机") and game.state == &"farm" and game.run.encounter_stem == "gui",
 		"可以放弃本次渡劫并留在第20层挂机")
-	_press(game, "行装")
+	_press_named(game, "行装")
 	game.forge.armory.bag_items[water.uid].pressed.emit()
 	_check(_press(game, "装备"), "挂机回炉可重新穿上水系武器")
 	game.forge.close_requested.emit()
-	_check(game.state == &"farm" and _press(game, "准备渡劫 · 第20层")
+	_check(game.state == &"farm" and _press_named(game, "准备渡劫 · 第20层")
 		and game.state == &"place_notice" and _take_edict(game) and notice.is_visible_in_tree(),
 		"普通回炉返回挂机，主动挑战先看地点告示再看备战告示")
 	_press(game, "迎接天劫")
@@ -263,9 +278,12 @@ func _test_tribulation() -> bool:
 
 func _test_continuous_route() -> bool:
 	var game = Main.instantiate()
-	game.profile.save_path = save_path + ".route"
+	game.save_base = save_path + ".route"
 	root.add_child(game)
 	game.set_physics_process(false)
+	_to_creator(game)
+	# 流程测试按帧数推进，顿帧会拖慢节奏，这里关掉。
+	game.run.hitstop_scale = 0.0
 	if not _check(_press(game, "入山"), "可创建连战测试角色"):
 		return false
 	game.challenge_button.pressed.emit()
@@ -361,9 +379,10 @@ func _test_migration() -> bool:
 # 驻留行善、违规的代价、抗敕。对应 docs/story.md §1.2 与 §2.1。
 func _test_relief() -> bool:
 	var game = Main.instantiate()
-	game.profile.save_path = save_path + ".relief"
+	game.save_base = save_path + ".relief"
 	root.add_child(game)
 	game.set_physics_process(false)
+	_to_creator(game)
 	if not _check(_press(game, "入山"), "可创建行善测试角色"):
 		return false
 
@@ -444,6 +463,89 @@ func _set_layer(game, layer: int) -> void:
 # 地点告示上的「接敕」。按钮文案固定，驻留那个按钮带着当地的行善内容所以要另找。
 func _take_edict(game) -> bool:
 	return _press(game.place_notice, "接敕")
+
+# 标题页 → 选角页 → 第一格空位进创角。
+func _to_creator(game) -> void:
+	_press(game, "进入游戏")
+	_press(game, "创建角色")
+
+func _count_text(node: Node, title: String) -> int:
+	var total := 1 if node is Button and node.text == title and node.is_visible_in_tree() else 0
+	for child in node.get_children():
+		total += _count_text(child, title)
+	return total
+
+# 选角页、离线收益、角色信息：两个角色互不串档，删人要按两下。
+func _test_roster(game) -> bool:
+	if not _check(game.profile.has_character() and game.active_slot == 0, "第一格有角色"):
+		return false
+	game._enter_farm()
+	var first_layer: int = game.profile.layer()
+	_check(game.hero_chip.visible and game.roster_button.visible, "挂机页有头像和返回选角")
+	game.hero_chip.pressed.emit()
+	_check(game.hero_sheet.visible and _count_text(game.hero_sheet, "返回选角") == 1, "点头像打开角色信息")
+	var silver_before: int = game.profile.silver()
+	game.run.combat_rng.seed = 7
+	game.silver_rng.seed = 7
+	_ticks(game, 900)
+	_check(game.farm_kills > 0 and game.farm_seconds > 14.0 and game.farm_materials > 0, "挂机统计记下击杀、时长和材料")
+	_check(game.profile.silver() + game.pending_silver == silver_before + game.farm_silver, "挂机灵砂只在攒着或已入账")
+	var sheet_text: String = game.hero_sheet.live.farm.get_child(3).text
+	_check(sheet_text == "%d · 每时 %d" % [game.farm_kills, roundi(game.farm_kills / game.farm_seconds * 3600.0)],
+		"角色信息显示每时击杀")
+	if not _check(_press(game.hero_sheet, "返回选角") and game.state == &"roster", "从角色信息回到选角"):
+		return false
+	var saved := Gear.new(Gear.slot_path(0, save_path))
+	saved.load_profile()
+	_check(saved.silver() == silver_before + game.farm_silver and saved.last_seen() > 0.0, "离开角色时灵砂与离开时刻写进存档")
+	_check(_count_text(game.roster_page, "入山") == 1 and _count_text(game.roster_page, "创建角色") == Gear.MAX_CHARACTERS - 1,
+		"选角页列出已有角色和剩下的空位")
+
+	# 第二格立一个新角色，起道号。
+	if not _check(_press(game, "创建角色") and game.active_slot == 1, "第二格进入创角"):
+		return false
+	game.selection.name_field.text = "  青崖子\n"
+	_press(game, "入山")
+	_check(game.state == &"farm" and game.profile.display_name() == "青崖子" and game.profile.layer() == 1
+		and game.profile.save_path == Gear.slot_path(1, save_path), "第二个角色有自己的道号和存档")
+	game._show_roster()
+	_check(_count_text(game.roster_page, "入山") == 2, "两个角色都在选角页")
+
+	# 第一格离开两小时：回来时补发离线收益，按效率五成计。
+	var aged := Gear.new(Gear.slot_path(0, save_path))
+	aged.load_profile()
+	var now := Time.get_unix_time_from_system()
+	aged.checkpoint(now - 7200.0, 0, 3000.0)
+	var stem: String = aged.ling()
+	var stock_before := aged.stock(stem)
+	var coins_before := aged.silver()
+	game._play_slot(0)
+	_check(game.profile.layer() == first_layer and game.offline_card.visible, "回到第一个角色弹出离线收益")
+	var report: Dictionary = game.offline_card.report
+	_check(int(report.kills) == 3000 and int(report.materials) > 0
+		and game.profile.stock(stem) == stock_before + int(report.materials)
+		and game.profile.silver() == coins_before + int(report.silver), "离线两小时按每时三千的五成发放并入账")
+	_check(_press(game.offline_card, "收下") and not game.offline_card.visible, "收下后关掉离线收益")
+	game._settle_offline()
+	_check(not game.offline_card.visible, "刚结算过不再重复发")
+
+	# 离开超过十二小时只计十二小时。
+	var capped := Gear.new(Gear.slot_path(0, save_path))
+	capped.load_profile()
+	capped.checkpoint(now - 86400.0, 0, 1000.0)
+	var long_report := capped.offline_report(now, 0.56)
+	_check(int(long_report.counted) == Gear.OFFLINE_CAP_SECONDS and int(long_report.kills) == 6000, "离线最多计十二小时")
+
+	# 删除第二个角色：第一下只是待确认，第二下才删。
+	game._show_roster()
+	_check(_press(game.roster_page, "删除"), "可按删除")
+	_check(FileAccess.file_exists(Gear.slot_path(1, save_path)) and FileAccess.file_exists(Gear.slot_path(0, save_path)),
+		"第一下不删")
+	_check(_press(game.roster_page, "确认删除") and _count_text(game.roster_page, "入山") == 1,
+		"第二下删掉一个角色")
+	_check(game.roster_page.count() == 1, "只剩一个角色")
+	_check(_press(game.roster_page, "返回") and game.state == &"title", "选角页可返回标题页")
+	return true
 
 func _press_prefix(node: Node, prefix: String) -> bool:
 	if node is Button and node.text.begins_with(prefix) and node.is_visible_in_tree() and not node.disabled:

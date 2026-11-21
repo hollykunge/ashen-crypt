@@ -9,6 +9,7 @@ const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const WornSprites = preload("res://scripts/worn_sprites.gd")
+const ArmoryFigure = preload("res://scripts/armory_figure.gd")
 const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const SideArt = preload("res://scripts/side_art.gd")
 const Motion = preload("res://scripts/motion.gd")
@@ -27,7 +28,7 @@ var _failures := 0
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
 		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_new_forms,
-		_test_control_modes, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
+		_test_control_modes, _test_hit_feel, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
 	print("规则测试：%d 条断言，%d 项失败" % [_checks, _failures])
@@ -95,6 +96,8 @@ func _test_monster_motion() -> bool:
 
 func _test_body_spacing() -> bool:
 	var run := Combat.new()
+	# 这里逐帧验走位，顿帧会把帧数拉长，单独关掉；顿帧另有测试。
+	run.hitstop_scale = 0.0
 	run.reset(1, {}, "sword", true)
 	var foe := run.enemies[0]
 	foe.spawn = 0.0
@@ -414,12 +417,36 @@ func _test_appearance() -> bool:
 				if absf(original.get_pixel(x, y).a - painted.get_pixel(x, y).a) > 0.1:
 					silhouette_kept = false
 		_check(silhouette_kept, "换装不改人物轮廓")
-		var chest := Vector2i(SideArt.frame_region(0).position) + Vector2i(48, 47) * SideArt.TEXEL
+		var chest := Vector2i(SideArt.frame_region(0).position) + Vector2i(50, 64) * SideArt.TEXEL
 		var robe := painted.get_pixelv(chest)
 		_check(robe.r > robe.b * 1.3 and robe.r > robe.g, "火行护甲把袍子染成暖色")
+	# 行装页的正面全身像由 dye.gdshader 现染：图层要和原画一样大，脸上不染，靴子图层只落在脚下。
+	for female in [false, true]:
+		var stem := "fullbody-female" if female else "fullbody-male"
+		var original := SideArt.pixels(ArmoryFigure.FULL_BODY[int(female)])
+		var size := original.get_size()
+		var face := Rect2i(Vector2i.ZERO, Vector2i(size.x, roundi(size.y * 0.1)))
+		for layer in WornSprites.LAYERS:
+			var shade := SideArt.pixels(load("res://art/side/dye/%s-%s.png" % [stem, layer]))
+			_check(shade.get_size() == size, "全身像的 %s 图层和原画一样大" % layer)
+			_check(shade.get_region(face).is_invisible(), "全身像的 %s 图层不碰脸" % layer)
+		var boots := SideArt.pixels(load("res://art/side/dye/%s-boots.png" % stem))
+		_check(not boots.get_region(Rect2i(0, roundi(size.y * 0.9), size.x, roundi(size.y * 0.08))).is_invisible()
+			and boots.get_region(Rect2i(0, 0, size.x, roundi(size.y * 0.7))).is_invisible(), "全身像的靴子图层只在脚下")
+	var figure := ArmoryFigure.new()
+	figure.display({"entries": {"armor": entries.armor}, "patterns": {}}, {"gender": "female"}, "sword", true)
+	var dyed: Color = figure.material.get_shader_parameter("cloth_dye")
+	_check(dyed.a > 0.0 and dyed.r > dyed.b, "穿上火行护甲，全身像的袍子染成暖色")
+	_check(is_zero_approx(Color(figure.material.get_shader_parameter("boots_dye")).a), "没穿鞋子，全身像的靴子保持原画")
+	_check(figure.material.get_shader_parameter("cloth_layer").resource_path.ends_with("fullbody-female-cloth.png"), "女角全身像用女角的图层")
+	_check(figure.trying_label.visible, "试穿时标出「试穿」")
+	figure.display({}, {"gender": "male"}, "sword")
+	_check(is_zero_approx(Color(figure.material.get_shader_parameter("cloth_dye")).a) and not figure.trying_label.visible,
+		"素身的全身像就是原画")
+	figure.free()
 	var water_look := Appearance.build({"armor": Derive.derive({"slot": "armor", "materials": {"ren": 6}, "process": ["forge_fine"]}, 3)}, {}, "sword")
 	var water_sheet := SideArt.pixels(WornSprites.texture(false, water_look))
-	var water_chest := water_sheet.get_pixelv(Vector2i(48, 47) * SideArt.TEXEL)
+	var water_chest := water_sheet.get_pixelv(Vector2i(50, 64) * SideArt.TEXEL)
 	_check(water_chest.b > water_chest.r * 1.2, "水行护甲把袍子染成冷色")
 	return true
 
@@ -545,8 +572,60 @@ func _test_new_forms() -> bool:
 
 	return true
 
+# 顿帧、击退、倒地打飞：打中要停一下，小怪往外退，层主几乎推不动。
+func _test_hit_feel() -> bool:
+	var run := Combat.new()
+	run.reset(1, {}, "sword", true, "", true)
+	run.enemies.resize(1)
+	var foe := run.enemies[0]
+	foe.spawn = 0.0
+	foe.cooldown = 30.0
+	foe.hp = 100000
+	foe.max_hp = 100000
+	foe.pos = run.position + Vector2(run._enemy_contact_distance(foe) + 4.0, 0.0)
+	var before := Vector2(foe.pos)
+	run._damage_enemy(foe, 10, 0.0)
+	_near(run.hitstop, Combat.HITSTOP[&"hit"], "连战普攻顿帧按表", 0.0001)
+	var frozen_motion := run.motion_time
+	run.step(1.0 / 60.0)
+	_check(run.motion_time == frozen_motion and Vector2(foe.pos) == before, "顿帧期间整场停住")
+	for _tick in range(30):
+		run.step(1.0 / 60.0)
+	_check(foe.pos.x > before.x + Combat.KNOCKBACK * 0.6, "普攻把小怪往外推")
+	run.hitstop = 0.0
+	run._damage_enemy(foe, 10, 0.0, true)
+	_near(run.hitstop, Combat.HITSTOP[&"crit"], "暴击顿得更久", 0.0001)
+	run.hitstop_scale = 0.0
+	run.hitstop = 0.0
+	run._damage_enemy(foe, 10, 0.0)
+	_check(run.hitstop == 0.0, "hitstop_scale 为 0 时不顿")
+	run.hitstop_scale = 1.0
+
+	# 挂机顿帧减半。
+	run.reset(1, {}, "sword")
+	run._freeze(Combat.HITSTOP[&"hit"])
+	_near(run.hitstop, Combat.HITSTOP[&"hit"] * Combat.FARM_HITSTOP, "挂机顿帧减半", 0.0001)
+
+	# 击杀：倒地带打飞距离。
+	run.reset(1, {}, "sword", true, "", true)
+	run.enemies.resize(1)
+	var victim := run.enemies[0]
+	victim.spawn = 0.0
+	victim.pos = run.position + Vector2(80.0, 0.0)
+	run._damage_enemy(victim, int(victim.hp) + 5, 0.0)
+	_check(run.fallen_enemies.size() == 1 and run.fallen_enemies[0].launch.x > 0.0, "倒地的精怪朝远离主角的方向飞出")
+	_near(run.hitstop, Combat.HITSTOP[&"kill"], "击杀顿帧", 0.0001)
+
+	# 层主只被推动一点点，也不吃普攻硬直。
+	var boss := {"pos": run.position + Vector2(60, 0), "hp": 999, "boss": true, "stagger": 0.0}
+	run._shove(boss, 20.0)
+	_check(absf(boss.shove.x) <= 20.0 * 0.15 * Combat.SHOVE_DECAY + 0.001 and boss.stagger == 0.0, "层主几乎推不动")
+	return true
+
 func _test_control_modes() -> bool:
 	var run := Combat.new()
+	# 这里逐帧验走位，顿帧会把帧数拉长，单独关掉；顿帧另有测试。
+	run.hitstop_scale = 0.0
 	run.reset(1, {}, "sword", true)
 	var enemy := run.enemies[0]
 	enemy.spawn = 0.0
@@ -561,7 +640,10 @@ func _test_control_modes() -> bool:
 	var enemy_stance := Vector2(enemy.pos)
 	for _tick in range(20):
 		run.step(1.0 / 60.0, Vector2.ZERO, false, Combat.ControlMode.ASSISTED)
-	_check(run.position == stance and enemy.pos == enemy_stance and is_zero_approx(run.stride), "进入普攻距离后双方都站定交手")
+	# 精怪只会被普攻往外推一小步再贴回来，主角原地不追。
+	_check(run.position == stance and absf(enemy.pos.y - enemy_stance.y) < 0.001
+		and absf(enemy.pos.x - enemy_stance.x) <= Combat.KNOCKBACK * 3.0 and is_zero_approx(run.stride),
+		"进入普攻距离后主角站定交手，精怪只被击退一小步")
 	var x_before := run.position.x
 	run.step(1.0 / 60.0, Vector2.LEFT, false, Combat.ControlMode.ASSISTED)
 	_check(run.position.x < x_before, "主动移动时仍能手动走位")
