@@ -1,6 +1,6 @@
 """量站姿：后背鼓多少、头往前探多少、腿直不直，跟设定图比。
 
-    python3 posture.py hero
+    python3 posture.py swordsman <侧面参考图>
 
 都按身高的比例。后背鼓：肩下（0.14 身高处）到腰（0.40）那段后背线，比两端连成的直线最多往后鼓出多少；
 头前探：脸最前面到腰部后背的水平距离；腿：脚踝到胯的水平偏移（站直时应接近 0）。
@@ -24,8 +24,8 @@ def stand_mask(who):
     return C.mask_of(rig, [(255, 0, 255)] * rig.height)
 
 
-def ref_mask():
-    ref = Image.open(C.HERE / C.REF[0]).convert("RGB").crop(C.REF[1])
+def ref_mask(reference):
+    ref = Image.open(reference).convert("RGB")
     return C.mask_of(ref, [ref.getpixel((ref.width - 3, y)) for y in range(ref.height)])
 
 
@@ -48,4 +48,4 @@ def measure(m):
 
 if __name__ == "__main__":
     print("拼出来的", measure(stand_mask(sys.argv[1])))
-    print("设定图  ", measure(ref_mask()))
+    print("设定图  ", measure(ref_mask(sys.argv[2])))

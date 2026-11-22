@@ -11,7 +11,7 @@ func _initialize():
 	var bg := ColorRect.new(); bg.color = Color(0.25, 0.26, 0.3); bg.size = Vector2(900, 900); root.add_child(bg)
 	r = load("res://prototype/cutout/cutout_rig.gd").new()
 	root.add_child(r)
-	r.setup("res://prototype/cutout/hero/rig.json", "res://prototype/cutout/hero/parts")
+	r.setup("res://prototype/cutout/swordsman/rig.json", "res://prototype/cutout/swordsman/parts")
 	# 第三个参数是放大倍数（默认 9.6，只看到肩；4.8 能看到腰）
 	var a := OS.get_cmdline_user_args()
 	var zoom := float(a[2]) if a.size() > 2 else 9.6

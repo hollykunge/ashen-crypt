@@ -1,23 +1,19 @@
 extends Node
-## 皮影主角接进战斗：prototype/cutout 的拆件骨骼画在一块离屏画布（SubViewport）上，
-## 战场 _draw 到主角时把这块画布当一张图贴在脚下。前后遮挡、残影、五行染色、淡出都跟原来的分格人物一样走 _draw。
-## 目前只有男主角拿剑有这套图：备战架势、走、跑、劈砍有骨骼动作；受击、闪避、施法这些还没做，先摆备战架势，
-## 闪白、残影、位移照旧叠上去（中途换回分格人物的话，像换了个人，更扎眼）。
-
+## 共用刀客骨骼画在离屏画布上，战场和行装页都按人物脚底的位置贴图。
 const Rig = preload("res://prototype/cutout/cutout_rig.gd")
+const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const UNPREMULTIPLY = preload("res://scripts/unpremultiply.gdshader")
-const ROOT := "res://prototype/cutout/hero/"
-## 总开关：关掉就全用分格人物
-const ENABLED := true
-## 游戏里的护甲类别 → 小样里的整套外观目录（链甲用的是小样里叫 set-iron 的那套）
-const OUTFITS := {"cloth": "parts", "leather": "set-leather", "chain": "set-iron"}
+const ROOT := "res://prototype/cutout/swordsman/"
+## 游戏里的护甲类别对应刀客的外观目录。
+const OUTFITS := {"cloth": "parts", "leather": "set-leather", "chain": "set-mail"}
 ## 原来分格人物（ready 那一格）从脚底到头顶的高度，分格像素。皮影主角缩到一样高，战场的站位、判定都不用改
 const SPRITE_HEIGHT := 74.0
 ## 画布大小和脚底在画布里的位置，以身高为单位：剑举过头、往后抡、往前劈出去都要框得住
-const BOX := Vector2(2.8, 1.9)
-const FEET := Vector2(1.2, 1.75)
+const BOX := Vector2(3.1, 1.9)
+const FEET := Vector2(1.25, 1.75)
 ## 一次出招里两刀之间，前一刀收势占多少（其余是下一刀起手）
 const FOLLOW_SHARE := 0.45
+const SPEAR_CARRY_ANGLE := -0.98
 
 var viewport := SubViewport.new()
 var holder := Node2D.new()
@@ -30,10 +26,13 @@ var _height := 0.0
 var _outfit_key := ""
 var _slash := -1
 var _last_phase := 0.0
-
-
-static func supports(female: bool, form: String) -> bool:
-	return ENABLED and not female and form == "sword"
+var _weapon_canvas := Node2D.new()
+var _look: Dictionary = {}
+var form := "sword"
+var _draw_bowstring := false
+var _bow_angle := -1.2
+var _brace_spear := false
+var _spear_angle := SPEAR_CARRY_ANGLE
 
 
 func _init() -> void:
@@ -52,6 +51,11 @@ func _init() -> void:
 	# 战斗里站着摆备战架势（rig.json 的 ready），劈砍也从它起手、收回到它
 	rig.attack_from = "ready"
 	_height_local = rig.stand_height()
+	_weapon_canvas.scale = Vector2.ONE * (_height_local / (SPRITE_HEIGHT * rig.scale.x))
+	_weapon_canvas.z_index = 15
+	_weapon_canvas.z_as_relative = false
+	_weapon_canvas.draw.connect(_draw_weapon)
+	rig.add_child(_weapon_canvas)
 	var fix := ShaderMaterial.new()
 	fix.shader = UNPREMULTIPLY
 	_fix.material = fix
@@ -64,6 +68,13 @@ func _init() -> void:
 
 ## 按装备换整套部件图：护甲槽管躯干和上臂，裤子跟着护甲，护手、靴子各按各的
 func dress(look: Dictionary) -> void:
+	_look = look
+	form = look.get("form", "sword")
+	var equipped: Dictionary = look.get("pieces", {})
+	rig.show_weapon = form == "sword" and not equipped.has("weapon")
+	rig.show_trail = form == "sword"
+	_weapon_canvas.visible = not rig.show_weapon
+	rig._sprites.far_hand[0].z_index = 16 if form != "sword" else 10 + Rig.Z.arm_far_hand
 	var types: Dictionary = look.get("armor_types", {})
 	var outfit := {}
 	for slot in ["armor", "gloves", "boots"]:
@@ -73,34 +84,108 @@ func dress(look: Dictionary) -> void:
 	if key != _outfit_key:
 		_outfit_key = key
 		rig.set_outfit(outfit)
+	_tint_slot("armor", look.get("robe", Color.WHITE), look.get("robe_amount", 0.0))
+	_tint_slot("pants", look.get("robe", Color.WHITE), look.get("robe_amount", 0.0))
+	_tint_slot("gloves", look.get("hands", Color.WHITE), look.get("hands_amount", 0.0))
+	_tint_slot("boots", look.get("boots", Color.WHITE), look.get("boots_amount", 0.0))
 
 
-## 每帧按战斗状态选动作、对时刻。返回 false 表示这一帧要画分格人物（现在总是 true，留着给以后没法凑合的动作）。
-## walked：这一段走过的屏幕像素；phase：出招进度（已含顿帧）；cues：这一招里每一刀打中的进度。
-func drive(motion: StringName, phase: float, walked: float, running: bool, cues: Array) -> bool:
-	if motion.is_empty():
+func _tint_slot(slot: String, color: Color, amount: float) -> void:
+	var tint := Color.WHITE.lerp(color, amount * 0.32)
+	var far: float = rig.rig.get("far_tint", Rig.FAR_TINT)
+	for part in rig.rig.slots[slot]:
+		if part in ["hand", "far_hand"]:
+			continue
+		for sprite: Sprite2D in rig._sprites[part]:
+			sprite.modulate = tint * (Color(far, far * 0.98, far) if sprite.has_meta("far") else Color.WHITE)
+
+
+func present_outfit() -> void:
+	_weapon_pose(true, false, 0.0, 0.0)
+	if form == "spear":
+		_spear_angle = -1.40
+		rig.pose_override = {"arm_near_up": 12.0, "arm_near_lo": 38.0}
+	rig.play("idle")
+	rig.drive_t = -1.0
+
+
+## 按移动距离推进步态，并把持械动作的关键帧对准战斗结算。
+func drive(motion: StringName, phase: float, walked: float, running: bool, cues: Array) -> void:
+	var moving := motion.is_empty() and walked > 0.0
+	var attacking := motion == &"attack" and not cues.is_empty()
+	_weapon_pose(moving, attacking, phase, float(cues[0]) if attacking else 0.0)
+	if moving:
 		_slash = -1
-		if walked > 0.0:
-			rig.play("run" if running else "walk")
-			rig.drive_t = rig.gait_time(walked / (rig.leg_length() * holder.scale.y))
-		else:
-			rig.play("ready")
-			rig.drive_t = -1.0
-		return true
-	if motion != &"attack" or cues.is_empty():
+		rig.play("run" if running else "walk")
+		rig.drive_t = rig.gait_time(walked / (rig.leg_length() * holder.scale.y))
+		return
+	if not attacking or form == "bow":
 		_slash = -1
 		rig.play("ready")
 		rig.drive_t = -1.0
-		return true
+		return
 	var beat := attack_time(phase, cues, rig.attack_hit_time(), rig.attack_end_time())
-	# 换一刀（或者新的一招从头开始）就从当前姿势快速过渡到起手
 	if beat.x != _slash or phase < _last_phase - 0.01:
 		rig.play("ready")
 		rig.play("attack")
 	_slash = int(beat.x)
 	_last_phase = phase
 	rig.drive_t = beat.y
-	return true
+
+
+func _weapon_pose(moving: bool, attacking: bool, phase: float, release: float) -> void:
+	rig.pose_override = {}
+	_draw_bowstring = false
+	_bow_angle = -1.2
+	_brace_spear = false
+	_spear_angle = SPEAR_CARRY_ANGLE
+	if moving or form == "sword":
+		return
+	var force := 0.0
+	if attacking:
+		force = smoothstep(0.0, release, phase) * (1.0 - smoothstep(release, 1.0, phase))
+	if form == "bow":
+		_draw_bowstring = attacking and phase <= release
+		_bow_angle = lerpf(-1.2, -PI / 2.0, force)
+		rig.pose_override = {
+			"arm_near_up": lerpf(13.0, -5.0, force), "arm_near_lo": lerpf(35.0, 138.0, force),
+			"arm_far_up": lerpf(26.0, 74.0, force), "arm_far_lo": lerpf(31.0, 27.0, force)
+		}
+	elif form == "spear":
+		_brace_spear = true
+		rig.pose_override = {
+			"arm_near_up": lerpf(-29.0, -3.0, force), "arm_near_lo": lerpf(128.0, 108.0, force),
+			"arm_far_up": lerpf(54.0, 72.0, force), "arm_far_lo": lerpf(30.0, 13.0, force)
+		}
+
+
+func _process(_delta: float) -> void:
+	if _weapon_canvas.visible:
+		_weapon_canvas.queue_redraw()
+
+
+func _grip(bone: String, offset := Vector2.ZERO) -> Vector2:
+	return (rig._relative(rig._bones[bone]) * offset) / _weapon_canvas.scale.x
+
+
+func release_point() -> Vector2:
+	var bow := _grip("arm_far_hand", Vector2(0.0, 19.0))
+	return bow + (bow - _grip("weapon")).normalized() * 8.0
+
+
+func _draw_weapon() -> void:
+	var near := _grip("weapon")
+	var far := _grip("arm_far_hand", Vector2(0.0, 19.0))
+	var design: Dictionary = _look.get("design", {})
+	var ink := Color.WHITE.lerp(_look.get("weapon", Color.WHITE), 0.34)
+	if form == "bow":
+		HeldWeapon.draw_bow(_weapon_canvas, far, near, _draw_bowstring, _bow_angle, ink, design)
+	elif form == "spear":
+		var angle := (far - near).angle() if _brace_spear else _spear_angle
+		HeldWeapon.draw_pole(_weapon_canvas, form, near, angle, ink, INF, design)
+	elif form == "sword":
+		var angle: float = rig._relative(rig._bones.weapon).get_rotation()
+		HeldWeapon.draw_sword(_weapon_canvas, near, angle, ink, design)
 
 
 ## 出招进度 → [第几刀, 骨骼劈砍的时刻]。每一刀的「打中」对准结算的那一下（cues）；

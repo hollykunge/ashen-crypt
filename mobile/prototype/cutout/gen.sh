@@ -1,8 +1,8 @@
 #!/bin/zsh
 # 皮影小样出图：用 ChatGPT 桌面版自带的 codex，按 <角色>/prompts.json 出拆件图，存到 <角色>/source/<种类>-<序号>.png。
 #
-#   prototype/cutout/gen.sh hero parts            # 出 N 张光身拆件图备选（默认 3 张）
-#   prototype/cutout/gen.sh hero armor-leather    # 在选定的 source/parts.png 上加护甲
+#   prototype/cutout/gen.sh shanxiao parts            # 出 N 张光身拆件图备选（默认 3 张）
+#   prototype/cutout/gen.sh shanxiao armor-1    # 在选定的 source/parts.png 上加护甲
 #
 # 拆件图里每个部件分开摆、互不相碰，之后由 cut.py 按连通块切开。
 

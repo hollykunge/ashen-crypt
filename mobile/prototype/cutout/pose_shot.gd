@@ -12,7 +12,7 @@ func _initialize():
 	DisplayServer.window_set_size(size)
 	root.size = size
 	var bg := ColorRect.new(); bg.color = Color(0.58, 0.47, 0.36); bg.size = Vector2(size); root.add_child(bg)
-	var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://prototype/cutout/hero/rig.json"))
+	var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://prototype/cutout/swordsman/rig.json"))
 	if a.size() > 2:
 		var over: Dictionary = JSON.parse_string(a[2])
 		var ready: Dictionary = cfg.get("ready", {})
@@ -21,7 +21,7 @@ func _initialize():
 	for i in actions.size():
 		var r = load("res://prototype/cutout/cutout_rig.gd").new()
 		root.add_child(r)
-		r.setup_dict(cfg.duplicate(true), "res://prototype/cutout/hero/parts")
+		r.setup_dict(cfg.duplicate(true), "res://prototype/cutout/swordsman/parts")
 		r.scale *= 1.2
 		r.position = Vector2(size.x / actions.size() * (i + 0.42), size.y - 30)
 		r.play(actions[i])

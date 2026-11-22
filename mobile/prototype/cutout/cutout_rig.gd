@@ -110,6 +110,9 @@ var _soft := 0.0  # 当前软 IK 的程度：走、跑时 SOFT_IK，站着、劈
 var freeze_t := -1.0  # 调参面板用：>= 0 时攻击定格在这个时刻，方便对着某一帧调
 ## 游戏里用：>= 0 时动作时刻由外面给（走、跑按走过的距离算，脚才钉得住地；劈砍按出招进度算，打中那一下对得上结算）
 var drive_t := -1.0
+var pose_override: Dictionary = {}
+var show_weapon := true
+var show_trail := true
 var blend_time := BLEND  # 换动作的过渡时长；游戏里连劈两刀，第二刀起手很短，要过渡得快一点
 var _blend_t := 0.0  # 换动作以后过了多久（过渡用自己的钟，动作时刻被外面接管时也能过渡）
 
@@ -668,6 +671,7 @@ func _process(delta: float) -> void:
 			pose.hip = 1.0
 		_:
 			pose = _pose_idle(_time)
+	pose.merge(pose_override, true)
 	# 换动作后的头 BLEND 秒，从换之前的姿势过渡过来
 	if not _from.is_empty() and _blend_t < blend_time and _action != "stand":
 		var u := smoothstep(0.0, 1.0, _blend_t / blend_time)
@@ -703,7 +707,7 @@ func _update_trail() -> void:
 		_trail.width_curve = c
 		add_child(_trail)
 	# 只在起手到打中那一段记；打中以后剑停着，刀光在 TRAIL_TIME 里自己淡掉
-	var swinging: bool = _action == "attack" and _action_t > 0.3 and _action_t < 0.45 and freeze_t < 0.0
+	var swinging: bool = _action == "attack" and _action_t > 0.3 and _action_t < 0.45 and freeze_t < 0.0 and show_trail
 	if swinging:
 		var w: Node2D = _bones.weapon
 		var tip := (_v(rig.parts.weapon.tip) - _v(rig.parts.weapon.pivot)) * _s("weapon")
@@ -877,4 +881,4 @@ func _apply(pose: Dictionary, dt: float) -> void:
 		else:
 			_bones.weapon.rotation_degrees = blade
 		# 比比例时不拿剑，剑横在腿前会挡住腿的轮廓
-		_bones.weapon.visible = _action != "stand"
+		_bones.weapon.visible = show_weapon and _action != "stand"

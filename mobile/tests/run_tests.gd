@@ -8,7 +8,6 @@ const Bazi = preload("res://scripts/rules/bazi.gd")
 const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
 const Appearance = preload("res://scripts/appearance.gd")
-const WornSprites = preload("res://scripts/worn_sprites.gd")
 const ArmoryFigure = preload("res://scripts/armory_figure.gd")
 const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const SideArt = preload("res://scripts/side_art.gd")
@@ -392,92 +391,42 @@ func _test_appearance() -> bool:
 	for element in WuXing.WUXING:
 		_check(Appearance.ROBE_TINTS.has(element) and Appearance.EDGE_TINTS.has(element),
 			"%s行有成套的袍色与刃色" % element)
-	for female in [false, true]:
-		var base: Texture2D = SideArt.SPRITES[int(female)]
-		_check(WornSprites.texture(female, bare) == base, "卸下服饰恢复男女各自的底图")
-		var sheet := WornSprites.texture(female, fire)
-		_check(sheet == WornSprites.texture(female, fire), "预览与战斗复用相同外观的图集")
-		var original := SideArt.pixels(base)
-		var painted := SideArt.pixels(sheet)
-		_check(painted.get_size() == original.get_size() and original.get_size() == Vector2i(SideArt.CELL * SideArt.TEXEL) * Vector2i(4, 3),
-			"人物图集是 4×3 格，每格为逻辑尺寸的 TEXEL 倍")
-		for frame in range(12):
-			var area := Rect2i(SideArt.frame_region(frame))
-			_check(original.get_region(area).get_data() != painted.get_region(area).get_data(), "穿戴在第 %d 格动作中可见" % frame)
-		for slot in ["armor", "gloves", "boots", "charm", "ring"]:
-			var one := Appearance.build({slot: entries[slot]}, {}, "sword")
-			var dressed := SideArt.pixels(WornSprites.texture(female, one))
-			var rest := Rect2i(SideArt.frame_region(0))
-			_check(dressed.get_region(rest).get_data() != original.get_region(rest).get_data(), "单穿 %s 在站姿中可见" % slot)
-			var head := Rect2i(Vector2i(50, 14) * SideArt.TEXEL, Vector2i(10, 15) * SideArt.TEXEL)
-			_check(dressed.get_region(head).get_data() == original.get_region(head).get_data(), "单穿 %s 保留脸部原画" % slot)
-		# 染色只换颜色不换轮廓：透明的地方仍然透明，半透明的勾边最多被填实一点。
-		var silhouette_kept := true
-		for y in range(0, original.get_height(), 5):
-			for x in range(0, original.get_width(), 5):
-				if absf(original.get_pixel(x, y).a - painted.get_pixel(x, y).a) > 0.1:
-					silhouette_kept = false
-		_check(silhouette_kept, "换装不改人物轮廓")
-		var chest := Vector2i(SideArt.frame_region(0).position) + Vector2i(50, 64) * SideArt.TEXEL
-		var robe := painted.get_pixelv(chest)
-		_check(robe.r > robe.b * 1.3 and robe.r > robe.g, "火行护甲把袍子染成暖色")
-	# 行装页的正面全身像由 dye.gdshader 现染：图层要和原画一样大，脸上不染，靴子图层只落在脚下。
-	for female in [false, true]:
-		var stem := "fullbody-female" if female else "fullbody-male"
-		var original := SideArt.pixels(ArmoryFigure.FULL_BODY[int(female)])
-		var size := original.get_size()
-		var face := Rect2i(Vector2i.ZERO, Vector2i(size.x, roundi(size.y * 0.1)))
-		for layer in WornSprites.LAYERS:
-			var shade := SideArt.pixels(load("res://art/side/dye/%s-%s.png" % [stem, layer]))
-			_check(shade.get_size() == size, "全身像的 %s 图层和原画一样大" % layer)
-			_check(shade.get_region(face).is_invisible(), "全身像的 %s 图层不碰脸" % layer)
-		var boots := SideArt.pixels(load("res://art/side/dye/%s-boots.png" % stem))
-		_check(not boots.get_region(Rect2i(0, roundi(size.y * 0.9), size.x, roundi(size.y * 0.08))).is_invisible()
-			and boots.get_region(Rect2i(0, 0, size.x, roundi(size.y * 0.7))).is_invisible(), "全身像的靴子图层只在脚下")
 	var figure := ArmoryFigure.new()
-	figure.display({"entries": {"armor": entries.armor}, "patterns": {}}, {"gender": "female"}, "sword", true)
-	var dyed: Color = figure.material.get_shader_parameter("cloth_dye")
-	_check(dyed.a > 0.0 and dyed.r > dyed.b, "穿上火行护甲，全身像的袍子染成暖色")
-	_check(is_zero_approx(Color(figure.material.get_shader_parameter("boots_dye")).a), "没穿鞋子，全身像的靴子保持原画")
-	_check(figure.material.get_shader_parameter("cloth_layer").resource_path.ends_with("fullbody-female-cloth.png"), "女角全身像用女角的图层")
-	_check(figure.trying_label.visible, "试穿时标出「试穿」")
 	figure.display({}, {"gender": "male"}, "sword")
-	_check(is_zero_approx(Color(figure.material.get_shader_parameter("cloth_dye")).a) and not figure.trying_label.visible,
-		"素身的全身像就是原画")
+	var base: Texture2D = figure.actor.rig._sprites.torso[0].texture
+	var head: Texture2D = figure.actor.rig._sprites.head[0].texture
+	var armor: Dictionary = entries.armor.duplicate(true)
+	armor.armor_type = "leather"
+	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
+	var torso: Sprite2D = figure.actor.rig._sprites.torso[0]
+	_check(torso.texture != base and torso.modulate.r > torso.modulate.b, "试穿的皮甲用刀客拆件并显示火行染色")
+	_check(figure.actor.rig._sprites.head[0].texture == head and figure.actor.form == "bow",
+		"男女共用刀客头像与骨架，试穿预览保留角色兵器")
+	_check(figure.trying_label.visible, "试穿时标出「试穿」")
+	figure.display({}, {"gender": "female"}, "spear")
+	_check(torso.texture == base and torso.modulate.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
+		"卸下装备恢复旧布短打")
 	figure.free()
-	var water_look := Appearance.build({"armor": Derive.derive({"slot": "armor", "materials": {"ren": 6}, "process": ["forge_fine"]}, 3)}, {}, "sword")
-	var water_sheet := SideArt.pixels(WornSprites.texture(false, water_look))
-	var water_chest := water_sheet.get_pixelv(Vector2i(50, 64) * SideArt.TEXEL)
-	_check(water_chest.b > water_chest.r * 1.2, "水行护甲把袍子染成冷色")
 	return true
 
+
 func _test_weapon_grips() -> bool:
-	var atlas := SideArt.pixels(HeldWeapon.ATLAS)
-	var art_cell := Vector2(atlas.get_size()) / HeldWeapon.ATLAS_GRID
-	_check(HeldWeapon.FORMS.size() == Gear.WEAPON_FORMS.size(), "每种形制都有手持原画")
+	var body := CutoutHero.new()
+	var sprite: Sprite2D = body.rig._sprites.hand[0]
+	var grip: Array = body.rig.rig.parts.hand.grip
+	_check(SideArt.pixels(sprite.texture).get_pixel(int(grip[0]), int(grip[1])).a > 0.5,
+		"刀客握点落在手掌上")
 	for form in Gear.WEAPON_FORMS:
-		_check(HeldWeapon.body_frame(form, 0) == 0 and HeldWeapon.IDLE.has(form), "%s 待机用直立的那一格，并有自己的垂手握法" % form)
-		var spec: Dictionary = HeldWeapon.FORMS[form]
-		var column := Vector2(int(spec.cell) % int(HeldWeapon.ATLAS_GRID.x), floori(int(spec.cell) / HeldWeapon.ATLAS_GRID.x))
-		var grip := Vector2i((column + Vector2(spec.grip) / 128.0) * art_cell)
-		_check(atlas.get_pixelv(grip).a > 0.8, "%s 原画的握柄中心可见" % form)
-		for sex in [0, 1]:
-			var sprite: Texture2D = SideArt.SPRITES[sex]
-			var body := SideArt.pixels(sprite)
-			for frame in range(12):
-				var pose := HeldWeapon.body_frame(form, frame)
-				var source := Vector2i(SideArt.frame_region(pose).position)
-				var hands := [HeldWeapon.blade_hand(sex, pose) if form == "sword" else HeldWeapon.LEAD[sex][pose]]
-				for hand: Vector2 in hands:
-					_check(body.get_pixelv(source + Vector2i(hand * SideArt.TEXEL)).a > 0.5,
-						"%s 第 %d 帧握点落在人物手上" % [form, frame])
-			if form == "bow":
-				for release in [false, true]:
-					var archer := SideArt.pixels(HeldWeapon.BowPose.texture(sprite, sex, release))
-					var nock := HeldWeapon.BowPose.nock_hand(sex, release)
-					var hand: Vector2 = HeldWeapon.LEAD[sex][10]
-					_check(archer.get_pixelv(Vector2i(nock * SideArt.TEXEL)).a > 0.8 and absf(nock.y - hand.y) <= 1.0,
-						"拉弦手与弓把等高，满弓与撒放格均有手部原画")
+		body.dress(Appearance.bare(form))
+		body.drive(&"attack", 0.25, 0.0, false, [0.33])
+		_check(body.form == form and body.rig.show_weapon == (form == "sword"),
+			"%s 绑定真实兵器，刀只出现在剑形制" % form)
+		_check(body._draw_bowstring == (form == "bow") and body._brace_spear == (form == "spear"),
+			"%s 按自身形制拉弦或持枪" % form)
+		body.drive(&"", 0.0, 3.0, true, [])
+		_check(body.rig.current_action() == "run" and not body._draw_bowstring and not body._brace_spear,
+			"%s 走位时回到同一套持械步态" % form)
+	body.free()
 	return true
 
 # 动作曲线要首尾归位，否则动作之间会跳帧；每种兵器都得有自己的普攻。
@@ -494,8 +443,6 @@ func _test_motion() -> bool:
 	for form in Gear.WEAPON_FORMS:
 		var clip := Motion.clip_for(&"attack", form)
 		_check(Motion.CLIPS.has(clip), "%s 有自己的普攻曲线" % form)
-		_check(Roster.battle_art(0, form, Motion.READY) != null
-			and Roster.battle_art(0, form, Motion.WINDUP) != null, "%s 的待机与起手都能取到画" % form)
 	var walking := Motion.walk(1.2)
 	var standing := Motion.idle(0.4)
 	_check(not Vector2(walking.shift).is_equal_approx(Vector2(standing.shift)), "走位与吐纳不是同一个姿态")
@@ -516,8 +463,6 @@ func _test_cutout_hero() -> bool:
 			_check(at.y >= last.y - 0.0001, "皮影劈砍：同一刀里时刻不倒退（进度 %.2f）" % (step / 100.0))
 		last = at
 	_check(is_equal_approx(CutoutHero.attack_time(1.0, cues, hit, end).y, end), "皮影劈砍：最后一刀收到整段结束")
-	_check(CutoutHero.supports(false, "sword") == CutoutHero.ENABLED and not CutoutHero.supports(true, "sword")
-		and not CutoutHero.supports(false, "bow"), "皮影主角只接男主角拿剑")
 	var look := Appearance.build({"armor": {"armor_type": "leather"}, "boots": {"armor_type": "chain"}}, {}, "sword")
 	_check(look.armor_types.get("armor") == "leather" and look.armor_types.get("boots") == "chain"
 		and not look.armor_types.has("gloves"), "外观带上护甲类别")

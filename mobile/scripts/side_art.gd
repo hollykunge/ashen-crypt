@@ -2,14 +2,8 @@ extends RefCounted
 
 const Places = preload("res://scripts/rules/places.gd")
 const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
-const PORTRAITS := [preload("res://art/side/portrait-male.webp"), preload("res://art/side/portrait-female.webp")]
-# 人物图集：每格的逻辑尺寸是 96×96，脚底、握点和关节都按这个尺寸标定；贴图本身是它的 TEXEL 倍，
-# 由 art/side/pack_frames.py 从原画拼出。画的时候目标矩形用逻辑尺寸，取样矩形用 frame_region。
-const SHEETS := [preload("res://art/side/frames-male.png"), preload("res://art/side/frames-female.png")]
-const TEXEL := 3
+const PORTRAIT := preload("res://prototype/cutout/swordsman/parts/head.png")
 const CELL := Vector2(96, 96)
-# 工程默认最近邻取样（精怪和界面是像素图），高清人物要带多级渐远的线性取样，缩小时才不闪。
-static var SPRITES: Array = [smooth(SHEETS[0]), smooth(SHEETS[1])]
 const PIVOT := Vector2(47, 89)
 const FLOOR := 0.76
 const SNOW_FLOOR := 0.79
@@ -17,15 +11,6 @@ const SNOW_FLOOR := 0.79
 # 使用原画比例，导入时降低纹理分辨率也会保持同样的人物大小。
 const STREET_ACTOR_SCALE := 1.64 / 887.0
 const SNOW_ACTOR_SCALE := 1.52 / 887.0
-const KNEE_Y := 70.0
-# 支撑脚从前脚跟滚到后脚尖。坐标在各自的 96 像素分格内。
-const SOLES := [
-	{1: Vector2(65, 88), 11: Vector2(58, 89), 2: Vector2(35, 88)},
-	{1: Vector2(62, 88), 11: Vector2(57, 89), 2: Vector2(34, 88)},
-]
-const FRAMES := {&"ready": 0, &"guard": 3, &"windup": 4, &"strike": 5, &"follow": 6,
-	&"recover": 7, &"dodge": 8, &"hurt": 9, &"cast": 10}
-
 # 每个地域一条长卷，由 art/side/plates/prompts.json 的四幅拼成，地面线都按 79% 出图。
 # haze 是远景空气透视的颜色（snow_haze.gdshader），weather 决定前景飘的东西，shadow 是脚下阴影。
 # near 是镜头最前面那层剪影（草、芦苇、乱石、云絮），比镜头走得快，拉出纵深；near_ink 是它的颜色。
@@ -74,38 +59,10 @@ static func plate_progress(layer: int) -> float:
 	var span := Places.LAYERS_PER_BLOCK - 1
 	return float(posmod(maxi(1, layer) - 1, Places.LAYERS_PER_BLOCK)) / float(span)
 
-static func frame_for(pose: StringName) -> int:
-	return FRAMES.get(pose, 0)
-
-static func gait(distance: float, actor_scale: float, sprite: int, running: bool) -> Dictionary:
+static func step_trace(distance: float, actor_scale: float, running: bool) -> Dictionary:
 	var step_length := (33.0 if running else 22.0) * actor_scale
 	var phase := fposmod(distance / step_length, 1.0)
-	var frame := 1 if phase < 0.29 else (11 if phase < 0.70 else 2)
-	return {"frame": frame, "sole": SOLES[sprite][frame] - PIVOT,
-		"plant": (0.5 - phase) * step_length, "phase": phase, "step_length": step_length}
-
-static func draw_gait(canvas: CanvasItem, sprite: Texture2D, gait_pose: Dictionary,
-		foot_shift: Vector2, ink: Color) -> void:
-	var source := frame_region(gait_pose.frame)
-	var upper := Vector2(CELL.x, KNEE_Y)
-	canvas.draw_texture_rect_region(sprite, Rect2(-PIVOT, upper), Rect2(source.position, upper * TEXEL), ink)
-	# 只让膝盖以下跟随落脚点，肩、腰和武器仍随角色位置连续移动。
-	var top := Vector2(0.0, KNEE_Y) - PIVOT
-	var sole_height := float(gait_pose.sole.y) + PIVOT.y - KNEE_Y
-	var bottom := Vector2(0.0, CELL.y) - PIVOT + foot_shift * ((CELL.y - KNEE_Y) / sole_height)
-	var right := Vector2(CELL.x, 0.0)
-	var points := PackedVector2Array([top, top + right, bottom + right, bottom])
-	var tex_size := sprite.get_size()
-	var uv_top := (source.position + Vector2(0.0, KNEE_Y) * TEXEL) / tex_size
-	var uv_bottom := (source.position + Vector2(0.0, CELL.y) * TEXEL) / tex_size
-	var uv_right := right * TEXEL / tex_size
-	canvas.draw_polygon(points, PackedColorArray([ink]),
-		PackedVector2Array([uv_top, uv_top + uv_right, uv_bottom + uv_right, uv_bottom]), sprite)
-
-# 某一格在贴图上的取样矩形（贴图像素）。
-static func frame_region(frame: int) -> Rect2:
-	var cell := Vector2(frame % 4, floori(frame / 4.0))
-	return Rect2(cell * CELL * TEXEL, CELL * TEXEL)
+	return {"plant": (0.5 - phase) * step_length, "phase": phase, "step_length": step_length}
 
 static func smooth(texture: Texture2D) -> CanvasTexture:
 	var out := CanvasTexture.new()
@@ -113,7 +70,7 @@ static func smooth(texture: Texture2D) -> CanvasTexture:
 	out.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	return out
 
-# 取回一张人物贴图的像素（拷贝一份，不带多级渐远），换装合成与测试都从这里读。
+# 取回贴图像素的副本供检查。
 static func pixels(texture: Texture2D) -> Image:
 	var source: Texture2D = texture.diffuse_texture if texture is CanvasTexture else texture
 	# 无头模式下 get_image 交回的是贴图自己存的那一份，直接改会把底图改掉，所以一定先拷贝。
@@ -123,7 +80,3 @@ static func pixels(texture: Texture2D) -> Image:
 	image.clear_mipmaps()
 	image.convert(Image.FORMAT_RGBA8)
 	return image
-
-static func texture_from(image: Image) -> CanvasTexture:
-	image.generate_mipmaps()
-	return smooth(ImageTexture.create_from_image(image))

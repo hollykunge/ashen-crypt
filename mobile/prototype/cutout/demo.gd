@@ -2,8 +2,8 @@ extends Node2D
 ## 皮影小样的演示：同一个角色的几套外观并排，同一套骨骼、同一串动作，只是挂的部件图不同。
 ## 角色目录里的 demo.json 写要并排的外观目录和标签。
 ##
-##   godot --path mobile res://prototype/cutout/demo.tscn -- hero                          # 开窗口直接看
-##   godot --path mobile --fixed-fps 30 res://prototype/cutout/demo.tscn -- hero <目录>     # 每帧截图存进目录
+##   godot --path mobile res://prototype/cutout/demo.tscn -- swordsman                          # 开窗口直接看
+##   godot --path mobile --fixed-fps 30 res://prototype/cutout/demo.tscn -- swordsman <目录>     # 每帧截图存进目录
 
 const ROOT := "res://prototype/cutout/"
 const GROUND := 570.0
@@ -27,7 +27,7 @@ func _ready() -> void:
 	get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	get_window().size = Vector2i(1280, 660)
 	var args := OS.get_cmdline_user_args()
-	var who: String = args[0] if args.size() > 0 else "shanxiao"
+	var who: String = args[0] if args.size() > 0 else "swordsman"
 	if args.size() > 1:
 		_frames_dir = args[1]
 		Engine.max_fps = 0

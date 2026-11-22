@@ -1,7 +1,7 @@
 extends SceneTree
 ## 整段演示（待机→走→跑→劈砍→待机→劈砍）逐帧查骨骼角度：每帧变化超过 60° 的都打印出来（正常动作不会一帧转这么多，
 ## 多半是角度跨 ±180° 时弹簧绕了一大圈）。
-##   godot --path mobile --headless --fixed-fps 30 --script res://prototype/cutout/spin_check.gd -- hero
+##   godot --path mobile --headless --fixed-fps 30 --script res://prototype/cutout/spin_check.gd -- swordsman
 var demo
 var n := 0
 var prev := {}

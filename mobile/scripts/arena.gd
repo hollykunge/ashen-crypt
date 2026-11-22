@@ -12,8 +12,6 @@ const Figure = preload("res://scripts/figure.gd")
 const Rig = preload("res://scripts/rig.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const SideArt = preload("res://scripts/side_art.gd")
-const HeldWeapon = preload("res://scripts/held_weapon.gd")
-const WornSprites = preload("res://scripts/worn_sprites.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
 const CutoutHero = preload("res://scripts/cutout_hero.gd")
 const WORLD_CENTER_X := 538.0
@@ -43,7 +41,6 @@ const VIGNETTE := 0.7
 const VIGNETTE_CAMP := 0.6
 
 var run: Combat
-var portrait_id := 0
 var hero_element := "jin"
 var scale_to_screen := 1.0
 var actor_zoom := 1.0
@@ -55,17 +52,13 @@ var world_offset := Vector2.ZERO
 var camp_view := false
 var ash_time := 0.0
 # 装备外观，由 main 在换装备或开场时写入。
-var retinue_look := Appearance.bare()
-var hero_sprite: Texture2D = SideArt.SPRITES[0]
 var look: Dictionary = Appearance.bare():
 	set(value):
 		look = value
-		hero_sprite = WornSprites.texture(portrait_id % 2 == 1, look)
-		if look.form == "bow":
-			HeldWeapon.BowPose.texture(hero_sprite, portrait_id % 2, false)
-		_sync_cutout()
-# 皮影主角（拆件骨骼）。只有支持的人物和兵器才有，其余为 null，照旧画分格人物。
+		if cutout != null:
+			cutout.dress(look)
 var cutout: CutoutHero
+var retinue: CutoutHero
 # 打击反馈：震屏、闪白、顿感都只影响画面，不碰结算。
 # shake 是「创伤值」0~1：每次打击往上加，按秒线性回落；画面位移按它的 1.5 次方算，
 # 小打小闹几乎不抖，连续重击才明显。抖动偏向打击方向（shake_dir），另有一下沿打击方向的镜头冲击（kick）。
@@ -113,6 +106,9 @@ var atmosphere := ColorRect.new()
 var near := Control.new()
 
 func _ready() -> void:
+	cutout = CutoutHero.new()
+	add_child(cutout)
+	cutout.dress(look)
 	texture_filter = TEXTURE_FILTER_NEAREST
 	spark_rng.randomize()
 	backdrop.texture = SideArt.FALLBACK_PLATE.texture
@@ -175,6 +171,13 @@ func _process(delta: float) -> void:
 		return
 	ash_time = fposmod(ash_time + delta, 120.0)
 	if run != null:
+		if run.companions > 0 and retinue == null:
+			retinue = CutoutHero.new()
+			add_child(retinue)
+			retinue.dress(Appearance.bare())
+		elif run.companions == 0 and retinue != null:
+			retinue.queue_free()
+			retinue = null
 		snow_drift = fposmod(snow_drift + delta * (0.39 if run.advancing or layer_travel else 0.06), 4.0)
 	_drain_pulses()
 	_track_camera(delta)
@@ -464,7 +467,7 @@ func _draw_cut_in() -> void:
 	var elapsed := CUT_IN_TIME - cut_in_left
 	var alpha := minf(elapsed / 0.05, 1.0) * minf(cut_in_left / 0.17, 1.0)
 	var wide := size.x >= size.y * 1.17
-	var portrait: Texture2D = SideArt.PORTRAITS[portrait_id % 2]
+	var portrait: Texture2D = SideArt.PORTRAIT
 	var width := minf(size.x * 0.20, 260.0) if wide else size.x * 0.24
 	var height := width * portrait.get_height() / portrait.get_width()
 	var x := 18.0 - 24.0 * (1.0 - alpha)
@@ -669,11 +672,6 @@ func _floor(point: Vector2) -> Vector2:
 func _step_vector() -> Vector2:
 	return run.step_direction * Vector2(1.0, lane_depth)
 
-# 将地面的落脚点换算到当前分格的局部坐标。
-func _foot_shift(gait: Dictionary, facing: float, actor_scale: float, lean: float) -> Vector2:
-	var plant := _step_vector() * float(gait.plant) / actor_scale
-	return plant.rotated(-lean * facing) * Vector2(facing, 1.0) - Vector2(gait.sole)
-
 func _hero_pose() -> Dictionary:
 	if run.motion == &"":
 		return Motion.REST if run.stride > 0.0 else Motion.idle(ash_time)
@@ -687,29 +685,13 @@ func _hero_pose() -> Dictionary:
 		phase = lerpf(0.30, 1.0, phase)
 	return Motion.sample(Motion.clip_for(run.motion, run.weapon_form), phase)
 
-func _sync_cutout() -> void:
-	var wanted := CutoutHero.supports(portrait_id % 2 == 1, String(look.form))
-	if not wanted:
-		if cutout != null:
-			cutout.queue_free()
-			cutout = null
-		return
-	if cutout == null:
-		cutout = CutoutHero.new()
-		add_child(cutout)
-	cutout.dress(look)
-
-# 皮影主角这一帧接管得了就返回 true（动作、时刻已经对好）。
-func _drive_cutout(running: bool) -> bool:
-	if cutout == null:
-		return false
+func _drive_cutout(running: bool) -> void:
 	cutout.fit(scale_to_screen * HERO_SCALE * actor_zoom, get_viewport().get_final_transform().get_scale().x)
 	var phase := run.motion_time / maxf(run.motion_duration, 0.01)
 	if hold > 0.0 and held_motion == run.motion:
 		phase = minf(phase, held_phase)
-	var cues: Array = Combat.BLADE_CUES.get(run.weapon_form, [])
 	var walked := run.stride * _step_vector().length() * scale_to_screen
-	return cutout.drive(run.motion, phase, walked, running, cues)
+	cutout.drive(run.motion, phase, walked, running, run.attack_cues())
 
 func _draw_hero() -> void:
 	var base := _floor(run.position)
@@ -717,22 +699,16 @@ func _draw_hero() -> void:
 	var facing := -1.0 if cos(run.facing) < 0.0 else 1.0
 	hero_pose = _hero_pose()
 	var running := run.advancing or layer_travel
-	var use_cutout := _drive_cutout(running)
-	var sprite_index := portrait_id % 2
-	var frame := SideArt.frame_for(hero_pose.frame)
+	_drive_cutout(running)
 	var retreating := run.motion == &"retreat" and run.dodge_moves
 	var shift_x := 0.56 * facing if retreating else 0.0
 	var nudge := Vector2(hero_pose.shift) * Vector2(shift_x, 0.44)
 	var point := base + nudge
-	var lean := 0.0
 	var gait := {}
 	if run.motion.is_empty() and run.stride > 0.0:
 		if absf(run.step_direction.x) > 0.15:
 			facing = signf(run.step_direction.x)
-		gait = SideArt.gait(run.stride, hero_scale, sprite_index, running)
-		frame = gait.frame
-		lean = 0.11 if running else 0.0
-	var sprite := hero_sprite
+		gait = SideArt.step_trace(run.stride, hero_scale, running)
 	var ink: Color = Roster.ELEMENT_TINTS.get(hero_element, Color.WHITE).lerp(Color.WHITE, 0.88)
 	ink = ink.lerp(Color(1.45, 1.32, 1.22), float(hero_pose.flash) * 0.60)
 	ink.a = float(hero_pose.fade)
@@ -754,21 +730,7 @@ func _draw_hero() -> void:
 		69.0, 52.0, Motion.REST)
 	draw_set_transform(Vector2.ZERO)
 	Figure.halo(self, rig, look, ash_time)
-	if use_cutout:
-		_draw_cutout_hero(point, facing, ink, retreating)
-		_draw_hero_aura(rig)
-		return
-	_at_actor(point, facing, hero_scale, lean)
-	if float(hero_pose.ghost) > 0.1 and (run.motion != &"retreat" or retreating):
-		var offset := 13.0 if run.motion == &"retreat" else -10.0
-		if float(hero_pose.ghost) > 0.65 and run.motion == &"attack":
-			HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, Color(look.trim, float(hero_pose.ghost) * 0.12),
-				{}, Vector2.ZERO, Vector2(offset * 2.1, 0))
-		HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, Color(look.trim, float(hero_pose.ghost) * 0.23),
-			{}, Vector2.ZERO, Vector2(offset, 0))
-	var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, hero_scale, lean)
-	HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, ink, gait, feet)
-	draw_set_transform(Vector2.ZERO)
+	_draw_cutout_hero(point, facing, ink, retreating)
 	_draw_hero_aura(rig)
 
 # 皮影主角：残影、本体都是同一块画布，错开、压淡贴几次。
@@ -788,29 +750,23 @@ func _draw_hero_aura(rig: Rig) -> void:
 	Figure.dust(self, rig, look, ash_time)
 	_world_transform()
 
-# 官宦随侍与随侍伤害共用同一个人数。
+# 官宦随侍按战斗数值绘制，共用一套刀客模型和动作。
 func _draw_retinue() -> void:
+	if retinue == null:
+		return
 	var spread := route_view and size.x >= size.y * 1.17
+	var running := run.advancing or layer_travel
+	var facing := -1.0 if run.step_direction.x < -0.15 else 1.0
+	var motion := &"attack" if not running and run.companion_left >= 0.65 else &""
+	var phase := lerpf(0.48, 1.0, clampf((0.75 - run.companion_left) / 0.10, 0.0, 1.0))
+	var stride := run.stride * _step_vector().length() * scale_to_screen
+	retinue.fit(scale_to_screen * actor_zoom * 0.9, get_viewport().get_final_transform().get_scale().x)
+	retinue.drive(motion, phase, stride, running, [0.48])
 	for index in range(run.companions):
 		var offset := Vector2(56.0 + index * 44.0, 9.0 - index * 14.0) if spread else Vector2(42.0 + index * 28.0, 2.0 - index * 2.0)
 		var point := _floor(run.position) - offset
 		_shadow(point, Vector2(17, 3) * actor_zoom, Color("#0c090ab8"))
-		var running := run.advancing or layer_travel
-		var pose := &"strike" if not running and run.companion_left >= 0.65 else &"ready"
-		var frame := SideArt.frame_for(pose)
-		var actor_scale := (0.97 - index * 0.055) * actor_zoom
-		var facing := 1.0
-		var lean := 0.0
-		var gait := {}
-		if pose == &"ready" and run.stride > 0.0:
-			gait = SideArt.gait(run.stride + index * 9.0, actor_scale, 0, running)
-			facing = -1.0 if run.step_direction.x < -0.15 else 1.0
-			frame = gait.frame
-			lean = 0.11 if running else 0.0
-		_at_actor(point, facing, actor_scale, lean)
-		var ink := Color("#929896e0")
-		var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, actor_scale, lean)
-		HeldWeapon.draw_actor(self, SideArt.SPRITES[0], 0, frame, retinue_look, ink, gait, feet)
+		retinue.draw(self, world_offset + jitter + point * scale_to_screen, facing, Color("#929896e0"))
 		_world_transform()
 
 func _draw_enemy(enemy: Dictionary) -> void:
@@ -856,7 +812,7 @@ func _draw_projectile(shot: Dictionary) -> void:
 	if not shot.empowered:
 		var forward := Vector2(shot.velocity).normalized()
 		var facing := -1.0 if forward.x < 0.0 else 1.0
-		var release := HeldWeapon.release_point(portrait_id % 2, shot.magic, shot.wand) * Vector2(facing, 1) * HERO_SCALE * actor_zoom
+		var release := cutout.release_point() * Vector2(facing, 1) * HERO_SCALE * actor_zoom
 		var first_point := _floor(Vector2(shot.source) + forward * Combat.PROJECTILE_START) - height
 		var remaining := clampf(shot.life * Vector2(shot.velocity).length() / (shot.reach - Combat.PROJECTILE_START), 0.0, 1.0)
 		tip += (_floor(shot.source) + release - first_point) * remaining
@@ -870,7 +826,7 @@ func _draw_projectile(shot: Dictionary) -> void:
 			var point := tip - direction * (i * 4.0) + direction.orthogonal() * sway
 			_square(point, maxf(2.0, float(echo + 1 - i)), Color("#fff2ff") if i == 0 else Color(shot.color, 1.0 - i * 0.09))
 		return
-	var tail := tip - direction * HeldWeapon.arrow_length(portrait_id % 2) * HERO_SCALE * actor_zoom
+	var tail := tip - direction * 29.0 * HERO_SCALE * actor_zoom
 	var normal := direction.orthogonal()
 	draw_line(tail, tip, Color("#aa9776"), 2.0)
 	draw_colored_polygon(PackedVector2Array([tip + direction * 4.0, tip - direction * 4.0 + normal * 3.0, tip - direction * 4.0 - normal * 3.0]), Color("#f3ecdc"))

@@ -233,7 +233,7 @@ func _build_battle() -> void:
 	hero_chip.clip_contents = true
 	_describe(hero_chip, "角色信息")
 	hero_chip.pressed.connect(_open_hero_sheet)
-	hero_face = _image(SideArt.PORTRAITS[0])
+	hero_face = _image(SideArt.PORTRAIT)
 	hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	hero_chip.add_child(hero_face)
 	_fill(hero_face)
@@ -339,7 +339,7 @@ func _build_battle() -> void:
 	identity.get_parent().gui_input.connect(_hold_vitals)
 	var portrait_row := _hbox(6)
 	identity.add_child(portrait_row)
-	battle_portrait = _image(SideArt.PORTRAITS[0])
+	battle_portrait = _image(SideArt.PORTRAIT)
 	battle_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	battle_portrait.custom_minimum_size = Vector2(43, 56)
 	portrait_row.add_child(battle_portrait)
@@ -360,7 +360,7 @@ func _build_battle() -> void:
 	retinue_faces = _hbox(4)
 	portrait_row.add_child(retinue_faces)
 	for index in range(3):
-		var face := _image(SideArt.PORTRAITS[0])
+		var face := _image(SideArt.PORTRAIT)
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		face.custom_minimum_size = Vector2(40.0, 56.0)
 		face.modulate = Color("#b7c3c5")
@@ -768,8 +768,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	var person := profile.character()
 	var weapon := profile.item(profile.equipped("weapon"))
 	var element := Gear.WuXing.stem_element(person.day_stem)
-	field.portrait_id = Roster.portrait_id(person.day_stem, person.gender == "female")
-	battle_portrait.texture = SideArt.PORTRAITS[field.portrait_id % 2]
+	battle_portrait.texture = SideArt.PORTRAIT
 	hero_face.texture = battle_portrait.texture
 	hero_face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)
 	field.hero_element = element

@@ -1,7 +1,6 @@
 extends RefCounted
 
 const SideArt = preload("res://scripts/side_art.gd")
-const BowPose = preload("res://scripts/bow_pose.gd")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Parts = preload("res://scripts/weapon_parts_atlas.gd")
 # 手持兵器图集由 art/side/pack_weapons.py 从法器原画抠出，4 列 × 2 行。
@@ -9,44 +8,10 @@ const ATLAS_SHEET = preload("res://art/side/held-weapons.png")
 const ATLAS_GRID := Vector2(4, 2)
 static var ATLAS: CanvasTexture = SideArt.smooth(ATLAS_SHEET)
 static var PARTS: CanvasTexture = SideArt.smooth(Parts.SHEET)
-# 零件拼的兵器，素材空间一单位折合多少人物逻辑像素。
-const BLADE_SCALE := {"sword": 0.29}
 const BOW_SCALE := 0.48
 const BOW_STRING := Color("#d4c4a5")
 const HEAD_SCALE := {"spear": 0.30}
 
-# 两手取自男女各自动作原画里的拳心。第一只手领招，第二只手持副刀或拉弦。
-const LEAD := [
-	[Vector2(64, 58), Vector2(69, 55), Vector2(62, 52), Vector2(72, 58), Vector2(35, 23), Vector2(82, 41),
-	 Vector2(73, 61), Vector2(64, 46), Vector2(55, 53), Vector2(62, 43), Vector2(84, 32), Vector2(64, 54)],
-	[Vector2(58, 58), Vector2(62, 54), Vector2(58, 55), Vector2(64, 58), Vector2(36, 28), Vector2(74, 42),
-	 Vector2(67, 62), Vector2(58, 49), Vector2(53, 53), Vector2(54, 45), Vector2(78, 34), Vector2(58, 58)]
-]
-const SUPPORT := [
-	[Vector2(38, 57), Vector2(36, 56), Vector2(36, 54), Vector2(34, 58), Vector2(38, 26), Vector2(79, 43),
-	 Vector2(70, 62), Vector2(48, 47), Vector2(33, 58), Vector2(38, 49), Vector2(38, 53), Vector2(49, 56)],
-	[Vector2(40, 58), Vector2(37, 57), Vector2(38, 57), Vector2(40, 58), Vector2(38, 30), Vector2(71, 44),
-	 Vector2(65, 60), Vector2(48, 49), Vector2(38, 58), Vector2(36, 50), Vector2(41, 53), Vector2(44, 58)]
-]
-# 剑由哪只手握，依每一格衣袖的走向选拳心。迈步时前后手会交替出现在轮廓外；
-# 架势以后各格交给身前那只拳，剑从拳前出去，不横穿身子。
-const NEAR_IS_LEAD := [
-	[true, false, true, true, true, true, true, true, true, true, true, false],
-	[true, false, false, true, true, true, true, true, true, true, true, false]
-]
-# 剑在每一格从握点指出去的方向（弧度，0 朝前，正值往下），男女各一行。
-# 剑柄横穿拳眼，剑刃从虎口那头出去：大致是前臂方向往虎口一侧转 60° 上下（垂手时剑尖斜指前下，
-# 平伸的拳剑尖斜指前上），手腕能再往小指一侧掰一点。双手握的几格（4、5、6）剑柄顺着两拳的连线。
-const SWING := [
-	[0.50, 0.48, -0.10, -0.50, -2.20, -0.50, -0.25, -1.35, -0.55, -1.30, -0.95, 0.05],
-	[0.55, 0.85, 0.70, -0.50, -2.20, -0.50, 0.00, -1.15, -0.60, -1.25, -1.05, 0.40]
-]
-# 长枪单手提着的几格：迈步时枪尖斜指前上，闪避、受击、施法时随前手略抬。
-const SPEAR_HELD := {8: -0.48, 9: -0.24, 10: -0.42}
-const SPEAR_CARRY := -0.98
-
-# 三种兵形：剑由零件拼，长枪是杆加枪头，弓是弓臂。
-const KINDS := ["sword", "spear", "bow"]
 # 旧的整张原画兵器（零件图缺失时的兜底）：素材空间为 128 × 128，一格原画。沿柄从握点看向护手或兵器头；
 # 横向翻转让刀的亮刃迎着下斩方向。
 const FORMS := {
@@ -60,17 +25,6 @@ const POLES := {
 	"spear": {"butt": -17.0, "socket": 33.0, "clip": 128.0,
 		"wood": Color("#5a5560"), "core": Color("#1d1a1c"), "cap": Color("#d0ab73")}
 }
-# 双拳并在一起的那几格看不出杆的朝向，长枪按出枪的路线单独给：收在肩后、平刺、枪尖略沉、收回。
-const SPEAR_AIM := {4: -0.07, 5: -0.03, 6: 0.16, 7: -0.46}
-# 握拳处从人物贴图上再盖一小块回来，半径是逻辑像素。
-const FIST := 3.2
-# 待机一律用直立的第 0 格，兵器单手垂在身侧：剑横穿垂着的拳、剑尖斜指前下，枪竖着拄地，弓斜提。
-# 数值是兵器从握点指出去的方向（弧度，0 朝前，正值往下）。
-const IDLE := {"sword": 0.50, "spear": -1.50, "bow": -1.36}
-const IDLE_RIGHT := [SUPPORT[0][0], SUPPORT[1][0]]
-const IDLE_LEFT := [LEAD[0][0], LEAD[1][0]]
-# 拄地的长柄兵器，柄尾落在脚底线往上这么多。
-const GROUNDED := ["spear"]
 const BUTT_CLEARANCE := 1.5
 
 static func placement(form: String, grip: Vector2, angle: float) -> Transform2D:
@@ -91,35 +45,8 @@ static func _draw_art(canvas: CanvasItem, form: String, grip: Vector2, angle: fl
 		uvs.append((column + p / 128.0) / ATLAS_GRID)
 	canvas.draw_polygon(pose * corners, PackedColorArray([ink]), uvs, ATLAS)
 
-# 出手格的箭尖，坐标原点在角色脚底。法术弹道已经没有了，后两个参数只为兼容旧的调用。
-static func release_point(sex: int, _magic := false, _wand := false) -> Vector2:
-	return LEAD[sex][10] - SideArt.PIVOT + Vector2(8, 0)
-
-static func arrow_length(sex: int) -> float:
-	return release_point(sex, false).distance_to(BowPose.nock_hand(sex, false) - SideArt.PIVOT)
-
-static func body_frame(form: String, frame: int) -> int:
-	if form == "bow" and frame in [4, 5]:
-		return 10
-	return frame
-
-static func blade_hand(sex: int, body: int, offhand := false) -> Vector2:
-	return LEAD[sex][body] if NEAR_IS_LEAD[sex][body] != offhand else SUPPORT[sex][body]
-
-# 兵器画在身体上面，握柄的那只手得再盖回来：从同一张人物贴图上取拳头那一小圆，
-# 换装后的护手、戒指也就跟着在柄前面了。hand 是分格内的逻辑坐标。
-static func _fist(canvas: CanvasItem, sprite: Texture2D, source: Vector2, origin: Vector2, hand: Vector2, ink: Color) -> void:
-	var points := PackedVector2Array()
-	var uvs := PackedVector2Array()
-	var size := sprite.get_size()
-	for i in range(14):
-		var at := hand + Vector2.from_angle(i * TAU / 14.0) * FIST
-		points.append(origin + at)
-		uvs.append((source + at * SideArt.TEXEL) / size)
-	canvas.draw_polygon(points, PackedColorArray([ink]), uvs, sprite)
-
 # ground 给了的话（脚底线的 y），柄尾一直接到地面，拄着站。
-static func _draw_pole(canvas: CanvasItem, form: String, origin: Vector2, angle: float, ink: Color,
+static func draw_pole(canvas: CanvasItem, form: String, origin: Vector2, angle: float, ink: Color,
 		ground := INF, design := {}, light := Color.WHITE) -> void:
 	var t := Transform2D(angle, origin)
 	var pole: Dictionary = POLES[form].duplicate()
@@ -155,9 +82,8 @@ static func _draw_pole(canvas: CanvasItem, form: String, origin: Vector2, angle:
 		var tuft: Color = design.tassel if design.tassel.a > 0.0 else Color("#b8342a")
 		_tassel(canvas, frame * Vector2(1.2, 0.0), tuft, tuft, light, 7.5, 9)
 
-static func _draw_bow(canvas: CanvasItem, palm: Vector2, nock: Vector2, drawing: bool, horizontal: bool, ink: Color,
-		held := -1.20, design := {}, light := Color.WHITE) -> void:
-	var angle := -PI / 2 if horizontal else held
+static func draw_bow(canvas: CanvasItem, palm: Vector2, nock: Vector2, drawing: bool, angle: float, ink: Color,
+		design := {}, light := Color.WHITE) -> void:
 	if not design.is_empty() and not WeaponDesign.painted_head(design):
 		_draw_bow_parts(canvas, design, Transform2D(angle, palm), BOW_SCALE, light, nock if drawing else Vector2.INF)
 		return
@@ -173,71 +99,6 @@ static func _draw_bow(canvas: CanvasItem, palm: Vector2, nock: Vector2, drawing:
 		canvas.draw_colored_polygon(PackedVector2Array([tip + aim * 2.5, tip + aim.orthogonal() * 1.25,
 			tip - aim.orthogonal() * 1.25]), Color("#c4cbd0") * ink)
 	_draw_art(canvas, "bow", palm, angle, ink)
-
-static func draw_actor(canvas: CanvasItem, sprite: Texture2D, sex: int, frame: int, look: Dictionary,
-		ink := Color.WHITE, gait := {}, foot_shift := Vector2.ZERO, offset := Vector2.ZERO) -> void:
-	var form: String = look.form if look.form in KINDS else "sword"
-	var design: Dictionary = look.get("design", {})
-	if design.get("form", "") != form:
-		design = WeaponDesign.plain(form)
-	var body := body_frame(form, frame)
-	var origin := offset - SideArt.PIVOT
-	var idle := frame == 0
-	var lead: Vector2 = origin + LEAD[sex][body]
-	var rear: Vector2 = origin + SUPPORT[sex][body]
-	var primary := origin + blade_hand(sex, body)
-	if idle:
-		# 人物朝右，靠镜头的是右手。直立那格身前的拳是远侧的左手，靠后、整条前臂露在外面的才是右手，
-		# 待机的兵器交给右手。
-		lead = origin + IDLE_RIGHT[sex]
-		rear = origin + IDLE_LEFT[sex]
-		primary = lead
-	var angle: float = SWING[sex][frame]
-	if idle:
-		angle = IDLE[form]
-	var metal: Color = ink * Color.WHITE.lerp(look.weapon, 0.34)
-	var drawn_bow := form == "bow" and frame in [4, 5]
-	# 握拳那一小块从哪张贴图、哪一格取：满弓格用的是改过袖子的单格贴图。
-	var hand_sprite := sprite
-	var hand_source := SideArt.frame_region(body).position
-	# 长枪收到肩后的那一格，枪杆在头的另一侧：先画杆再画人，不然杆会横在脸上。
-	var shouldered := form == "spear" and frame == 4
-	if shouldered:
-		_draw_pole(canvas, form, lead - Vector2.from_angle(SPEAR_AIM[4]) * 5.5, SPEAR_AIM[4], metal, INF, design, ink)
-	if drawn_bow:
-		hand_sprite = BowPose.texture(sprite, sex, frame == 5)
-		hand_source = Vector2.ZERO
-		canvas.draw_texture_rect(hand_sprite, Rect2(origin, SideArt.CELL), false, ink)
-	elif gait.is_empty():
-		canvas.draw_texture_rect_region(sprite, Rect2(origin, SideArt.CELL), SideArt.frame_region(body), ink)
-	else:
-		SideArt.draw_gait(canvas, sprite, gait, foot_shift, ink)
-	var hands := [lead]
-	match form:
-		"bow":
-			var nock := origin + BowPose.nock_hand(sex, frame == 5)
-			_draw_bow(canvas, lead, nock, frame == 4, drawn_bow, metal, angle if idle else -1.20, design, ink)
-		"spear":
-			# 架着的时候两拳夹住长柄，挥击格双拳已在身前并拢。
-			var rear_grip := lead
-			var two_handed := frame in [3, 4, 5, 6, 7]
-			if two_handed:
-				hands.append(rear)
-				if lead.distance_to(rear) >= 7.0:
-					angle = (lead - rear).angle()
-					rear_grip = rear
-				else:
-					angle = SPEAR_AIM.get(frame, angle)
-					rear_grip = lead - Vector2.from_angle(angle) * 5.5
-			elif not idle:
-				angle = SPEAR_HELD.get(frame, SPEAR_CARRY)
-			if not shouldered:
-				_draw_pole(canvas, form, rear_grip, angle, metal, offset.y if idle and form in GROUNDED else INF, design, ink)
-		_:
-			hands = [primary]
-			_draw_blade(canvas, form, design, primary, angle, metal, ink)
-	for hand: Vector2 in hands:
-		_fist(canvas, hand_sprite, hand_source, origin, hand - origin, ink)
 
 # ---------- 零件拼的兵器 ----------
 
@@ -308,13 +169,12 @@ static func _draw_bow_parts(canvas: CanvasItem, design: Dictionary, frame: Trans
 	if design.tassel.a > 0.0 and not _painted(design.head):
 		_tassel(canvas, frame * Vector2(-half * grip_k, 0.0), design.tassel, design.tassel_alt, light, 6.0, 6, zoom)
 
-# 刀剑：柄首、握柄、刃、血槽灵光、护手，最后挂穗。握点在握柄正中。
-static func _draw_blade(canvas: CanvasItem, form: String, design: Dictionary, hand: Vector2, angle: float,
-		metal: Color, light: Color) -> void:
-	if WeaponDesign.painted_blade(design) or not BLADE_SCALE.has(form):
-		_draw_art(canvas, form, hand, angle, metal)
-		return
-	_draw_assembled(canvas, design, Transform2D(angle, hand), BLADE_SCALE[form], light)
+static func draw_sword(canvas: CanvasItem, grip: Vector2, angle: float, ink: Color, design: Dictionary) -> void:
+	if WeaponDesign.painted_blade(design):
+		_draw_art(canvas, "sword", grip, angle, ink)
+	else:
+		_draw_assembled(canvas, design, Transform2D(angle, grip), 0.29, ink)
+
 
 static func _draw_assembled(canvas: CanvasItem, design: Dictionary, frame: Transform2D, k: float, light: Color) -> void:
 	var half: float = float(Parts.PARTS[design.grip].length) * 0.5

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ddt7uf4i4ok50"
-path="res://.godot/imported/foot_far.png-3eed809486df094c9939906bd79ba54d.ctex"
+uid="uid://bq271k63k44er"
+path="res://.godot/imported/head.png-a0418c4b2f79cfeb287e081e0a804153.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/side/hero3d/parts/foot_far.png"
-dest_files=["res://.godot/imported/foot_far.png-3eed809486df094c9939906bd79ba54d.ctex"]
+source_file="res://prototype/cutout/swordsman/parts/head.png"
+dest_files=["res://.godot/imported/head.png-a0418c4b2f79cfeb287e081e0a804153.ctex"]
 
 [params]
 

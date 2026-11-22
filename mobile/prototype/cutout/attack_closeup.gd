@@ -12,7 +12,7 @@ func _initialize():
 	var bg := ColorRect.new(); bg.color = Color(0.25, 0.26, 0.3); bg.size = Vector2(900, 900); root.add_child(bg)
 	r = load("res://prototype/cutout/cutout_rig.gd").new()
 	root.add_child(r)
-	r.setup("res://prototype/cutout/hero/rig.json", "res://prototype/cutout/hero/parts")
+	r.setup("res://prototype/cutout/swordsman/rig.json", "res://prototype/cutout/swordsman/parts")
 	r.scale *= 4.8
 	r.position = Vector2(330 + 4.8 * 12.0, 3060.0 * 0.5 + 4.8 * 18.0)
 	r.play("attack")

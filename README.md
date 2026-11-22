@@ -75,13 +75,11 @@
 
 长卷之外还有两层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
 
-人物分男女两身：男的魁梧粗犷、一脸胡子茬，女的妩媚、丰胸细腰。正、侧、背、四分之三的四面设定图在 `art/side/source/hero/`，半身像、战斗图集和设定图都由 [gen_hero.sh](mobile/art/side/gen_hero.sh) 调 codex 按 [hero-prompts.json](mobile/art/side/hero-prompts.json) 出图，半身像再由 [pack_portraits.py](mobile/art/side/pack_portraits.py) 裁成游戏用的尺寸。男女各用一张 4 列 × 3 行的图集。每格的逻辑尺寸是 96 × 96，脚底锚点和武器握点按这个尺寸定义在 [side_art.gd](mobile/scripts/side_art.gd)；贴图本身是它的 3 倍（每格 288 像素），由 [pack_frames.py](mobile/art/side/pack_frames.py) 从 1536 × 1024 的原画拼出，带多级渐远的线性取样，手机上不糊、缩小时不闪。[motion.gd](mobile/scripts/motion.gd) 根据战斗动作在脚步、起手、挥击、跟招、收势、后撤和受击之间切帧。
+玩家角色和随侍共用[刀客皮影骨骼](mobile/prototype/cutout/swordsman/rig.json)。创角和战斗头像取自刀客的头部素材。行装试穿和战斗共用同一套骨骼与装备部件。布衣、皮甲和链甲按各槽位拼接，护甲、护手和靴子按装备五行染色。调参和预览用法见[皮影小样](mobile/prototype/cutout/README.md)。
 
-换装是在原画上染色，不贴图块：打包脚本把每格分成袍裤、衣领腰带、前臂、靴、腰间符牌五个区，各出一张带明暗的图层（[art/side/dye](mobile/art/side/dye)）。[worn_sprites.gd](mobile/scripts/worn_sprites.gd) 在运行时按护甲、护手、鞋子、项链的五行给对应的区平涂颜色，再把明暗叠回去，脸、手、头发和轮廓都保持原画。装备页与战斗共用同一张染好的图集。
+剑、长枪和弓共用角色的移动态，使用各自的持械和出手姿势。剑一轮两斩，长枪穿刺一路，弓发射远程箭矢。旧存档的长刃和双刀归剑，重锤归长枪，法杖和短杖归弓。战斗仍由 [combat.gd](mobile/scripts/combat.gd) 结算，刀客的兵器由手部接点定位。
 
-手持兵器只有三种形制：剑、长枪、弓（[gear.gd](mobile/scripts/gear.gd) 的 `WEAPON_FORMS`）。剑一轮两剑；长枪出手慢、够得最远，一枪扎穿一路；弓远处快射。旧存档里去掉的形制读档时归过来：长刃、双刀归剑，重锤归长枪，法杖、短杖归弓。握点和朝向定义在 [held_weapon.gd](mobile/scripts/held_weapon.gd)，沿握点绘制后再把握拳的那只手盖回柄前。待机一律用直立的那一格，兵器握在靠镜头的右手（人物朝右，身前那只拳是远侧的左手），单手垂在身侧：剑尖斜指前方地面，枪竖着拄地，弓斜提。
-
-每件兵器、每件装备都有自己的样子。剑由刃、护手、握柄、柄首拼成，长枪换枪头和杆色，弓是上半张弓臂镜像出下半张、握把缠绳；护甲、护手、鞋子在炉坊里选甲型——布衣、皮甲、链甲，只换样子不碰数值；护甲分男女两套，女角色是更贴身的丝衣、皮衣、盔甲；项链、戒指各有三四款。[weapon_design.gd](mobile/scripts/weapon_design.gd) 与 [gear_design.gd](mobile/scripts/gear_design.gd) 按装备的主行挑款式、按次行挑护手和穗色、按阴阳定钢色深浅与缠绳冷暖，功率够足的刃上亮一道灵光血槽，再用 uid 在合乎条件的几款里定下一款，所以同一件装备永远是同一个样子。画风统一为「做旧实物」：锈铁、旧铜、旧骨、麻皮，低饱和、哑光、不加纹饰；布条绳穗一律褪色朱红，打包时单独分一层，游戏里换成主行的颜色。五行用色全游戏一份，取敦煌壁画的矿物颜料，定义在 [pigments.gd](mobile/scripts/pigments.gd)：兵器纹样、装备图标、人物染袍、刃光与界面上的五行字色都从这里取。零件与图标的原画在 `art/side/source/parts/`，由 [gen_parts.sh](mobile/art/side/gen_parts.sh) 调 ChatGPT 桌面版自带的 codex 按 [parts-prompts.json](mobile/art/side/parts-prompts.json) 出图（走 ChatGPT 登录，不要 API key），[pack_parts.py](mobile/art/side/pack_parts.py) 打进零件图集；没有原画的零件用脚本画的灰度替身。
+炉坊按装备的五行与阴阳挑选武器零件和饰色。武器和装备图标由 [weapon_design.gd](mobile/scripts/weapon_design.gd) 和 [gear_design.gd](mobile/scripts/gear_design.gd) 定款，颜色取自 [pigments.gd](mobile/scripts/pigments.gd)。原画在 `mobile/art/side/source/parts/`，由 [pack_parts.py](mobile/art/side/pack_parts.py) 打包。
 
 精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
 
@@ -99,16 +97,11 @@ godot --headless --path mobile --script res://tests/run_playthrough.gd  # 创角
 godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
 godot --path mobile --script res://tests/_dress.gd -- shot.png huo spear pose 30 attack 0.45
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
-godot --path mobile --resolution 900x1946 --script res://tests/_poses.gd -- poses.png 0,5 huo   # 八种兵器在指定几格上的持械姿态
-godot --path mobile --resolution 1800x1800 --script res://tests/_weapons.gd -- weapons.png 5 7   # 每种形制随手打几把，看零件拼出来的样子
-godot --path mobile --resolution 2304x1152 --script res://tests/_grip.gd -- grip.png sword 0 3   # 放大一格：左边空手标出两拳心，右边持械，校握点与兵器角度
-python mobile/art/side/pack_frames.py --preview out    # 重出人物图集与染色图层，另存五行染色对照图
-python3 mobile/art/side/pack_portraits.py             # 把 source/hero 的半身像裁成 portrait-*.webp
 python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标
 python mobile/art/side/pack_monsters.py --preview out  # 把精怪的像素图集平滑放大
 ```
 
-`_dress.gd` 会按指定五行把六个槽位全打满再截图，可以同时核对装备外观和动作姿态；末尾可再跟 `female`，模式写 `bag` 则截行装页。`pack_*.py` 需要 Pillow、NumPy 和 SciPy。换装染哪块布以分区遮罩 [art/side/masks](mobile/art/side/masks) 为准：每张遮罩和对应的人物图一样大，用纯色涂出袍（蓝）、交领袖口（黄）、腰带（橙）、绑腕（绿）、靴（红）、符牌（紫），不染的地方留透明，颜色约定见 `pack_frames.py` 开头。在 Krita 或 Photoshop 里把人物图垫在下面修遮罩，修完跑 `pack_frames.py`（战斗图集）或 `pack_portraits.py --dye-only fullbody-male fullbody-female`（行装页全身像）重出染色图层；遮罩不存在时脚本会自动分一次，加 `--reclassify` 则丢掉手修的遮罩重新自动分。战斗图集换装时合成一次，行装页全身像由 [dye.gdshader](mobile/scripts/dye.gdshader) 每帧现染。改过关节标定（`worn_sprites.gd` 的 `MALE` / `FEMALE`）或换了原画（[art/side/source](mobile/art/side/source)）之后重跑，再让 Godot 重新导入。`_fit_art.gd` 用于整理 `art/immortals` 中的单张立绘素材。`_pack_fx.gd` 把 pixelfx 按五行配色渲出的击打特效拼成 `art/fx` 的图集，渲染配方见 [art/fx/render.json](mobile/art/fx/render.json)。`_stitch_plates.gd` 把每个地域的四幅底图拼成一条长卷，出图规格见 [art/side/plates/prompts.json](mobile/art/side/plates/prompts.json)。
+`_dress.gd` 按指定五行穿满六个装备槽再截图，末尾可加 `female`，模式为 `bag` 时截行装页。图集脚本需要 Pillow、NumPy 和 SciPy。`_pack_fx.gd` 打包击打特效，`_stitch_plates.gd` 拼接地域长卷。
 
 ## 网页原型
 

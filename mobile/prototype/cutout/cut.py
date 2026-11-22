@@ -176,7 +176,7 @@ def paste(arr, shape, x, y):
 
 
 if __name__ == "__main__":
-    # 路径都按当前目录算，在角色目录（shanxiao/、hero/）里运行
+    # 路径按当前目录计算，可在 swordsman/ 或 shanxiao/ 里运行。
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
     pieces = cut(src, out)
     if "--names" in sys.argv:

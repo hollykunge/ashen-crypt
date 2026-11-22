@@ -172,7 +172,7 @@ func _build_portrait() -> void:
 	ui._fill(backing)
 	frame.add_child(backing)
 
-	portrait = ui._image(SideArt.PORTRAITS[0])
+	portrait = ui._image(SideArt.PORTRAIT)
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ui._fill(portrait)
 	portrait.offset_left = 12.0
@@ -259,8 +259,7 @@ func _refresh_creator() -> void:
 		for id in choice_buttons[field]:
 			ui._restyle(choice_buttons[field][id], draft[field] == id)
 	var day_element := WuXing.stem_element(draft.day_stem)
-	var female: bool = draft.gender == "female"
-	portrait.texture = SideArt.PORTRAITS[int(female)]
+	portrait.texture = SideArt.PORTRAIT
 	portrait.modulate = Roster.ELEMENT_TINTS[day_element].lerp(Color.WHITE, 0.67)
 	portrait_frame.tint = Roster.ELEMENT_GLOW[day_element].lerp(ui.GOLD, 0.68)
 	portrait_frame.queue_redraw()

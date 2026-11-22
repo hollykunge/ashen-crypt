@@ -1,7 +1,7 @@
 extends SceneTree
 ## 走路时量两只脚：前脚掌（boot 的 ball）、脚跟离地多高，踩地时前脚掌往前后滑了多少；顺手存一排分解图。
 ##   godot --path mobile --fixed-fps 60 --resolution 1400x420 --script res://prototype/cutout/heel_check.gd -- [walk|run] [分解图.png] [heel 角度，覆盖 rig.json]
-const HEEL := Vector2(18, 312)  # 靴子图里脚跟最后面、贴地的那一点
+const HEEL := Vector2(56, 298)  # 靴子图里脚跟最后面、贴地的那一点
 var r
 var n := 0
 var gait := "walk"
@@ -17,7 +17,7 @@ func _initialize():
 	var bg := ColorRect.new(); bg.color = Color(0.25, 0.26, 0.3); bg.size = Vector2(1400, 420); root.add_child(bg)
 	r = load("res://prototype/cutout/cutout_rig.gd").new()
 	root.add_child(r)
-	r.setup("res://prototype/cutout/hero/rig.json", "res://prototype/cutout/hero/parts")
+	r.setup("res://prototype/cutout/swordsman/rig.json", "res://prototype/cutout/swordsman/parts")
 	r.position = Vector2(200, 400)
 	if a.size() > 2:
 		var cfg: Dictionary = r.rig.duplicate(true)

@@ -1,6 +1,6 @@
 """笔直站姿跟设定图侧面并排，按方格比比例和粗细。
 
-    python3 compare.py hero <输出.png>
+    python3 compare.py swordsman <侧面参考图> <输出.png>
 
 两边都缩放到同样的身高（头顶到脚底），以脚后跟为竖线起点、脚底为横线起点，画边长 = 身高 / 16 的方格：
 横着数格子比高低（腰、裆、膝在第几格），竖着数格子比粗细（腿、靴子、脚掌占几格）。
@@ -16,8 +16,6 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = Path(__file__).resolve().parent
 GODOT = Path.home() / "Applications/Godot.app/Contents/MacOS/Godot"
-# 设定图第 3 格是严格侧面
-REF = ("../../art/side/source/hero/turnaround-male.png", (805, 0, 1135, 1024))
 FONT = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 HEIGHT = 640  # 对照图里人物的身高（像素）
 CELLS = 16
@@ -77,14 +75,14 @@ def widths(mm):
     return out
 
 
-def main(who, out):
+def main(who, reference, out):
     with tempfile.TemporaryDirectory() as tmp:
         subprocess.run([str(GODOT), "--path", str(HERE.parent.parent), "--fixed-fps", "30",
                         "res://prototype/cutout/demo.tscn", "--", who, tmp, "stand"],
                        check=True, capture_output=True)
         rig = Image.open(Path(tmp) / "stand.png").convert("RGB")
     rig_m = mask_of(rig, [(255, 0, 255)] * rig.height)  # 站姿截图是纯品红底
-    ref = Image.open(HERE / REF[0]).convert("RGB").crop(REF[1])
+    ref = Image.open(reference).convert("RGB")
     ref_m = mask_of(ref, [ref.getpixel((ref.width - 3, y)) for y in range(ref.height)])
     panels = [("拼出来的（笔直站姿）",) + normalize(rig, rig_m), ("设定图侧面",) + normalize(ref, ref_m)]
 
@@ -130,4 +128,4 @@ def main(who, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])

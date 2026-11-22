@@ -10,7 +10,7 @@ var flips := {"near": 0, "far": 0}
 func _initialize():
 	r = load("res://prototype/cutout/cutout_rig.gd").new()
 	root.add_child(r)
-	r.setup("res://prototype/cutout/hero/rig.json", "res://prototype/cutout/hero/parts")
+	r.setup("res://prototype/cutout/swordsman/rig.json", "res://prototype/cutout/swordsman/parts")
 	r.play(OS.get_cmdline_user_args()[0])
 func _process(d):
 	n += 1

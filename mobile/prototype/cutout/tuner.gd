@@ -4,17 +4,14 @@ extends Node2D
 ##   prototype/cutout/tune.sh            # 调主角
 ##   prototype/cutout/tune.sh shanxiao   # 调山魈
 ##
-## 外观（部件大小）改了会重建骨骼，动作参数改了立刻生效。「站直对比」把设定图侧面放在旁边、画上 1/16 身高的方格。
+## 外观（部件大小）改了会重建骨骼，动作参数改了立刻生效。「站直」画上 1/16 身高的方格。
 ## 保存前会把原来的 rig.json 备份成 rig.json.bak（每次打开面板只备份一次）。
 
 const ROOT := "res://prototype/cutout/"
 const Rig := preload("res://prototype/cutout/cutout_rig.gd")
 const PREVIEW_W := 820.0
 const GROUND := 660.0
-const ACTIONS := [["run", "跑步"], ["walk", "走路"], ["idle", "待机"], ["ready", "备战"], ["attack", "劈砍"], ["stand", "站直对比"]]
-## 设定图侧面（只有主角有）：图和第 3 格（严格侧面）的范围
-const REF := ["res://art/side/source/hero/turnaround-male.png", Rect2(805, 0, 330, 1024)]
-
+const ACTIONS := [["run", "跑步"], ["walk", "走路"], ["idle", "待机"], ["ready", "备战"], ["attack", "劈砍"], ["stand", "站直"]]
 ## 滑块表：[分组, 参数路径, 名字, 最小, 最大, 说明]
 ## 路径用 / 分层；scale 后面跟 /x、/y 的是横竖分开缩放。
 const SLIDERS := [
@@ -105,7 +102,7 @@ const SLIDERS := [
 	["备战", "ready/arm_far_lo", "空手屈肘", 0.0, 120.0, "远侧空手的肘弯多少"],
 ]
 
-var who := "hero"
+var who := "swordsman"
 var cfg: Dictionary
 var outfits: Array = []
 var outfit_i := 0
@@ -118,8 +115,6 @@ var _attack_t := 0.0
 var _scroll := 0.0
 var _rows := {}  # 路径 -> [HSlider, 数值 Label]
 var _status: Label
-var _ref_tex: Texture2D
-var _ref_fig := Rect2()  # 设定图里人物占的范围（在 REF 那一格里的坐标）
 var _selftest := ""
 var _act_pick: OptionButton
 var _font: Font
@@ -142,7 +137,6 @@ func _ready() -> void:
 	labels = demo.get("labels", outfits)
 	# Godot 自带字体缺不少汉字（「远」「蹬」会变方框），用游戏自己的中文字体
 	_font = load("res://art/fonts/game.otf")
-	_load_ref()
 	_build_ui()
 	_rebuild()
 	if _selftest != "":
@@ -347,48 +341,20 @@ func _draw() -> void:
 		pts.append(Vector2(c + cos(a) * 110, GROUND + sin(a) * 10))
 	draw_colored_polygon(pts, Color(0, 0, 0, 0.45))
 	if action == "stand":
-		_draw_compare()
+		_draw_height_grid()
 
 
-## 站直对比：设定图侧面缩放到跟预览里的人一样高，摆在右边；画 1/16 身高的方格
-func _draw_compare() -> void:
+## 站直时按人物身高画格子。
+func _draw_height_grid() -> void:
 	var top := _figure_top()
 	var h := GROUND - top
 	if h < 10.0:
 		return
-	if _ref_tex and _ref_fig.size.y > 0:
-		var k := h / _ref_fig.size.y
-		var dest := Rect2(PREVIEW_W * 0.68, top, _ref_fig.size.x * k, h)
-		var src := Rect2(REF[1].position + _ref_fig.position, _ref_fig.size)
-		draw_texture_rect_region(_ref_tex, dest, src)
 	for i in 17:
 		var y := GROUND - h * i / 16.0
 		draw_line(Vector2(0, y), Vector2(PREVIEW_W, y), Color(0.35, 0.6, 0.85, 0.55 if i % 2 == 0 else 0.25), 1.0)
 		if i % 2 == 0:
 			draw_string(_font, Vector2(6, y - 3), "%d/8" % (i / 2), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.5, 0.7, 0.9))
-
-
-func _load_ref() -> void:
-	if who != "hero" or not FileAccess.file_exists(REF[0]):
-		return
-	var img := Image.load_from_file(REF[0])
-	_ref_tex = ImageTexture.create_from_image(img)
-	var area: Rect2 = REF[1]
-	var bg := img.get_pixel(int(area.end.x) - 3, 3)
-	var x0 := INF
-	var x1 := -INF
-	var y0 := INF
-	var y1 := -INF
-	for y in range(int(area.position.y), int(area.end.y), 2):
-		for xx in range(int(area.position.x), int(area.end.x), 2):
-			var p := img.get_pixel(xx, y)
-			if absf(p.r - bg.r) + absf(p.g - bg.g) + absf(p.b - bg.b) > 0.25:
-				x0 = minf(x0, xx)
-				x1 = maxf(x1, xx)
-				y0 = minf(y0, y)
-				y1 = maxf(y1, y)
-	if y1 > y0:
-		_ref_fig = Rect2(Vector2(x0, y0) - area.position, Vector2(x1 - x0, y1 - y0))
 
 
 # ---------- 界面 ----------
