@@ -11,7 +11,7 @@ const ROOT := "res://prototype/cutout/"
 const Rig := preload("res://prototype/cutout/cutout_rig.gd")
 const PREVIEW_W := 820.0
 const GROUND := 660.0
-const ACTIONS := [["run", "跑步"], ["walk", "走路"], ["idle", "待机"], ["attack", "劈砍"], ["stand", "站直对比"]]
+const ACTIONS := [["run", "跑步"], ["walk", "走路"], ["idle", "待机"], ["ready", "备战"], ["attack", "劈砍"], ["stand", "站直对比"]]
 ## 设定图侧面（只有主角有）：图和第 3 格（严格侧面）的范围
 const REF := ["res://art/side/source/hero/turnaround-male.png", Rect2(805, 0, 330, 1024)]
 
@@ -22,18 +22,19 @@ const SLIDERS := [
 	["外观", "far_tint", "远侧手脚明暗", 0.5, 1.0, "远侧那只手和腿压暗多少；1 是不压暗。压太暗会像两条不同颜色的裤子"],
 	["外观", "parts/head/scale", "头", 0.4, 1.2, "头的大小"],
 	["外观", "parts/torso/scale", "躯干", 0.6, 1.2, "躯干的大小（肩宽、胸厚、腰高一起变）"],
+	["外观", "parts/torso/back_curve", "背部弧度", 0.0, 20.0, "调整肩下到腰带之间的弧线，0 保持原轮廓"],
 	["外观", "parts/upper_arm/scale", "上臂", 0.5, 1.2, "上臂的大小"],
 	["外观", "parts/forearm/scale/x", "前臂粗细", 0.5, 1.2, "前臂横向缩放"],
-	["外观", "parts/forearm/scale/y", "前臂长短", 0.5, 1.2, "前臂竖向缩放"],
+	["外观", "parts/forearm/scale/y", "前臂长短", 0.3, 1.2, "前臂竖向缩放"],
 	["外观", "parts/hand/scale/x", "手宽", 0.08, 0.4, "握剑手的宽度（四指那一排）"],
 	["外观", "parts/hand/scale/y", "手长", 0.05, 0.4, "握剑手从手腕到指节的长度"],
 	["外观", "parts/crotch/scale", "裤裆", 0.15, 0.6, "两腿之间那块裤裆的大小；迈大步时腿不再像飘着"],
 	["外观", "parts/hand/grip_angle", "剑在手里的斜度", -20.0, 60.0, "手里剑柄的方向：0 是跟垂下的前臂垂直、剑尖朝正前方，越大剑尖越往下"],
 	["外观", "parts/weapon/scale", "剑", 0.6, 1.6, "剑的大小"],
 	["外观", "parts/thigh/scale", "大腿", 0.6, 1.3, "大腿的大小"],
-	["外观", "parts/pelvis/scale/x", "臀胯宽", 0.15, 0.45, "腰带下面那块臀胯的宽度（后面的臀部、前面的胯一起变）"],
-	["外观", "parts/pelvis/scale/y", "臀胯高", 0.1, 0.4, "臀胯从腰带到裆的高度；髋关节跟着一起移"],
-	["外观", "parts/pelvis/hip/y", "髋关节在臀胯里的高低", 200.0, 600.0, "大腿绕臀胯图里哪一行转（越大越靠下）"],
+	["外观", "parts/pelvis/scale/x", "臀胯宽", 0.15, 0.85, "腰带下面那块臀胯的宽度（后面的臀部、前面的胯一起变）"],
+	["外观", "parts/pelvis/scale/y", "臀胯高", 0.1, 0.65, "臀胯从腰带到裆的高度；髋关节跟着一起移"],
+	["外观", "parts/pelvis/hip/y", "髋关节在臀胯里的高低", 80.0, 600.0, "大腿绕臀胯图里哪一行转（越大越靠下）"],
 	["外观", "parts/torso/hip/y", "髋关节位置", 290.0, 450.0, "大腿绕哪儿转（躯干图里的像素，越大越靠下）；真的髋关节在腰带下面一截，绕腰转腿会显得又长又甩"],
 	["外观", "parts/thigh/pivot/y", "大腿接点", 30.0, 200.0, "大腿图从哪儿开始算（越大，大腿顶上塞进下摆的越多，露出来的腿越短）；跟髋关节位置一起往下挪，站着的总高度不变"],
 	["外观", "parts/shin/scale/x", "小腿和靴子粗细", 0.5, 1.2, "小腿、靴子横向缩放；脚掌长短也跟着变"],
@@ -89,6 +90,19 @@ const SLIDERS := [
 	["待机", "idle/blade", "持剑手腕", -15.0, 15.0, "手腕往下压（正）往上翘（负）"],
 	["待机", "idle/arm_far_up", "空手上臂", -30.0, 40.0, "远侧空手的上臂"],
 	["待机", "idle/arm_far_lo", "空手屈肘", 0.0, 90.0, "远侧空手的肘弯多少"],
+
+	["备战", "ready/torso", "上身前倾", -5.0, 30.0, "战斗里没出招时躯干前倾的角度"],
+	["备战", "ready/neck", "低头", -20.0, 20.0, "正值低头、负值抬头"],
+	["备战", "ready/hip", "胯高", 0.75, 1.0, "越低膝盖弯得越多、架势越沉"],
+	["备战", "ready/dx", "重心前后", -0.1, 0.15, "胯往前挪多少；正值重心压在前脚"],
+	["备战", "ready/foot_near_x", "前脚位置", 0.0, 0.5, "近侧脚在胯前多远"],
+	["备战", "ready/foot_far_x", "后脚位置", -0.5, 0.0, "远侧脚在胯后多远"],
+	["备战", "ready/foot_far_heel", "后脚踮脚跟", 0.0, 40.0, "后脚脚跟抬起的角度（脚绕前脚掌转）"],
+	["备战", "ready/arm_near_up", "持剑手上臂", -30.0, 90.0, "拿剑那只手的上臂往前（正）往后（负）"],
+	["备战", "ready/arm_near_lo", "持剑手屈肘", 0.0, 120.0, "肘弯多少；跟上臂一起决定剑斜举多高"],
+	["备战", "ready/blade", "持剑手腕", -15.0, 15.0, "手腕往下压（正）往上翘（负）"],
+	["备战", "ready/arm_far_up", "空手上臂", -30.0, 60.0, "远侧空手的上臂"],
+	["备战", "ready/arm_far_lo", "空手屈肘", 0.0, 120.0, "远侧空手的肘弯多少"],
 ]
 
 var who := "hero"
@@ -145,12 +159,14 @@ func _defaults(group: String) -> Dictionary:
 			return Rig.WALK
 		"idle":
 			return Rig.IDLE
+		"ready":
+			return Rig.READY
 	return {}
 
 
 func _get_value(path: String) -> float:
 	var keys := path.split("/")
-	if keys[0] in ["run", "walk", "idle"]:
+	if keys[0] in ["run", "walk", "idle", "ready"]:
 		var d: Dictionary = cfg.get(keys[0], {})
 		var key := keys[1]
 		if d.has(key):
@@ -185,7 +201,7 @@ func _get_value(path: String) -> float:
 func _set_value(path: String, value: float) -> void:
 	value = snappedf(value, 0.001)
 	var keys := path.split("/")
-	if keys[0] in ["run", "walk", "idle"]:
+	if keys[0] in ["run", "walk", "idle", "ready"]:
 		if not cfg.has(keys[0]):
 			cfg[keys[0]] = {}
 		cfg[keys[0]][keys[1]] = value
@@ -241,7 +257,7 @@ func _save() -> void:
 ## 把一个滑块的值写进 d（路径规则同 _set_value）
 func _put(d: Dictionary, path: String, value: float) -> void:
 	var keys := path.split("/")
-	if keys[0] in ["run", "walk", "idle"]:
+	if keys[0] in ["run", "walk", "idle", "ready"]:
 		if not d.has(keys[0]):
 			d[keys[0]] = {}
 		d[keys[0]][keys[1]] = value
@@ -453,6 +469,8 @@ func _build_ui() -> void:
 		var path: String = row[1]
 		if path.begins_with("parts/") and not cfg.parts.has(path.split("/")[1]):
 			continue
+		if path == "parts/torso/back_curve" and not cfg.parts.torso.has("back_curve"):
+			continue
 		if path.begins_with("parts/hand/grip_angle") and not cfg.parts.has("hand"):
 			continue
 		var group: String = row[0]
@@ -487,7 +505,13 @@ func _build_ui() -> void:
 		val.text = _fmt(_get_value(path))
 		val.custom_minimum_size = Vector2(52, 0)
 		line.add_child(val)
-		s.value_changed.connect(func(v): _set_value(path, v))
+		s.value_changed.connect(func(v):
+			_set_value(path, v)
+			# 拖备战的滑块时预览自动切到备战，看得到效果
+			if path.begins_with("ready/") and action != "ready":
+				action = "ready"
+				_act_pick.select(ACTIONS.map(func(x): return x[0]).find("ready"))
+				rig.play("ready"))
 		_rows[path] = [s, val]
 	if cfg.has("attack"):
 		_build_attack_ui(list)
@@ -690,7 +714,7 @@ func _set_key_time(v: float) -> void:
 func _show_attack() -> void:
 	if action != "attack":
 		action = "attack"
-		_act_pick.select(3)
+		_act_pick.select(ACTIONS.map(func(x): return x[0]).find("attack"))
 		_attack_t = 0.0
 		rig.play("attack")
 

@@ -90,3 +90,20 @@ AI 出拆件图，脚本切件，Godot 里挂骨骼、用代码算动作，换�
 - 宽度表量的是整个轮廓：设定图站姿露出了后面那条腿，膝盖、小腿两行的比值会偏小，要对着方格看前面那条腿。
 
 开窗口看：`godot --path mobile res://prototype/cutout/demo.tscn -- hero`
+
+## 接进战斗
+
+`scripts/cutout_hero.gd` 把主角骨骼画在一块离屏画布（SubViewport）上，`arena.gd` 画到主角时把画布当一张图贴在脚下，
+所以前后遮挡、残影、五行染色、淡出都跟原来的分格人物一样。只接了男主角拿剑（`CutoutHero.supports`，`ENABLED` 是总开关）：
+
+- 走、跑：步态时刻按走过的距离算（`gait_time`），脚钉在地上，不按自己的钟走。
+- 劈砍：游戏一招两刀（`Combat.BLADE_CUES`），每一刀的「打中」对准结算那一下（`attack_time`）。
+- 站着摆「备战」架势（rig.json 的 ready，调参面板动作里选「备战」调），劈砍从它起手、收回到它（`attack_from`）；
+  面板里预览劈砍仍从待机起手，关键帧是对着待机调的，只有脚的前后位置会跟游戏里不一样。
+- 受击、闪避、施法还没做，先摆备战架势，闪白和残影照旧叠上去。
+- 护甲类别（布衣/皮甲/链甲）从 `look.armor_types` 来，链甲对应这里的 `set-iron`；裤子跟护甲走。
+- 人缩到跟原来分格人物一样高（`SPRITE_HEIGHT`），战场站位和判定不用改。
+
+几个姿势并排截一张：`godot --path mobile --script res://prototype/cutout/pose_shot.gd -- 输出.png idle,ready`。
+在游戏里截图看：`godot --path mobile --resolution 780x1688 --script res://tests/_cutout_battle.gd -- <目录> [张数] [间隔帧] [route]`。
+项目目录中直接读 PNG，导出包中读 Godot 导入的纹理。两条路径都生成多级渐远，并按装备目录的 `margin` 对齐部件。

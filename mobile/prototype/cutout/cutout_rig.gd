@@ -7,6 +7,8 @@ extends Node2D
 ##
 ## 可选部件：skirt_front / skirt_back（长衣下摆前后片，挂在腰上，跟着大腿摆）、weapon（握在近侧手里）。
 
+const SPINE_CURVE := preload("res://prototype/cutout/spine_curve.gdshader")
+
 ## 远侧手脚压暗多少，做前后纵深；压太狠会像两条不同颜色的裤子。rig.json 的 far_tint 可覆盖（0～1）
 const FAR_TINT := 0.82
 const FAR_SHIFT := Vector2(-6, -4)  # 远侧手脚往后错开一点做纵深；错太多，远侧肩头会从后背露出来像驼峰
@@ -15,6 +17,7 @@ const FAR_SHIFT := Vector2(-6, -4)  # 远侧手脚往后错开一点做纵深；
 ## 下摆是一圈包住两条腿的布，侧面看到的是靠镜头那一侧的布面，所以前后两片都压在两条腿前面，
 ## 腿只从下摆底下和两片之间的开衩露出来，不会画到布上面去。
 const Z := {
+	"hair": -10,
 	"arm_far_up": -9, "arm_far_hand": -8, "arm_far_lo": -7, "leg_far_up": -6, "leg_far_lo": -6, "boot_far": -5,
 	"crotch": -4, "leg_near_up": -3, "leg_near_lo": -3, "boot_near": -2, "skirt_back": -2, "pelvis": -1, "head_behind": -1, "torso": 0, "skirt_front": 1, "collar": 2, "head": 4,
 	"weapon": 5, "arm_near_up": 6, "arm_near_hand": 7, "arm_near_lo": 8,
@@ -29,6 +32,13 @@ const IDLE := {
 	"torso": 6, "neck": -4, "arm_near_up": 8, "arm_near_lo": 18, "arm_far_up": -4, "arm_far_lo": 14, "blade": 0.0,
 	"hip": 0.86, "dx": 0.0, "foot_near_x": 0.16, "foot_near_y": 0.0, "foot_far_x": -0.12, "foot_far_y": 0.0,
 	"drag": 0.0, "foot_near_heel": 0.0, "foot_far_heel": 0.0,
+}
+## 备战：战斗里没出招、没走动时的架势。跟待机同一套关节，但两脚前后分开、膝盖弯、重心压低往前，
+## 剑斜举在身前、剑尖朝前上方（剑的朝向 = -(上臂 + 肘) + 手腕 + 手里剑柄斜度）。rig.json 的 ready 覆盖这些默认值。
+const READY := {
+	"torso": 12, "neck": -6, "arm_near_up": 18, "arm_near_lo": 38, "arm_far_up": 22, "arm_far_lo": 55, "blade": -8.0,
+	"hip": 0.85, "dx": 0.03, "foot_near_x": 0.34, "foot_near_y": 0.0, "foot_far_x": -0.3, "foot_far_y": 0.0,
+	"drag": 0.0, "foot_near_heel": 0.0, "foot_far_heel": 8.0,
 }
 ## 走路：stride 一步的长度、lift 抬脚高度、bob 胯的起伏，都以腿长为单位；period 两步一个周期（秒）；
 ## duty 一只脚踩在地上的时间占周期的比例（大于一半才有双脚同时着地的那一下）。
@@ -66,6 +76,7 @@ const ATTACK := [
 const SPRINGS := {
 	# 手臂、手腕的弹簧要硬：软了会慢半拍，跑快时手跟腿差出四分之一圈，看着就是顺拐。上臂不加弹簧
 	"arm_near_lo": [900.0, 0.75], "arm_far_lo": [700.0, 0.7], "neck": [200.0, 0.6], "blade": [900.0, 0.75],
+	"hair": [155.0, 0.65],
 	"skirt_front": [260.0, 0.6], "skirt_back": [220.0, 0.6],
 	"skirt_front_lo": [70.0, 0.3], "skirt_back_lo": [60.0, 0.3],
 	# IK 算出来的腿部角度再过一层很硬的弹簧（不过冲、滞后不到一帧）：腿快伸直时膝盖角对胯高、脚位极其敏感，
@@ -79,6 +90,9 @@ var rig: Dictionary
 var _bones := {}
 var _sprites := {}  # 部件名 -> 用这张图的 Sprite2D 列表
 var _idle := IDLE.duplicate()
+var _ready_p := READY.duplicate()
+## 劈砍从哪个姿势起手、收回哪个姿势：调参面板里是待机（关键帧是对着待机调的），游戏里是备战
+var attack_from := "idle"
 var _walk := WALK.duplicate()
 var _run := RUN.duplicate()
 var _attack: Array = ATTACK
@@ -94,6 +108,10 @@ var _trail: Line2D  # 刀光：挥剑时剑尖最近走过的一段
 var _tips: Array = []  # [时间, 剑尖位置]
 var _soft := 0.0  # 当前软 IK 的程度：走、跑时 SOFT_IK，站着、劈砍时 0（腿要能伸直）
 var freeze_t := -1.0  # 调参面板用：>= 0 时攻击定格在这个时刻，方便对着某一帧调
+## 游戏里用：>= 0 时动作时刻由外面给（走、跑按走过的距离算，脚才钉得住地；劈砍按出招进度算，打中那一下对得上结算）
+var drive_t := -1.0
+var blend_time := BLEND  # 换动作的过渡时长；游戏里连劈两刀，第二刀起手很短，要过渡得快一点
+var _blend_t := 0.0  # 换动作以后过了多久（过渡用自己的钟，动作时刻被外面接管时也能过渡）
 
 
 ## 贴图缓存：调参面板改部件大小时要重建骨骼，不用每次从硬盘重读图
@@ -125,6 +143,8 @@ func reload_params(cfg: Dictionary) -> void:
 					p[k] = src[k]
 	_idle = IDLE.duplicate()
 	_idle.merge(rig.get("idle", {}), true)
+	_ready_p = READY.duplicate()
+	_ready_p.merge(rig.get("ready", {}), true)
 	_walk = WALK.duplicate()
 	_walk.merge(rig.get("walk", {}), true)
 	_run = RUN.duplicate()
@@ -160,6 +180,13 @@ func _attach(bone: Node2D, part: String, slot: String, far := false) -> void:
 	s.centered = false
 	s.z_index = Z[slot] + 10
 	s.z_as_relative = false
+	if part == "torso" and float(rig.parts.torso.get("back_curve", 0.0)) > 0.0:
+		var torso: Dictionary = rig.parts.torso
+		var profile := ShaderMaterial.new()
+		profile.shader = SPINE_CURVE
+		profile.set_shader_parameter("curve_pixels", torso.back_curve)
+		profile.set_shader_parameter("spine_span", Vector2(torso.shoulder[1], torso.pivot[1]))
+		s.material = profile
 	if far:
 		var k: float = rig.get("far_tint", FAR_TINT)
 		s.modulate = Color(k, k * 0.98, k)
@@ -200,6 +227,9 @@ func _build() -> void:
 		_attach(cl, "collar", "collar")
 	# 头默认压在躯干上；behind 时垫在躯干下面，让衣领盖住脖子根的切口
 	_attach(neck, "head", "head_behind" if rig.parts.head.get("behind", false) else "head")
+	if _has("hair"):
+		var hair := _bone("hair", neck, _at("head", "hair"))
+		_attach(hair, "hair", "hair")
 	for side in ["far", "near"]:
 		var far: bool = side == "far"
 		var off := FAR_SHIFT if far else Vector2.ZERO
@@ -274,17 +304,30 @@ func set_outfit(outfit) -> void:
 		var dir := _dir_for(part, outfit)
 		var path := "%s/%s.png" % [dir, part]
 		var m := _margin(dir)
-		if not FileAccess.file_exists(path):
+		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path, "Texture2D"):
 			path = "%s/%s.png" % [rig.base_dir, part]
 			m = 0.0
 		if not _textures.has(path):
-			_textures[path] = ImageTexture.create_from_image(Image.load_from_file(path))
+			var img: Image
+			if FileAccess.file_exists(path):
+				img = Image.load_from_file(path)
+			else:
+				# 导出包保存的是 Godot 导入的纹理。
+				var texture := ResourceLoader.load(path, "Texture2D") as Texture2D
+				img = texture.get_image()
+				if img.is_compressed():
+					img.decompress()
+			# 游戏人物缩小时用多级渐远减少闪烁和锯齿。
+			img.generate_mipmaps()
+			_textures[path] = ImageTexture.create_from_image(img)
 		var tex: Texture2D = _textures[path]
 		var k := _s(part)
 		for s in _sprites[part]:
 			s.texture = tex
 			s.scale = k
 			s.position = (-_v(rig.parts[part].pivot) - Vector2(m, m)) * k
+			if part == "torso" and s.material is ShaderMaterial:
+				s.material.set_shader_parameter("texture_margin", m)
 			if s.has_meta("cut"):
 				_cut(s, part, tex, m)
 
@@ -370,6 +413,7 @@ func play(action: String) -> void:
 	_from = _last.duplicate()
 	_action = action
 	_action_t = 0.0
+	_blend_t = 0.0
 
 
 ## 一圈步态里每只脚的位置（相对胯，以腿长为单位，y 往上为抬脚）。
@@ -434,11 +478,81 @@ func _gait_heel(u: float, g: Dictionary) -> float:
 	return top * (1.0 - smoothstep(0.0, 0.4, k))
 
 
+## 走了 legs 个腿长时，这一圈步态该在哪个时刻（走、跑按当前动作的参数）。游戏里拿它把脚钉在地上。
+func gait_time(legs: float) -> float:
+	var g := _run if _action == "run" else _walk
+	var stride: float = g.get("reach", g.stride * 0.5) + g.get("push", g.stride * 0.5)
+	return legs * g.duty * g.period / stride
+
+
+## 腿长（本身坐标，含整体缩放），走过的距离按它折成腿长
+func leg_length() -> float:
+	return _leg * scale.y
+
+
+## 劈砍里「打中」那一帧的时刻和整段的长度（秒）
+func attack_hit_time() -> float:
+	return float(_attack[mini(_strike_from + 2, _attack.size() - 1)][0])
+
+
+func attack_end_time() -> float:
+	return float(_attack[-1][0])
+
+
+## 站直时从脚底到头顶多高（父节点坐标，含整体缩放；不算剑）。游戏里按它把人缩到跟原来的分格人物一样高。
+func stand_height() -> float:
+	var keep := _action
+	_action = "stand"
+	var pose := {}
+	for k in IDLE:
+		pose[k] = 0.0
+	pose.hip = 1.0
+	_apply(pose, 0.0)
+	var top := 0.0
+	var bottom := 0.0
+	for part in _sprites:
+		if part == "weapon":
+			continue
+		for spr in _sprites[part]:
+			var r: Rect2 = spr.get_rect()
+			var xf: Transform2D = transform * _relative(spr)
+			for c in [r.position, r.position + Vector2(r.size.x, 0), r.end, r.position + Vector2(0, r.size.y)]:
+				var y: float = (xf * c).y
+				top = minf(top, y)
+				bottom = maxf(bottom, y)
+	_action = keep
+	_spring.clear()
+	return bottom - top
+
+
+## 某个子节点相对本骨骼根的变换（不依赖是否已经进场景树）
+func _relative(node: Node2D) -> Transform2D:
+	var xf := Transform2D.IDENTITY
+	var n: Node = node
+	while n != self and n is Node2D:
+		xf = n.transform * xf
+		n = n.get_parent()
+	return xf
+
+
 ## 当前步态下地面往后退的速度（屏幕像素/秒），演示里的石缝按这个速度滚，脚就钉在地上
 func walk_speed() -> float:
 	var g := _run if _action == "run" else _walk
 	var stride: float = g.get("reach", g.stride * 0.5) + g.get("push", g.stride * 0.5)
 	return stride / (g.duty * g.period) * _leg * scale.x
+
+
+## 备战：呼吸更短更浅，胯跟着微微上下颠（脚下是活的，随时能动），剑尖跟着轻轻起伏
+func _pose_ready(t: float) -> Dictionary:
+	var breath := sin(t * TAU / 1.9)
+	var bounce := sin(t * TAU / 1.9 + 0.8)
+	var p := _ready_p.duplicate()
+	p.torso += breath * 1.0
+	p.neck -= breath * 1.0
+	p.hip += bounce * 0.006
+	p.arm_near_up += breath * 1.2
+	p.arm_far_up += breath * 1.5
+	return p
 
 
 func _pose_idle(t: float) -> Dictionary:
@@ -486,7 +600,7 @@ func _pose_gait(t: float, g: Dictionary) -> Dictionary:
 
 
 func _pose_attack(t: float) -> Dictionary:
-	var idle := _pose_idle(_time)
+	var idle := _pose_ready(_time) if attack_from == "ready" else _pose_idle(_time)
 	idle.step = 0.0
 	var keys := []
 	for k in _attack:
@@ -531,7 +645,10 @@ func _pose_attack(t: float) -> Dictionary:
 func _process(delta: float) -> void:
 	_time += delta
 	_action_t += delta
-	if freeze_t >= 0.0 and _action == "attack":
+	_blend_t += delta
+	if drive_t >= 0.0:
+		_action_t = drive_t
+	elif freeze_t >= 0.0 and _action == "attack":
 		_action_t = freeze_t
 	var pose: Dictionary
 	match _action:
@@ -541,6 +658,8 @@ func _process(delta: float) -> void:
 			pose = _pose_gait(_action_t, _run)
 		"attack":
 			pose = _pose_attack(_action_t)
+		"ready":
+			pose = _pose_ready(_time)
 		"stand":
 			# 笔直站姿：腿伸直、并脚，其余关节归零，只用来跟设定图比比例
 			pose = {}
@@ -550,8 +669,8 @@ func _process(delta: float) -> void:
 		_:
 			pose = _pose_idle(_time)
 	# 换动作后的头 BLEND 秒，从换之前的姿势过渡过来
-	if not _from.is_empty() and _action_t < BLEND and _action != "stand":
-		var u := smoothstep(0.0, 1.0, _action_t / BLEND)
+	if not _from.is_empty() and _blend_t < blend_time and _action != "stand":
+		var u := smoothstep(0.0, 1.0, _blend_t / blend_time)
 		for k in pose:
 			if _from.has(k):
 				pose[k] = lerpf(_from[k], pose[k], u)
@@ -623,8 +742,11 @@ func _follow(key: String, target: float, dt: float) -> float:
 		target = st[0] + wrapf(target - st[0], -180.0, 180.0)
 	var k: float = SPRINGS[key][0]
 	var c: float = 2.0 * sqrt(k) * SPRINGS[key][1]
-	# 半隐式欧拉，每帧分几小步算，帧率低也不会炸
-	var n := 4
+	# 半隐式欧拉，按帧长分小步算：每步不超过 4 毫秒（最硬的弹簧 2500 也稳）。
+	# 卡顿一下（存图、切后台回来、加载）帧长会很大，固定分 4 步时腿的弹簧会炸开、越转越大；
+	# 帧长再封顶 0.1 秒，卡得再久也只当 0.1 秒追，不会一口气算几百步
+	dt = minf(dt, 0.1)
+	var n := maxi(1, ceili(dt / 0.004))
 	var h := dt / n
 	for i in n:
 		st[1] += (k * (target - st[0]) - c * st[1]) * h
@@ -677,6 +799,10 @@ func _apply(pose: Dictionary, dt: float) -> void:
 	_bones.torso.rotation_degrees = pose.torso + torso_tilt
 	# 头往回转抵消一半上身前倾（不是全抵消）：劈砍、跑步时头跟着身子压一点，脖子也不会转得太狠
 	_bones.neck.rotation_degrees = _follow("neck", pose.neck - pose.torso * 0.5, dt) + head_tilt
+	if _bones.has("hair"):
+		var sway := sin(_time * TAU / 2.4) * 2.0 if _action != "stand" else 0.0
+		var tail_angle: float = pose.get("drag", 0.0) * 1.15 + pose.torso * 0.32 + sway
+		_bones.hair.rotation_degrees = _follow("hair", tail_angle, dt)
 	for side in ["near", "far"]:
 		var up_key := "arm_%s_up" % side
 		var lo_key := "arm_%s_lo" % side
@@ -703,16 +829,23 @@ func _apply(pose: Dictionary, dt: float) -> void:
 		_bones["leg_%s_lo" % side].rotation = r[1]
 		# 脚：踩在地上时整只脚放平（抵消大腿加小腿的转角）再按 heel 踮起脚跟，抬起来时跟着小腿自然垂；按抬脚高度过渡
 		if _bones.has("foot_" + side):
-			var flat := 1.0 - clampf(pose["foot_%s_y" % side] / 0.04, 0.0, 1.0)
-			_bones["foot_" + side].rotation = (heel - (r[0] + r[1])) * flat
+			var roll_height := maxf(0.001, float(rig.parts.boot.get("foot_roll_height", 0.04)))
+			var flat := 1.0 - clampf(pose["foot_%s_y" % side] / roll_height, 0.0, 1.0)
+			# 大小腿的弹簧角可能相差整圈，先把脚踝目标折回最短角度再做过渡。
+			var ankle_rotation := wrapf(heel - r[0] - r[1], -PI, PI)
+			_bones["foot_" + side].rotation = ankle_rotation * flat
 		thigh_fwd.append(-rad_to_deg(r[0]))  # 大腿往前抬为正
 	# 下摆：上半截至少跟大腿转得一样多，大腿往前抬就被顶起来、往后蹬就被带起来，腿不会从布里戳出来；
 	# 没被顶的时候往下垂，跑起来被风往后带（drag）。下半截挂在上半截底边，用软弹簧往「竖直 + drag」追，
 	# 膝盖抬起时布就搭在膝盖上垂下去，停下来还会晃两下。
-	# 臀胯跟着躯干前倾转三分之一，腰那里不至于折得太死
 	if _bones.has("pelvis"):
-		# 臀胯跟着躯干前倾转三分之一；再跟着两条大腿的平均方向前后倾一点（迈步时骨盆会前后翻）
-		_bones.pelvis.rotation_degrees = pose.torso * 0.35 - (thigh_fwd[0] + thigh_fwd[1]) * 0.12
+		var pelvis: Node2D = _bones.pelvis
+		pelvis.rotation_degrees = pose.torso * 0.42 - (thigh_fwd[0] + thigh_fwd[1]) * 0.08
+		if rig.parts.pelvis.has("hip"):
+			# 臀胯绕大腿接点转，转过后把腰带和躯干一起移回接缝处。
+			var hip_from_waist := _at("pelvis", "hip")
+			pelvis.position = hip_at - hip_from_waist.rotated(pelvis.rotation)
+			_bones.torso.position = hip_from_waist - hip_from_waist.rotated(pelvis.rotation)
 	# 裤裆跟着两条大腿的平均方向转一半
 	if _bones.has("crotch"):
 		_bones.crotch.rotation_degrees = -(thigh_fwd[0] + thigh_fwd[1]) * 0.25

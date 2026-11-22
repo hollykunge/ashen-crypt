@@ -20,6 +20,7 @@ const MonsterArt = preload("res://scripts/monster_art.gd")
 const Places = preload("res://scripts/rules/places.gd")
 const FxArt = preload("res://scripts/fx_art.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
+const CutoutHero = preload("res://scripts/cutout_hero.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -27,7 +28,7 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_new_forms,
+		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_cutout_hero, _test_new_forms,
 		_test_control_modes, _test_hit_feel, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
@@ -498,6 +499,40 @@ func _test_motion() -> bool:
 	var walking := Motion.walk(1.2)
 	var standing := Motion.idle(0.4)
 	_check(not Vector2(walking.shift).is_equal_approx(Vector2(standing.shift)), "走位与吐纳不是同一个姿态")
+	return true
+
+# 皮影主角：每一刀的「打中」对准结算那一下，刀内时刻只往前走；护甲类别随装备传到外观里。
+func _test_cutout_hero() -> bool:
+	var cues: Array = Combat.BLADE_CUES.sword
+	var hit := 0.43
+	var end := 1.1
+	for i in cues.size():
+		var at := CutoutHero.attack_time(cues[i], cues, hit, end)
+		_check(int(at.x) == i and is_equal_approx(at.y, hit), "皮影劈砍：第 %d 刀打中对准结算" % (i + 1))
+	var last := Vector2(-1, -1)
+	for step in range(101):
+		var at := CutoutHero.attack_time(step / 100.0, cues, hit, end)
+		if at.x == last.x:
+			_check(at.y >= last.y - 0.0001, "皮影劈砍：同一刀里时刻不倒退（进度 %.2f）" % (step / 100.0))
+		last = at
+	_check(is_equal_approx(CutoutHero.attack_time(1.0, cues, hit, end).y, end), "皮影劈砍：最后一刀收到整段结束")
+	_check(CutoutHero.supports(false, "sword") == CutoutHero.ENABLED and not CutoutHero.supports(true, "sword")
+		and not CutoutHero.supports(false, "bow"), "皮影主角只接男主角拿剑")
+	var look := Appearance.build({"armor": {"armor_type": "leather"}, "boots": {"armor_type": "chain"}}, {}, "sword")
+	_check(look.armor_types.get("armor") == "leather" and look.armor_types.get("boots") == "chain"
+		and not look.armor_types.has("gloves"), "外观带上护甲类别")
+	var rig := CutoutHero.Rig.new()
+	rig.setup(CutoutHero.ROOT + "rig.json", CutoutHero.ROOT + "parts")
+	rig.play("run")
+	var airborne := rig._pose_gait(0.5 * float(rig._run.period), rig._run)
+	airborne.foot_near_y = float(rig.rig.parts.boot.get("foot_roll_height", 0.04)) * 0.5
+	rig._apply(airborne, 0.0)
+	var ankle_rotation: float = rig._bones.foot_near.rotation
+	rig._spring.leg_near_lo[0] += 360.0
+	rig._apply(airborne, 0.0)
+	var ankle_rotation_after_wrap: float = rig._bones.foot_near.rotation
+	rig.free()
+	_check(is_equal_approx(ankle_rotation, ankle_rotation_after_wrap), "皮影跑步：腾空时小腿角差一整圈，靴子姿态相同")
 	return true
 
 func _test_blade_flurry() -> bool:

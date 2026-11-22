@@ -53,12 +53,16 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 		"ring": false, "ring_color": NEUTRAL,
 		"boots": NEUTRAL, "boots_amount": 0.0,
 		"halo": 0, "halo_color": NEUTRAL,
-		"marks": []
+		"marks": [],
+		# 护甲、护手、靴子各是哪一类（布衣、皮甲、链甲），皮影主角按它换整套部件图
+		"armor_types": {}
 	}
 	var carried := 0.0
 	var polarity := 0.0
 	for slot in entries:
 		var entry: Dictionary = entries[slot]
+		if slot in ["armor", "gloves", "boots"]:
+			look.armor_types[slot] = String(entry.get("armor_type", "cloth"))
 		var element := element_of(entry)
 		if element.is_empty():
 			continue

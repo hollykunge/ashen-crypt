@@ -15,6 +15,7 @@ const SideArt = preload("res://scripts/side_art.gd")
 const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const WornSprites = preload("res://scripts/worn_sprites.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
+const CutoutHero = preload("res://scripts/cutout_hero.gd")
 const WORLD_CENTER_X := 538.0
 const SIDE_DEPTH := 0.18
 const HERO_SCALE := 1.34
@@ -62,6 +63,9 @@ var look: Dictionary = Appearance.bare():
 		hero_sprite = WornSprites.texture(portrait_id % 2 == 1, look)
 		if look.form == "bow":
 			HeldWeapon.BowPose.texture(hero_sprite, portrait_id % 2, false)
+		_sync_cutout()
+# 皮影主角（拆件骨骼）。只有支持的人物和兵器才有，其余为 null，照旧画分格人物。
+var cutout: CutoutHero
 # 打击反馈：震屏、闪白、顿感都只影响画面，不碰结算。
 # shake 是「创伤值」0~1：每次打击往上加，按秒线性回落；画面位移按它的 1.5 次方算，
 # 小打小闹几乎不抖，连续重击才明显。抖动偏向打击方向（shake_dir），另有一下沿打击方向的镜头冲击（kick）。
@@ -683,12 +687,37 @@ func _hero_pose() -> Dictionary:
 		phase = lerpf(0.30, 1.0, phase)
 	return Motion.sample(Motion.clip_for(run.motion, run.weapon_form), phase)
 
+func _sync_cutout() -> void:
+	var wanted := CutoutHero.supports(portrait_id % 2 == 1, String(look.form))
+	if not wanted:
+		if cutout != null:
+			cutout.queue_free()
+			cutout = null
+		return
+	if cutout == null:
+		cutout = CutoutHero.new()
+		add_child(cutout)
+	cutout.dress(look)
+
+# 皮影主角这一帧接管得了就返回 true（动作、时刻已经对好）。
+func _drive_cutout(running: bool) -> bool:
+	if cutout == null:
+		return false
+	cutout.fit(scale_to_screen * HERO_SCALE * actor_zoom, get_viewport().get_final_transform().get_scale().x)
+	var phase := run.motion_time / maxf(run.motion_duration, 0.01)
+	if hold > 0.0 and held_motion == run.motion:
+		phase = minf(phase, held_phase)
+	var cues: Array = Combat.BLADE_CUES.get(run.weapon_form, [])
+	var walked := run.stride * _step_vector().length() * scale_to_screen
+	return cutout.drive(run.motion, phase, walked, running, cues)
+
 func _draw_hero() -> void:
 	var base := _floor(run.position)
 	var hero_scale := HERO_SCALE * actor_zoom
 	var facing := -1.0 if cos(run.facing) < 0.0 else 1.0
 	hero_pose = _hero_pose()
 	var running := run.advancing or layer_travel
+	var use_cutout := _drive_cutout(running)
 	var sprite_index := portrait_id % 2
 	var frame := SideArt.frame_for(hero_pose.frame)
 	var retreating := run.motion == &"retreat" and run.dodge_moves
@@ -725,6 +754,10 @@ func _draw_hero() -> void:
 		69.0, 52.0, Motion.REST)
 	draw_set_transform(Vector2.ZERO)
 	Figure.halo(self, rig, look, ash_time)
+	if use_cutout:
+		_draw_cutout_hero(point, facing, ink, retreating)
+		_draw_hero_aura(rig)
+		return
 	_at_actor(point, facing, hero_scale, lean)
 	if float(hero_pose.ghost) > 0.1 and (run.motion != &"retreat" or retreating):
 		var offset := 13.0 if run.motion == &"retreat" else -10.0
@@ -736,6 +769,20 @@ func _draw_hero() -> void:
 	var feet := Vector2.ZERO if gait.is_empty() else _foot_shift(gait, facing, hero_scale, lean)
 	HeldWeapon.draw_actor(self, sprite, sprite_index, frame, look, ink, gait, feet)
 	draw_set_transform(Vector2.ZERO)
+	_draw_hero_aura(rig)
+
+# 皮影主角：残影、本体都是同一块画布，错开、压淡贴几次。
+func _draw_cutout_hero(point: Vector2, facing: float, ink: Color, retreating: bool) -> void:
+	var feet := world_offset + jitter + point * scale_to_screen
+	var unit := scale_to_screen * HERO_SCALE * actor_zoom
+	if float(hero_pose.ghost) > 0.1 and (run.motion != &"retreat" or retreating):
+		var offset := 13.0 if run.motion == &"retreat" else -10.0
+		if float(hero_pose.ghost) > 0.65 and run.motion == &"attack":
+			cutout.draw(self, feet, facing, Color(look.trim, float(hero_pose.ghost) * 0.12), Vector2(offset * 2.1 * unit, 0))
+		cutout.draw(self, feet, facing, Color(look.trim, float(hero_pose.ghost) * 0.23), Vector2(offset * unit, 0))
+	cutout.draw(self, feet, facing, ink)
+
+func _draw_hero_aura(rig: Rig) -> void:
 	Figure.hands(self, rig, look)
 	Figure.charms(self, rig, look, ash_time)
 	Figure.dust(self, rig, look, ash_time)

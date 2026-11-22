@@ -1,0 +1,10 @@
+{
+  "outfits": [
+    "parts",
+    "set-leather",
+    "set-mail",
+    {"armor": "set-mail", "pants": "set-leather", "gloves": "set-leather", "boots": "set-mail"}
+  ],
+  "labels": ["旧布短打", "皮甲", "链甲", "链甲与皮甲混搭"],
+  "attack": "劈砍"
+}
