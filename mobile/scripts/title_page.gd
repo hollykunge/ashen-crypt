@@ -25,7 +25,7 @@ func build(main) -> void:
 	seal.add_theme_constant_override("outline_size", 5)
 	seal.add_theme_color_override("font_outline_color", Color(ui.NIGHT, 0.9))
 	add_child(seal)
-	var title: Label = ui._label("余烬地牢", 58, Color("#f2d9a6"))
+	var title: Label = ui._label("余烬地牢", 58, Color("#3b3025"))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_constant_override("outline_size", 10)
 	title.add_theme_color_override("font_outline_color", Color(ui.NIGHT, 0.9))
@@ -48,8 +48,16 @@ func build(main) -> void:
 	enter.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	enter.pressed.connect(func() -> void: start_requested.emit())
 	add_child(enter)
+	add_child(ui._space(10))
+	var preview: Button = ui._button("手绘试演 · 动作与换装", false, 44)
+	preview.custom_minimum_size.x = 240.0
+	preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preview.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://ink_preview.tscn"))
+	add_child(preview)
 	add_child(ui._space(14))
 	hint = ui._label("", 12, ui.MUTED)
+	hint.add_theme_constant_override("outline_size", 3)
+	hint.add_theme_color_override("font_outline_color", Color(ui.NIGHT, 0.85))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(hint)
 	add_child(ui._space(18))

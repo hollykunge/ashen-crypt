@@ -8,10 +8,8 @@ const FORM_MATRIX := {
 		"huo": ["fire_resist", "scorch_armor"], "tu": ["shield", "mitigation"]},
 	"gloves": {"jin": ["attack", "crit_damage"], "mu": ["healing", "spread"], "shui": ["cooldown", "mana_regen"],
 		"huo": ["skill_damage", "ignite"], "tu": ["stability", "thorns"]},
-	"charm": {"jin": ["block", "keen_sight"], "mu": ["hp", "vitality"], "shui": ["mana", "mana_regen"],
+	"greaves": {"jin": ["block", "keen_sight"], "mu": ["hp", "vitality"], "shui": ["mana", "mana_regen"],
 		"huo": ["elemental_power", "burn_damage"], "tu": ["armor", "encumbrance"]},
-	"ring": {"jin": ["penetration", "crit"], "mu": ["kill_heal", "drain"], "shui": ["move_speed", "slow_power"],
-		"huo": ["crit_damage", "ignite_cap"], "tu": ["hp", "energy_absorb"]},
 	"boots": {"jin": ["stability", "keen_step"], "mu": ["hp", "run_heal"], "shui": ["move_speed", "dodge_cooldown"],
 		"huo": ["dash_distance", "fire_trail"], "tu": ["knockback_resist", "stomp"]}
 }
@@ -60,12 +58,9 @@ const TRIGGER_CONDITIONS := {
 	"gloves": {"jin": ["连续命中 5 次", "背击时"], "mu": ["治疗生效时", "治疗扩散时"],
 		"shui": ["冷却结束时", "灵力低于 30%"], "huo": ["释放技能时", "引燃时"],
 		"tu": ["抗住打断时", "荆棘触发时"]},
-	"charm": {"jin": ["战斗开始时", "首次命中时"], "mu": ["拾取材料时", "脱战 1 秒后"],
+	"greaves": {"jin": ["战斗开始时", "首次命中时"], "mu": ["拾取材料时", "脱战 1 秒后"],
 		"shui": ["消耗灵力时", "回蓝时"], "huo": ["暴击时", "点燃叠满时"],
 		"tu": ["生命低于 50%", "受击累计 10 次"]},
-	"ring": {"jin": ["穿甲生效时", "连续暴击 2 次"], "mu": ["击杀回血时", "吸取生命生效时"],
-		"shui": ["冲刺时", "目标被减速时"], "huo": ["暴伤触发时", "目标燃烧 3 层"],
-		"tu": ["生命回复时", "受击回蓝时"]},
 	"boots": {"jin": ["被击退时", "背后接近敌人时"], "mu": ["奔跑 2 秒后", "静止 1 秒后"],
 		"shui": ["移速满时", "后撤后"], "huo": ["冲刺穿敌时", "踩过火焰足迹时"],
 		"tu": ["落地时", "脱离定身时"]}
@@ -107,9 +102,9 @@ const PROCESSES := {
 const NAME_PARTS := {
 	"pure": "纯", "pure_min": 0.80, "sheng": "相生", "clash": "反应",
 	"taiji": "太极", "zhoutian": "均衡", "xiangzhan": "相克",
-	"slots": {"weapon": "刃", "armor": "甲", "gloves": "护手", "charm": "符", "ring": "戒", "boots": "靴"},
-	"weapons": {"sword": "剑", "spear": "长枪", "bow": "弓"},
-	# 护甲按甲型改叫法，男女各一套：女装是丝绸、皮衣、盔甲。护手、鞋子的甲型只改样子，名字不变。
+	"slots": {"weapon": "刃", "armor": "上衣", "gloves": "护腕", "greaves": "护腿", "boots": "靴"},
+	"weapons": {"sword": "刀", "jian": "剑", "spear": "长枪", "bow": "弓"},
+	# 护甲按甲型改叫法，男女各一套：女装是丝绸、皮衣、盔甲。护腕、护腿、靴子的甲型只改样子，名字不变。
 	"armor_types": {"cloth": "布衣", "leather": "皮甲", "chain": "链甲"},
 	"armor_types_female": {"cloth": "丝衣", "leather": "皮衣", "chain": "盔甲"},
 	"gear_types": {"cloth": "布", "leather": "皮", "chain": "链"}

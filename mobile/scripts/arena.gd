@@ -44,6 +44,7 @@ var run: Combat
 var hero_element := "jin"
 var scale_to_screen := 1.0
 var actor_zoom := 1.0
+var art_review_scale := 1.0
 # 主角每个像素在屏幕上的边长，连击数等贴着人物的界面按它避让头顶。
 var hero_pixels := 1.0
 var world_center_x := WORLD_CENTER_X
@@ -217,6 +218,15 @@ func _update_light() -> void:
 		return
 	var warm := clampf(1.0 - absf(daylight - 0.5) * 2.0, 0.0, 1.0)
 	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
+	if plate.get("ink", false):
+		# 纸本场景保留墨线和中间调，天色仍随关卡变化。
+		atmosphere.visible = warm > 0.01 or dark > 0.01
+		light.set_shader_parameter("grade", 0.0)
+		light.set_shader_parameter("vignette", 0.10)
+		light.set_shader_parameter("warm", warm * 0.12)
+		light.set_shader_parameter("night", dark * 0.22)
+		light.set_shader_parameter("aspect", size.x / size.y)
+		return
 	# 暗黑调色常开：白天也是阴天，压饱和、压暗、冷灰阴影，只留血色和火光。
 	atmosphere.visible = GRADE > 0.0 or warm > 0.01 or dark > 0.01
 	if not atmosphere.visible:
@@ -356,6 +366,7 @@ func _fit_stage() -> void:
 	if wide:
 		art_scale *= LANDSCAPE_ACTOR_MAGNIFICATION
 	hero_pixels = minf(street_size.y * art_scale, size.x / (2.0 * SideArt.CELL.x) * zoom)
+	hero_pixels *= art_review_scale
 	actor_zoom = hero_pixels / (HERO_SCALE * scale_to_screen)
 	# 地面和脚底共用同一段镜头位移，图片边缘同时限制镜头的行程。
 	var overflow := street_size.x - size.x
@@ -369,6 +380,8 @@ func _fit_stage() -> void:
 		initial_left = -lerpf(start, maxf(start, overflow - stride - edge), progress)
 	else:
 		initial_left = -overflow * lerpf(0.06, 0.94, progress)
+	if plate.get("ink", false):
+		initial_left = -overflow * lerpf(0.34, 0.66, progress)
 	camera_limits = Vector2(initial_left, initial_left + overflow) / scale_to_screen
 	follow.x = clampf(follow.x, camera_limits.x, camera_limits.y)
 	var anchor := Vector2(world_center_x + follow.x, Combat.HOME.y)
@@ -746,7 +759,6 @@ func _draw_cutout_hero(point: Vector2, facing: float, ink: Color, retreating: bo
 
 func _draw_hero_aura(rig: Rig) -> void:
 	Figure.hands(self, rig, look)
-	Figure.charms(self, rig, look, ash_time)
 	Figure.dust(self, rig, look, ash_time)
 	_world_transform()
 

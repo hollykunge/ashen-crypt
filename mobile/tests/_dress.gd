@@ -1,6 +1,6 @@
 extends SceneTree
 
-# 开发用：按指定五行给六个槽位各打一件装备、穿上，再截图，用来核对装备外观与动作。
+# 开发用：按指定五行给五个槽位各打一件装备、穿上，再截图，用来核对装备外观与动作。
 #
 # 用法 godot --path mobile --script res://tests/_dress.gd -- <输出> [五行] [兵器] [模式] [帧数] [动作] [进度] [male|female]
 #   模式 farm   挂机画面

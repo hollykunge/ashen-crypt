@@ -9,8 +9,8 @@ const Roster = preload("res://scripts/roster.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const PORTRAIT_LIGHT = preload("res://scripts/portrait_light.gdshader")
 const SideArt = preload("res://scripts/side_art.gd")
-const GOOD := Color("#b0d193")
-const BAD := Color("#ffaca0")
+const GOOD := Color("#4f7045")
+const BAD := Color("#a13f32")
 const PAGES := ["性别", "日干", "月令", "时辰", "出身"]
 const TALENTS := [
 	["炉温 +1", "初始炉温提高一档"], ["投料格 +1", "初始投料格多一格"],
@@ -168,7 +168,7 @@ func _build_portrait() -> void:
 	frame.clip_contents = true
 	creator.add_child(frame)
 	var backing := Panel.new()
-	backing.add_theme_stylebox_override("panel", ui._box(Color("#181617a8"), ui.BORDER, 1, 0))
+	backing.add_theme_stylebox_override("panel", ui._box(Color("#ecddbea8"), ui.BORDER, 1, 0))
 	ui._fill(backing)
 	frame.add_child(backing)
 
@@ -299,7 +299,7 @@ func _create() -> void:
 		error.show()
 
 class PortraitFrame extends Control:
-	var tint := Color("#c4a582")
+	var tint := Color("#785b3e")
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE

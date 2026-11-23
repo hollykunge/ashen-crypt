@@ -1,8 +1,8 @@
 extends RefCounted
 
-const SLOTS := ["weapon", "armor", "gloves", "charm", "ring", "boots"]
-const SLOT_NAMES := ["武器", "护甲", "护手", "项链", "戒指", "鞋子"]
-const EMPTY_ICONS := [9, 7, 17, 5, 23, 20]
+const SLOTS := ["weapon", "armor", "gloves", "greaves", "boots"]
+const SLOT_NAMES := ["武器", "上衣", "护腕", "护腿", "靴子"]
+const EMPTY_ICONS := [9, 7, 17, 17, 20]
 const ITEMS: Array[Dictionary] = [
 	{"id": "chain_mail", "slot": "armor", "name": "锁环甲", "icon": 4, "cost": {"iron": 2, "bone": 3}, "stats": {"hp": 24}},
 	{"id": "tomb_plate", "slot": "armor", "name": "镇岳山文甲", "icon": 7, "cost": {"iron": 5, "bone": 5, "ember": 1}, "stats": {"hp": 49, "armor": 12}, "set": "stonewatch"},

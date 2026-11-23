@@ -8,7 +8,7 @@ const PATHS := [
 	"res://art/side/monsters/shanxiao.png",
 	"res://art/side/monsters/fire-fox.png",
 	"res://art/side/monsters/guardian.png",
-	"res://art/side/monsters/vine-spirit.png",
+	"res://art/ink/vine-spirit.png",
 ]
 const TEXEL := 3
 const CELL := Vector2(160, 96)

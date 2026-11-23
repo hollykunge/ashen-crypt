@@ -2,7 +2,8 @@ extends RefCounted
 
 const Places = preload("res://scripts/rules/places.gd")
 const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
-const PORTRAIT := preload("res://prototype/cutout/swordsman/parts/head.png")
+const PORTRAIT := preload("res://art/reference-hero/portrait.png")
+const INK_STAGE := preload("res://art/ink/mountain-road.png")
 const CELL := Vector2(96, 96)
 const PIVOT := Vector2(47, 89)
 const FLOOR := 0.76
@@ -51,6 +52,12 @@ static func plate_for(layer: int) -> Dictionary:
 		plate["depth"] = PLATE_DEPTH
 		plate["margin"] = PLATE_MARGIN
 		plate["texture"] = load(spec.path)
+		if key == "drought":
+			plate["texture"] = INK_STAGE
+			plate["floor"] = 0.78
+			plate["haze"] = Color("#d8be95")
+			plate["depth"] = 0.12
+			plate["ink"] = true
 		_plate_cache[key] = plate
 	return _plate_cache[key]
 

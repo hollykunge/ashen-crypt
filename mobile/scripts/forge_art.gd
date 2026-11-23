@@ -3,19 +3,19 @@ extends RefCounted
 const ATLAS = preload("res://art/immortals/armory.webp")
 const CELL := Vector2(128, 128)
 
-# 需要区分男女式样时使用 [男, 女]。每行依次为武器、护甲、护手、项链、戒指、鞋子。
+# 需要区分男女式样时使用 [男, 女]。每行依次为武器、上衣、护腕、护腿、靴子。
 const ICONS := {
-	"jin": [[10, 12], 7, 17, 26, 23, 20],
-	"mu": [11, 15, 18, 29, 24, 21],
-	"huo": [9, [4, 15], 17, 26, 25, 22],
-	"shui": [13, 16, 18, 5, 24, [21, 22]],
-	"tu": [[10, 12], 4, 17, 5, 24, [20, 22]]
+	"jin": [[10, 12], 7, 17, 17, 20],
+	"mu": [11, 15, 18, 18, 21],
+	"huo": [9, [4, 15], 17, 17, 22],
+	"shui": [13, 16, 18, 18, [21, 22]],
+	"tu": [[10, 12], 4, 17, 17, [20, 22]]
 }
 
 # 形制图标由 art/side/pack_weapons.py 从法器原画抠出，4 列 × 2 行。
 const WEAPONS = preload("res://art/forge-weapons.png")
 const WEAPON_GRID := Vector2(4, 2)
-const FORM_ICONS := {"bow": 2, "spear": 6, "sword": 7}
+const FORM_ICONS := {"bow": 2, "spear": 6, "jian": 7, "sword": 0}
 
 static func item_index(slot_index: int, element: String, female: bool) -> int:
 	var variant: Variant = ICONS[element][slot_index]

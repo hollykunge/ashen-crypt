@@ -98,7 +98,7 @@ class Sweep extends Control:
 	var fraction := 0.0
 	var starved := false
 	var ink := Color("#121013")
-	var edge := Color("#d8bd8a")
+	var edge := Color("#7a5739")
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -134,7 +134,7 @@ class Sweep extends Control:
 
 class Glyph extends Control:
 	var symbol: StringName = &"sword"
-	var ink := Color("#d9bd87")
+	var ink := Color("#4f3c2b")
 	var art: Texture2D
 
 	func _ready() -> void:

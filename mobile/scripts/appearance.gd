@@ -2,7 +2,7 @@ extends RefCounted
 
 # 装备外观。
 #
-# 六个槽位各自有主导五行、阴阳与功率预算，这三样已经决定了数值，这里让它们同样决定画面：
+# 五个槽位各自有主导五行、阴阳与功率预算，这三样已经决定了数值，这里让它们同样决定画面：
 # 换一件护甲就换一身袍色，换一把兵器就换一色刃光，成格还会在脚下多一圈光环。
 # 规则与 docs/crafting-rules.md 同源，外观只读推导结果，不自己造数值。
 #
@@ -10,8 +10,7 @@ extends RefCounted
 #   weapon 武器 → 刃光、斩击与弹道的颜色
 #   armor  护甲 → 胸甲、肩甲、衣摆和披帛
 #   gloves 护手 → 随腕移动的护臂、出手时的腕光
-#   charm  项链 → 胸前悬浮的符牌
-#   ring   戒指 → 绕身旋转的符环
+#   greaves 护腿 → 随小腿移动的腿甲
 #   boots  鞋子 → 靴筒、鞋面和步痕
 #   格局     → 脚下法阵的环数
 
@@ -36,9 +35,10 @@ static func amount_of(entry: Dictionary) -> float:
 	return clampf(float(entry.get("budget", 0.0)) / FULL_BUDGET, 0.0, 1.0)
 
 # 由当前装备推出一份外观描述。entries 为 Gear.loadout().entries，patterns 为同一次推导的格局。
-static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String) -> Dictionary:
+static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String, gender: String = "") -> Dictionary:
 	var look := {
 		"form": weapon_form,
+		"gender": gender, "armed": entries.has("weapon"),
 		"dressed": false,
 		"pieces": {},
 		"polarity": 0.0,
@@ -49,20 +49,23 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 		"weapon": Color("#f4e3bc"), "weapon_amount": 0.0,
 		"trail": Color("#eaffd3"),
 		"hands": NEUTRAL, "hands_amount": 0.0,
-		"charm": false, "charm_color": NEUTRAL,
-		"ring": false, "ring_color": NEUTRAL,
+		"greaves": NEUTRAL, "greaves_amount": 0.0,
 		"boots": NEUTRAL, "boots_amount": 0.0,
 		"halo": 0, "halo_color": NEUTRAL,
 		"marks": [],
-		# 护甲、护手、靴子各是哪一类（布衣、皮甲、链甲），皮影主角按它换整套部件图
-		"armor_types": {}
+		# 上衣、护腕、护腿、靴子各是哪一类（布衣、皮甲、链甲），皮影主角按它换整套部件图
+		"dyes": {}, "armor_types": {}
 	}
 	var carried := 0.0
 	var polarity := 0.0
 	for slot in entries:
 		var entry: Dictionary = entries[slot]
-		if slot in ["armor", "gloves", "boots"]:
-			look.armor_types[slot] = String(entry.get("armor_type", "cloth"))
+		if slot in ["armor", "gloves", "greaves", "boots"]:
+			var dye_id: String = entry.get("dye", "本色")
+			if dye_id != "本色" and Pigments.GARMENT_DYES.has(dye_id):
+				look.dyes[slot] = Pigments.GARMENT_DYES[dye_id]
+			var style: String = entry.get("armor_type", "cloth")
+			look.armor_types[slot] = style if style in ["leather", "chain"] else "cloth"
 		var element := element_of(entry)
 		if element.is_empty():
 			continue
@@ -88,12 +91,9 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 			"gloves":
 				look.hands = glow
 				look.hands_amount = amount
-			"charm":
-				look.charm = true
-				look.charm_color = glow
-			"ring":
-				look.ring = true
-				look.ring_color = glow
+			"greaves":
+				look.greaves = dye
+				look.greaves_amount = amount
 			"boots":
 				look.boots = glow
 				look.boots_amount = amount

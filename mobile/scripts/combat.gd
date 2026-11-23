@@ -72,6 +72,9 @@ const CRIT_LIFETIME := 14.0 / 30.0
 enum ControlMode { MANUAL, ASSISTED, AUTOMATIC }
 
 var weapon_form := "sword"
+const Cleave = preload("res://scripts/leaping_cleave.gd")
+var leaping_cleave := false
+var cleave_power := 0
 # 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
 var trail_color := Color("#e5cb93")
 # 武器主行，决定击打特效取哪一行配色；空手为空串。由画面层按外观写入。
@@ -252,7 +255,7 @@ func _apply_equipment(bonuses: Dictionary, form: String) -> void:
 	mana_recovery = 10.0 + _stat("regen")
 	companions = int(gear.get("companions", 0))
 
-const BUSY_MOTIONS := [&"attack", &"skill", &"tactic", &"retreat"]
+const BUSY_MOTIONS := [&"attack", &"skill", &"cleave", &"tactic", &"retreat"]
 
 func attack(buffer := true) -> void:
 	# 受击与复活只是演出，不该锁住出手；真正占手的是自己的四个动作。
@@ -277,17 +280,20 @@ func skill() -> void:
 	facing = _direction_to_enemy()
 	mana -= skill_cost
 	skill_left = float(hero.cooldown) * (1.0 - _stat("cooldown") / 100.0)
-	_start_motion(&"skill", 0.34)
+	_start_motion(&"cleave" if leaping_cleave else &"skill", Cleave.DURATION if leaping_cleave else 0.34)
 	var power := roundi(float(hero.damage) * 1.65 + _stat("skill_damage") + _stat("elemental_power"))
 	var form := &"seal_burst"
 	if weapon_form == "bow":
 		form = &"arrow_seal"
 		for spread in [-0.20, 0.0, 0.20]:
 			_fire(facing + spread, power, 880.0, hero.reach, 2, 0.0, false, true)
+	elif leaping_cleave:
+		cleave_power = power
 	else:
 		_crush(position + Vector2.from_angle(facing) * 65.0, 125.0, power, 200.0)
 	var center := position + Vector2.from_angle(facing) * 65.0 if form == &"seal_burst" else position
-	_cast_effect(form, center, trail_color, 125.0 if form == &"seal_burst" else 65.0)
+	if not leaping_cleave:
+		_cast_effect(form, center, trail_color, 125.0 if form == &"seal_burst" else 65.0)
 	_trigger("消耗灵力时")
 	_trigger("释放技能时")
 	_pulse(&"cast", position, 1.2)
@@ -579,6 +585,8 @@ func _step_player(delta: float, direction: Vector2) -> void:
 	if motion != &"":
 		var previous := motion_time
 		motion_time += delta
+		if motion == &"cleave" and previous < motion_duration*Cleave.IMPACT and motion_time >= motion_duration*Cleave.IMPACT:
+			_crush(position + Vector2.from_angle(facing)*65.0,125.0,cleave_power,200.0)
 		if motion == &"attack":
 			var cues := attack_cues()
 			for index in range(cues.size()):
@@ -613,7 +621,7 @@ func _release_attack(index: int) -> void:
 	match weapon_form:
 		"sword":
 			_blade_strike(index, damage)
-		"spear":
+		"jian", "spear":
 			_thrust(damage)
 		"bow":
 			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
