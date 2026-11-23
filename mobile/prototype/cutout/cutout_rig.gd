@@ -113,12 +113,16 @@ var drive_t := -1.0
 var pose_override: Dictionary = {}
 var show_weapon := true
 var show_trail := true
+var weapon_tip_marker: Marker2D
+var _trail_edge: Line2D
+var _last_trail_phase := -1.0
 var blend_time := BLEND  # 换动作的过渡时长；游戏里连劈两刀，第二刀起手很短，要过渡得快一点
 var _blend_t := 0.0  # 换动作以后过了多久（过渡用自己的钟，动作时刻被外面接管时也能过渡）
 
 
 ## 贴图缓存：调参面板改部件大小时要重建骨骼，不用每次从硬盘重读图
 static var _textures := {}
+static var _visible_rects := {}
 
 
 func setup(rig_path: String, outfit) -> void:
@@ -235,32 +239,37 @@ func _build() -> void:
 		_attach(hair, "hair", "hair")
 	for side in ["far", "near"]:
 		var far: bool = side == "far"
-		var off := FAR_SHIFT if far else Vector2.ZERO
+		var off := _far_joint("hip") if far else Vector2.ZERO
 		# 远侧手臂隔着身体，看到的是内侧；有 far_upper_arm / far_forearm 就用它们，没有就借近侧的图
 		var p_up := "far_upper_arm" if far and _has("far_upper_arm") else "upper_arm"
 		var p_lo := "far_forearm" if far and _has("far_forearm") else "forearm"
-		var up := _bone("arm_%s_up" % side, torso, _at("torso", "shoulder") + off)
+		var shoulder := _at("torso","shoulder") + (_far_joint("shoulder") if far else Vector2.ZERO)
+		var up := _bone("arm_%s_up" % side, torso, shoulder)
 		_attach(up, p_up, "arm_%s_up" % side, far)
 		var lo := _bone("arm_%s_lo" % side, up, _at(p_up, "end"))
 		_attach(lo, p_lo, "arm_%s_lo" % side, far)
 		# 有单独的握剑手（hand）时：近侧前臂只用到手腕，手腕圆头塞进护腕底下，剑挂在手里画好的剑柄上
 		if not far and _has("hand"):
 			_cut_forearm(p_lo)
-			var hand := _bone("arm_near_hand", lo, _split_point(p_lo))
+			var wrist := _at(p_lo,"wrist") if not rig.parts[p_lo].has("split") else _split_point(p_lo)
+			var hand := _bone("arm_near_hand", lo, wrist)
 			_attach(hand, "hand", "arm_near_hand")
 		# 远侧那只空手看到的是掌心一侧，用单独的 far_hand；内侧前臂本身画到手腕为止，接在它的 wrist 上
-		if far and _has("far_hand"):
+		if far and (_has("far_hand") or _has("hand")):
 			var at := _at(p_lo, "wrist") if rig.parts[p_lo].has("wrist") else _split_point(p_lo)
 			if not rig.parts[p_lo].has("wrist"):
 				_cut_forearm(p_lo)
 			var fh := _bone("arm_far_hand", lo, at)
-			_attach(fh, "far_hand", "arm_far_hand", true)
+			_attach(fh, "far_hand" if _has("far_hand") else "hand", "arm_far_hand", true)
 		var th := _bone("leg_%s_up" % side, hips, hip_at + off)
-		_attach(th, "thigh", "leg_%s_up" % side, far)
+		_attach(th, "far_thigh" if far and _has("far_thigh") else "thigh", "leg_%s_up" % side, far)
 		var sh := _bone("leg_%s_lo" % side, th, _at("thigh", "end"))
-		_attach(sh, "shin", "leg_%s_lo" % side, far)
+		_attach(sh, "far_shin" if far and _has("far_shin") else "shin", "leg_%s_lo" % side, far)
 		# 靴子单独一件（鞋子槽），跟小腿共用关节点和缩放，压在小腿的裤管上面；裤管归裤子槽
-		if _has("boot"):
+		if _has("foot"):
+			var foot := _bone("foot_%s" % side,sh,_at("shin","ankle"))
+			_attach(foot,"far_foot" if far and _has("far_foot") else "foot","boot_%s" % side,far)
+		elif _has("boot"):
 			_attach(sh, "boot", "boot_%s" % side, far)
 			# 有 split 时在脚踝处切开：靴筒跟着小腿，脚绕脚踝转，踩地时放平；foot_scale 单独缩脚（绕脚踝缩）
 			if rig.parts.boot.has("split"):
@@ -312,14 +321,14 @@ func set_outfit(outfit) -> void:
 			m = 0.0
 		if not _textures.has(path):
 			var img: Image
-			if FileAccess.file_exists(path):
-				img = Image.load_from_file(path)
-			else:
-				# 导出包保存的是 Godot 导入的纹理。
+			if ResourceLoader.exists(path, "Texture2D"):
+				# 在编辑器和导出包中都优先使用已导入的纹理。
 				var texture := ResourceLoader.load(path, "Texture2D") as Texture2D
 				img = texture.get_image()
 				if img.is_compressed():
 					img.decompress()
+			else:
+				img = Image.load_from_file(path)
 			# 游戏人物缩小时用多级渐远减少闪烁和锯齿。
 			img.generate_mipmaps()
 			_textures[path] = ImageTexture.create_from_image(img)
@@ -376,6 +385,10 @@ func _hip_at() -> Vector2:
 	if rig.parts.torso.has("hip"):
 		return _at("torso", "hip")
 	return Vector2.ZERO
+
+func _far_joint(joint: String) -> Vector2:
+	var offset = rig.get("far_"+joint+"_offset")
+	return _v(offset) if offset is Array else FAR_SHIFT
 
 
 ## 前臂只用到手腕：图里原来的拳头已经由 wrist_cut.py 按护腕底边抠掉了，这里不再切图
@@ -502,7 +515,8 @@ func attack_end_time() -> float:
 	return float(_attack[-1][0])
 
 
-## 站直时从脚底到头顶多高（父节点坐标，含整体缩放；不算剑）。游戏里按它把人缩到跟原来的分格人物一样高。
+## 站直时可见身体从脚底到头顶多高（父节点坐标，含整体缩放）。
+## 武器、马尾和透明留白不计入身高，避免装饰或素材画布把游戏里的人物缩小。
 func stand_height() -> float:
 	var keep := _action
 	_action = "stand"
@@ -514,10 +528,18 @@ func stand_height() -> float:
 	var top := 0.0
 	var bottom := 0.0
 	for part in _sprites:
-		if part == "weapon":
+		if part in ["weapon", "hair"]:
 			continue
 		for spr in _sprites[part]:
-			var r: Rect2 = spr.get_rect()
+			var texture: Texture2D = spr.texture
+			if not _visible_rects.has(texture):
+				_visible_rects[texture] = Rect2(texture.get_image().get_used_rect())
+			var r: Rect2 = _visible_rects[texture]
+			if spr.region_enabled:
+				r = r.intersection(spr.region_rect)
+				r.position -= spr.region_rect.position
+			if not r.has_area():
+				continue
 			var xf: Transform2D = transform * _relative(spr)
 			for c in [r.position, r.position + Vector2(r.size.x, 0), r.end, r.position + Vector2(0, r.size.y)]:
 				var y: float = (xf * c).y
@@ -594,7 +616,8 @@ func _pose_gait(t: float, g: Dictionary) -> Dictionary:
 		"foot_near_heel": _gait_heel(ph, g), "foot_far_heel": _gait_heel(ph + 0.5, g),
 		# 手跟对侧的腿一起摆：远侧手跟近侧腿同进同退，往前摆时肘多弯一点（pump）。
 		# 拿剑的近侧手摆幅按 near_arm 打折，剑尖斜向前下，不平举在身前
-		"arm_far_up": 4 + g.arm * swing, "arm_far_lo": g.elbow + g.pump * maxf(0.0, swing),
+		"arm_far_up": g.get("far_up",4.0) + g.arm * swing,
+		"arm_far_lo": g.elbow + g.pump * maxf(0.0, swing) - g.get("back_extension",0.0)*maxf(0.0,-swing),
 		"arm_near_up": g.near_up - g.arm * g.near_arm * swing,
 		"arm_near_lo": g.near_lo + g.pump * maxf(0.0, -swing), "blade": g.near_blade,
 		"drag": g.drag,
@@ -686,9 +709,12 @@ func _process(delta: float) -> void:
 ## 刀光：攻击挥下去那一段（起手到收势前）记下剑尖最近 TRAIL_TIME 秒的位置，画成从淡到亮的一条弧带
 const TRAIL_TIME := 0.1
 
+func _tracing_weapon_tip() -> bool:
+	return _action_t >= float(_attack[_strike_from][0]) and _action_t <= attack_hit_time() + 0.04
+
 
 func _update_trail() -> void:
-	if not _bones.has("weapon") or not rig.parts.weapon.has("tip"):
+	if not weapon_tip_marker and (not _has("weapon") or not _bones.has("weapon") or not rig.parts.weapon.has("tip")):
 		return
 	if _trail == null:
 		_trail = Line2D.new()
@@ -706,13 +732,37 @@ func _update_trail() -> void:
 		c.add_point(Vector2(1, 1.0))
 		_trail.width_curve = c
 		add_child(_trail)
+		if weapon_tip_marker:
+			_trail.width = 28.0
+			_trail.z_index = 14
+			_trail.antialiased = true
+			g.set_color(0,Color("#c88c3c00"))
+			g.set_color(1,Color("#f6d599ab"))
+			_trail_edge = Line2D.new()
+			_trail_edge.width = 4.0
+			_trail_edge.width_curve = c
+			_trail_edge.gradient = Gradient.new()
+			_trail_edge.gradient.set_color(0,Color("#fbe4ac00"))
+			_trail_edge.gradient.set_color(1,Color("#fffae6ee"))
+			_trail_edge.antialiased = true
+			_trail.add_child(_trail_edge)
 	# 只在起手到打中那一段记；打中以后剑停着，刀光在 TRAIL_TIME 里自己淡掉
 	var swinging: bool = _action == "attack" and _action_t > 0.3 and _action_t < 0.45 and freeze_t < 0.0 and show_trail
+	if weapon_tip_marker:
+		swinging = _action == "attack" and _tracing_weapon_tip() and show_trail
+		if not weapon_tip_marker.is_visible_in_tree() or _action != "attack" or _action_t < _last_trail_phase:
+			_tips.clear()
+			swinging = false
+		_last_trail_phase = _action_t
 	if swinging:
-		var w: Node2D = _bones.weapon
-		var tip := (_v(rig.parts.weapon.tip) - _v(rig.parts.weapon.pivot)) * _s("weapon")
+		var tip: Vector2
+		if weapon_tip_marker:
+			tip = to_local(weapon_tip_marker.global_position)
+		else:
+			var w: Node2D = _bones.weapon
+			tip = to_local(w.to_global(_at("weapon","tip")))
 		var c := to_local(_bones.arm_near_up.global_position)
-		_tips.append([_time, to_local(w.to_global(tip)), c])
+		_tips.append([_time, tip, c])
 	while not _tips.is_empty() and _time - _tips[0][0] > TRAIL_TIME:
 		_tips.pop_front()
 	# 两帧之间剑尖走的是以肩膀为圆心的一段弧；按角度和半径插值补点，刀光才是圆的，不是折线
@@ -732,6 +782,8 @@ func _update_trail() -> void:
 			var r := lerpf(va.length(), vb.length(), u)
 			pts.append(center + Vector2.from_angle(va.angle() + da * u) * r)
 	_trail.points = pts
+	if _trail_edge:
+		_trail_edge.points = pts
 
 
 func _follow(key: String, target: float, dt: float) -> float:
@@ -765,9 +817,14 @@ func _leg_ik(hip: Vector2, target: Vector2, heel := 0.0) -> Array:
 	var v2 := _at("shin", "sole")
 	# 脚踝分开时对准脚踝：脚放平后，脚踝在脚底正上方（脚底 → 脚踝那段，按脚的缩放）
 	if _bones.has("foot_near") and rig.parts.shin.has("ankle"):
-		var fs: float = rig.parts.boot.get("foot_scale", 1.0)
+		var foot_art: Dictionary = rig.parts.get("foot",rig.parts.get("boot",{}))
+		var fs: float = foot_art.get("foot_scale", 1.0)
 		var ankle := _at("shin", "ankle")
-		var ball := _at("boot", "ball") if rig.parts.boot.has("ball") else _at("shin", "sole")
+		var ball := _at("shin","sole")
+		if _has("foot"):
+			ball = ankle + _at("foot","ball")
+		elif foot_art.has("ball"):
+			ball = _at("boot","ball")
 		# 前脚掌在脚底点前面多远（脚绕脚踝缩放，所以前脚掌到脚踝那段也乘 fs）
 		var ball_at := target + (ball - _at("shin", "sole")) * fs
 		target = ball_at + ((ankle - ball) * fs).rotated(heel)
@@ -823,8 +880,10 @@ func _apply(pose: Dictionary, dt: float) -> void:
 	_bones.hips.position = hips
 	var thigh_fwd := []
 	for side in ["near", "far"]:
-		var off := FAR_SHIFT if side == "far" else Vector2.ZERO
+		var off := _far_joint("hip") if side == "far" else Vector2.ZERO
 		var foot := Vector2(pose["foot_%s_x" % side] * _leg, -pose["foot_%s_y" % side] * _leg) + Vector2(off.x, 0)
+		if side == "far":
+			foot.y -= float(rig.get("far_ground_depth",0.0))
 		var heel := deg_to_rad(pose.get("foot_%s_heel" % side, 0.0))
 		var r: Array = _leg_ik(hips + hip_at + off, foot, heel)
 		r[0] = deg_to_rad(_follow("leg_%s_up" % side, rad_to_deg(r[0]), dt))
@@ -833,7 +892,8 @@ func _apply(pose: Dictionary, dt: float) -> void:
 		_bones["leg_%s_lo" % side].rotation = r[1]
 		# 脚：踩在地上时整只脚放平（抵消大腿加小腿的转角）再按 heel 踮起脚跟，抬起来时跟着小腿自然垂；按抬脚高度过渡
 		if _bones.has("foot_" + side):
-			var roll_height := maxf(0.001, float(rig.parts.boot.get("foot_roll_height", 0.04)))
+			var foot_art: Dictionary = rig.parts.get("foot",rig.parts.get("boot",{}))
+			var roll_height := maxf(0.001, float(foot_art.get("foot_roll_height", 0.04)))
 			var flat := 1.0 - clampf(pose["foot_%s_y" % side] / roll_height, 0.0, 1.0)
 			# 大小腿的弹簧角可能相差整圈，先把脚踝目标折回最短角度再做过渡。
 			var ankle_rotation := wrapf(heel - r[0] - r[1], -PI, PI)

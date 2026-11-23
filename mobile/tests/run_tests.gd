@@ -373,10 +373,10 @@ func _test_forge_rules() -> bool:
 # 装备外观必须由推导结果决定：换行换色，不成格不发光，没装备就素身。
 func _test_appearance() -> bool:
 	var entries := {}
-	for slot in ["weapon", "armor", "gloves", "charm", "ring", "boots"]:
+	for slot in ["weapon", "armor", "gloves", "greaves", "boots"]:
 		entries[slot] = Derive.derive({"slot": slot, "materials": {"bing": 6}, "process": ["forge_fine"]}, 3)
 	var fire := Appearance.build(entries, {"yiqi": ["huo"]}, "sword")
-	_check(fire.dressed and fire.cape and fire.charm and fire.ring, "六件齐备时外观层全开")
+	_check(fire.dressed and fire.cape and fire.armor_types.size() == 4 and fire.pieces.size() == 5, "五件装备分别传到外观")
 	_check(fire.robe.is_equal_approx(Appearance.ROBE_TINTS.huo), "护甲主导火行时染火色袍")
 	_check(fire.weapon.is_equal_approx(Appearance.EDGE_TINTS.huo), "兵器主导火行时刃光为火色")
 	_check(fire.polarity > 0.9 and fire.rim.is_equal_approx(Appearance.YANG_TRIM), "纯阳装备配阳边光")
@@ -468,6 +468,20 @@ func _test_cutout_hero() -> bool:
 		and not look.armor_types.has("gloves"), "外观带上护甲类别")
 	var rig := CutoutHero.Rig.new()
 	rig.setup(CutoutHero.ROOT + "rig.json", CutoutHero.ROOT + "parts")
+	var body_height: float = rig.stand_height()
+	var head: Sprite2D = rig._sprites.head[0]
+	var head_texture: Texture2D = head.texture
+	var image := head_texture.get_image()
+	var padded := Image.create(image.get_width() * 2, image.get_height() * 2, false, Image.FORMAT_RGBA8)
+	padded.blit_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), Vector2i.ZERO)
+	head.texture = ImageTexture.create_from_image(padded)
+	_near(rig.stand_height(), body_height, "人物身高不受头部贴图透明留白影响", 0.001)
+	head.texture = head_texture
+	var hair: Sprite2D = rig._sprites.hair[0]
+	var hair_scale := hair.scale
+	hair.scale *= 4.0
+	_near(rig.stand_height(), body_height, "马尾大小不改变人物身体在游戏里的缩放", 0.001)
+	hair.scale = hair_scale
 	rig.play("run")
 	var airborne := rig._pose_gait(0.5 * float(rig._run.period), rig._run)
 	airborne.foot_near_y = float(rig.rig.parts.boot.get("foot_roll_height", 0.04)) * 0.5
@@ -511,7 +525,7 @@ func _test_blade_flurry() -> bool:
 
 # 剑、长枪、弓三种形制各有各的打法，不是换皮。
 func _test_new_forms() -> bool:
-	for form in ["spear", "sword", "bow"]:
+	for form in ["spear", "jian", "sword", "bow"]:
 		_check(Gear.WEAPON_FORMS.has(form) and Forge.NAME_PARTS.weapons.has(form) and ForgeArt.FORM_ICONS.has(form),
 			"%s 在数值表、名称表和炉坊图标里都登记了" % form)
 		var icon := ForgeArt.weapon_region(form)

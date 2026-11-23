@@ -8,11 +8,11 @@ const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const GearDesign = preload("res://scripts/gear_design.gd")
 
-const GOOD := Color("#b0d193")
-const BAD := Color("#ffaca0")
-const INK := Color("#eee5d6")
-const BORDER := Color("#827059")
-const PLATE := Color("#181516")
+const GOOD := Color("#4f7045")
+const BAD := Color("#a13f32")
+const INK := Color("#302820")
+const BORDER := Color("#9b7955")
+const PLATE := Color("#ecddbe")
 const FORTUNES := {
 	"旺": Color("#b29251"), "相": Color("#557447"), "休": Color("#515b5a"),
 	"囚": Color("#71362e"), "死": Color("#282a2c")
@@ -22,6 +22,9 @@ var simple := false
 var highlighted := false
 var caption := ""
 var _icon: Texture2D
+var _fabric_tint := Color.WHITE
+var _ink_icon: Texture2D
+static var _ink_icons := {}
 # 零件拼的兵器直接画在格子里；原画兵器仍用形制图标。
 var _design := {}
 var _gear := {}
@@ -65,18 +68,34 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		title += " · %s · %s%s · 阴阳 %+.2f" % [derived.name, _fortune, _god, _polarity]
 	else:
 		title += " · 空槽"
-	# 兵器画零件拼成的那一件，其余五槽画按这件装备挑出的图标；空槽画同一套图的素样，淡淡一层。
+	# 兵器画零件拼成的那一件，其余四槽画按这件装备挑出的图标；空槽画同一套图的素样，淡淡一层。
 	_design = {}
 	_gear = {}
 	_form = form if ForgeArt.FORM_ICONS.has(form) else "sword"
 	_icon = ForgeArt.texture(icon_index)
+	_ink_icon = null
+	_fabric_tint = Gear.Pigments.GARMENT_DYES.get(derived.get("dye", "本色"), Color.WHITE) if slot in Gear.ARMOR_TYPE_SLOTS else Color.WHITE
+	if slot in Gear.ARMOR_TYPE_SLOTS or (slot == "weapon" and _form == "sword"):
+		var style: String = derived.get("armor_type", "cloth")
+		var folder: String = {"leather": "set-leather", "chain": "set-mail"}.get(style, "parts")
+		var part: String = {"armor": "torso", "gloves": "forearm", "greaves": "shin", "boots": "boot", "weapon": "weapon"}[slot]
+		if slot == "weapon":
+			folder = "parts"
+		var path := "res://art/ink/hero/" + folder + "/" + part + ".png"
+		if not _ink_icons.has(path):
+			var texture := load(path) as Texture2D
+			var atlas := AtlasTexture.new()
+			atlas.atlas = texture
+			atlas.region = Rect2(texture.get_image().get_used_rect())
+			_ink_icons[path] = atlas
+		_ink_icon = _ink_icons[path]
 	if slot == "weapon":
 		_icon = ForgeArt.weapon_icon(_form)
 		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \
 			else WeaponDesign.plain(_form)
 		if not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
 			_design = design
-	else:
+	elif _ink_icon == null:
 		var female: bool = person.get("gender") == "female"
 		_gear = GearDesign.pick(derived, slot, female) if occupied else GearDesign.plain(slot, female)
 	tooltip_text = title
@@ -128,7 +147,7 @@ func _draw_item() -> void:
 	var edge := _edge.darkened(0.30) if occupied else Color("#594b40")
 	if highlighted or has_focus():
 		edge = Color("#f0cf93")
-	var fill := Color("#28201c") if is_hovered() or highlighted else Color("#181618")
+	var fill := Color("#dfc9a2") if is_hovered() or highlighted else Color("#ecddbe")
 	draw_rect(bounds, fill)
 	var caption_size := 13 if size.x >= 70 else 11
 	var art_height := size.y - (caption_size + 4.0 if not caption.is_empty() else 2.0)
@@ -146,6 +165,11 @@ func _draw_item() -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, caption_size, INK if occupied else Color("#b6a492"))
 
 func _draw_icon(rect: Rect2, ink: Color) -> void:
+	if _ink_icon != null:
+		var factor := minf(rect.size.x / _ink_icon.get_width(), rect.size.y / _ink_icon.get_height()) * 0.90
+		var size := _ink_icon.get_size() * factor
+		draw_texture_rect(_ink_icon, Rect2(rect.get_center() - size * 0.5, size), false, ink * _fabric_tint)
+		return
 	if not _gear.is_empty():
 		GearDesign.draw(self, _gear, rect.grow(-rect.size.x * 0.04), ink)
 		return

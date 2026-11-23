@@ -4,9 +4,9 @@ extends Control
 # 走过的记号实心发暗，眼下这一波亮着，还没到的只描边；跑图时一颗光点沿着连线走向下一个记号。
 # 记号下面一排小点是这一波还剩几只精怪，层主那波换成一条血。单场冲层只有一个月。
 
-const GOLD := Color("#c4a582")
-const BRIGHT := Color("#f2d9a6")
-const FAINT := Color("#c0b7ad")
+const GOLD := Color("#785b3e")
+const BRIGHT := Color("#3b3025")
+const FAINT := Color("#766858")
 const BLOOD := Color("#d8705c")
 const SPACING := 40.0
 const MARK := 9.0
@@ -27,7 +27,7 @@ var _plate := StyleBoxFlat.new()
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	custom_minimum_size = Vector2(150.0, 54.0)
-	_plate.bg_color = Color("#151315b0")
+	_plate.bg_color = Color("#f0e0bfb0")
 	_plate.set_corner_radius_all(14)
 
 func _process(delta: float) -> void:

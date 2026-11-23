@@ -21,20 +21,20 @@ const TitlePage = preload("res://scripts/title_page.gd")
 const CharacterSelect = preload("res://scripts/character_select.gd")
 const HeroSheet = preload("res://scripts/hero_sheet.gd")
 const OfflineCard = preload("res://scripts/offline_card.gd")
-const CAMP = preload("res://art/immortals/ruined-shrine-flagstones.webp")
-const FORGE_BG = preload("res://art/immortals/soot-furnace-flagstones.webp")
+const CAMP = preload("res://art/ink/mountain-road.png")
+const FORGE_BG = preload("res://art/ink/mountain-road.png")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
 const SPELL_GRADE = preload("res://art/gothic_grade.gdshader")
 const FONT = preload("res://art/fonts/game.otf")
 const HEADING_FONT = preload("res://art/fonts/heading.tres")
 
-const NIGHT := Color("#151315")
-const INK := Color("#eee5d6")
-const GOLD := Color("#c4a582")
-const MUTED := Color("#c0b7ad")
-const IRON := Color("#292524")
-const BORDER := Color("#827059")
-const CRIMSON := Color("#762e26")
+const NIGHT := Color("#f0e0bf")
+const INK := Color("#302820")
+const GOLD := Color("#785b3e")
+const MUTED := Color("#766858")
+const IRON := Color("#e4d1ac")
+const BORDER := Color("#9b7955")
+const CRIMSON := Color("#8f3d32")
 const SPELL_CELL := Vector2(128, 128)
 const SPELL_INDEX := {
 	&"sword": 0, &"slash": 1, &"cleave": 2, &"retreat": 3,
@@ -133,6 +133,13 @@ func _ready() -> void:
 	var ui_style := Theme.new()
 	ui_style.default_font = FONT
 	ui_style.default_font_size = 16
+	for control_type in ["OptionButton", "LineEdit", "PopupMenu", "CheckBox"]:
+		for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			ui_style.set_color(key, control_type, INK)
+		ui_style.set_color("font_disabled_color", control_type, MUTED)
+	for key in ["normal", "hover", "pressed", "focus", "disabled"]:
+		ui_style.set_stylebox(key, "OptionButton", _box(IRON, BORDER, 1, 6))
+	ui_style.set_stylebox("panel", "PopupMenu", _box(NIGHT, BORDER, 1, 6))
 	theme = ui_style
 	add_child(sounds)
 	run.feedback.connect(sounds.play)
@@ -288,7 +295,7 @@ func _build_battle() -> void:
 	banner = _vbox(2)
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	banner.alignment = BoxContainer.ALIGNMENT_CENTER
-	banner_title = _label("", 40, Color("#f2d9a6"))
+	banner_title = _label("", 40, Color("#3b3025"))
 	banner_sub = _label("", 20, GOLD)
 	for line in [banner_title, banner_sub]:
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -780,9 +787,10 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	if ling != profile.ling():
 		outfit = profile.loadout({}, true, ling)
 	var bonuses := Gear.Loadout.bonuses(outfit, profile.person_context(), profile.layer())
-	# 六个槽位的五行与阴阳同时决定数值和外观：换一件装备，场上的人就跟着换一身。
-	field.look = Appearance.build(outfit.entries, outfit.patterns, form)
+	# 五个槽位的五行与阴阳同时决定数值和外观：换一件装备，场上的人就跟着换一身。
+	field.look = Appearance.build(outfit.entries, outfit.patterns, form, person.get("gender", ""))
 	run.trail_color = field.look.trail
+	run.leaping_cleave = run.Cleave.supports(field.look)
 	run.hit_element = String(field.look.pieces.get("weapon", {}).get("element", ""))
 	if state == &"forge" and not challenge and run.dungeon_layer == profile.layer():
 		run.refresh_equipment(bonuses, form)
@@ -1163,7 +1171,7 @@ func _icon_button(symbol: StringName, title: String, accent: bool, minimum: Vect
 	_describe(tile, title)
 	var glyph := Gothic.Glyph.new()
 	glyph.name = "Glyph"
-	glyph.ink = INK if accent else GOLD
+	glyph.ink = NIGHT if accent else INK
 	tile.add_child(glyph)
 	glyph.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	glyph.offset_left = -13.0
@@ -1193,7 +1201,7 @@ func _set_glyph(action: StringName, symbol: StringName) -> void:
 func _set_icon(button: Button, symbol: StringName) -> void:
 	var glyph: Gothic.Glyph = button.get_node("Glyph")
 	glyph.symbol = symbol
-	glyph.art = _spell_texture(symbol)
+	glyph.art = null # 墨线图标与手绘人物使用同一套简洁轮廓。
 	glyph.material = spell_grade if glyph.art != null else null
 	glyph.queue_redraw()
 
@@ -1229,8 +1237,8 @@ func _button(text: String, accent: bool, height: float) -> Button:
 
 func _restyle(button: Button, accent: bool) -> void:
 	var fill := CRIMSON if accent else IRON
-	var ink := INK
-	var edge := Color("#bd8b62") if accent else BORDER
+	var ink := NIGHT if accent else INK
+	var edge := Color("#6c4331") if accent else BORDER
 	var normal := _box(fill, edge, 1, 6)
 	var hover := _box(fill.lightened(0.08), edge, 1, 6)
 	var pressed := _box(fill.darkened(0.15), edge, 1, 6)
@@ -1240,7 +1248,7 @@ func _restyle(button: Button, accent: bool) -> void:
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("disabled", _box(Color("#151312"), Color("#42372f"), 1, 6))
+	button.add_theme_stylebox_override("disabled", _box(Color("#d8c8ab"), Color("#b29a79"), 1, 6))
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color"]:
 		button.add_theme_color_override(color_name, ink)
 	button.add_theme_color_override("font_disabled_color", MUTED)
@@ -1251,6 +1259,9 @@ func _box(fill: Color, edge: Color, thickness: int, padding: int = 0) -> StyleBo
 	box.border_color = edge
 	box.set_border_width_all(thickness)
 	box.set_corner_radius_all(1)
+	box.shadow_color = Color("#372a1b18")
+	box.shadow_size = 2
+	box.shadow_offset = Vector2(1, 2)
 	for side in [SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM]:
 		box.set_content_margin(side, padding)
 	return box
@@ -1265,7 +1276,7 @@ func _image(texture: Texture2D) -> TextureRect:
 func _camp_gradient() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.30, 0.75, 1.0])
-	shade.colors = PackedColorArray([Color("#100e118a"), Color("#15131500"), Color("#15131520"), Color("#100e1173")])
+	shade.colors = PackedColorArray([Color("#f0e0bf60"), Color("#f0e0bf00"), Color("#f0e0bf18"), Color("#f0e0bf50")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 2
@@ -1277,7 +1288,7 @@ func _camp_gradient() -> GradientTexture2D:
 func _forge_vignette() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.42, 1.0])
-	shade.colors = PackedColorArray([Color("#100d1000"), Color("#100d1000"), Color("#100d1073")])
+	shade.colors = PackedColorArray([Color("#f0e0bf18"), Color("#f0e0bf50"), Color("#f0e0bfc0")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 128
@@ -1290,7 +1301,7 @@ func _forge_vignette() -> GradientTexture2D:
 func _battle_gradient() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.20, 0.74, 1.0])
-	shade.colors = PackedColorArray([Color("#0d090a8a"), Color("#0d090a00"), Color("#0d0b0b00"), Color("#0d0b0b7a")])
+	shade.colors = PackedColorArray([Color("#f0e0bf50"), Color("#f0e0bf00"), Color("#f0e0bf00"), Color("#f0e0bf40")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 2

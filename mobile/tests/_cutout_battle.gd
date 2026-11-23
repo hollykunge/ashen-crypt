@@ -37,7 +37,7 @@ func _start() -> void:
 		game.challenge_button.pressed.emit()
 		_press(game.place_notice, "接敕")
 	var field = game.field
-	print("portrait_id=%d form=%s cutout=%s" % [field.portrait_id, field.look.form, field.cutout != null])
+	print("form=%s cutout=%s" % [field.look.form, field.cutout != null])
 
 func _process(_delta: float) -> bool:
 	frame += 1

@@ -6,8 +6,8 @@ extends Control
 # 读屏和长按提示用 accessibility_name / tooltip_text 讲全话。
 
 const ForgeArt = preload("res://scripts/forge_art.gd")
-const INK := Color("#eee5d6")
-const PLATE := Color("#151315b8")
+const INK := Color("#302820")
+const PLATE := Color("#f0e0bfb8")
 const LIFE := Color("#8cb286")
 const SHADE := Color("#a9cb93")
 const ICON := 34.0
@@ -54,12 +54,20 @@ func _draw() -> void:
 	draw_circle(center, ICON * 0.5 * swell + 1.5, Color(tint, 0.20 + 0.35 * _bump), true, -1.0, true)
 	draw_arc(center, ICON * 0.5 * swell + 1.5, 0.0, TAU, 32, Color(tint, 0.85), 1.6, true)
 	var side := ICON * 0.84 * swell
-	draw_texture_rect_region(ForgeArt.ATLAS, Rect2(center - Vector2.ONE * side * 0.5, Vector2.ONE * side),
-		ForgeArt.region(int(drop.icon)))
+	var rock := PackedVector2Array([Vector2(-0.43, -0.18), Vector2(-0.12, -0.43),
+		Vector2(0.30, -0.31), Vector2(0.44, 0.05), Vector2(0.12, 0.41), Vector2(-0.37, 0.28)])
+	for i in rock.size():
+		rock[i] = center + rock[i] * side
+	draw_colored_polygon(rock, Color("#b49265").lerp(tint, 0.18))
+	var outline := rock.duplicate()
+	outline.append(rock[0])
+	draw_polyline(outline, INK, 1.3, true)
+	draw_line(rock[1], rock[4], Color("#785b3e"), 1.0, true)
+	draw_line(rock[0], center, Color("#785b3e"), 1.0, true)
 	var font := get_theme_default_font()
 	var digits := str(stock)
 	var baseline := Vector2(10.0 + ICON + 8.0, 6.0 + ICON * 0.5 + 7.0)
-	draw_string_outline(font, baseline, digits, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 4, Color("#151315"))
+	draw_string_outline(font, baseline, digits, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 4, Color("#f0e0bf"))
 	draw_string(font, baseline, digits, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, INK.lerp(tint, 0.35 + 0.4 * _bump))
 	if relief:
 		var shade := Vector2(size.x - 16.0, 17.0)

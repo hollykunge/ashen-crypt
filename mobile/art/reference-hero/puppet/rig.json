@@ -1,0 +1,52 @@
+{
+  "base_dir": "res://art/reference-hero/puppet",
+  "scale": 1.0,
+  "far_tint": 0.90,
+  "far_shoulder_offset": [87,8],
+  "far_hip_offset": [54,-7],
+  "far_ground_depth": 4,
+  "parts": {
+    "far_upper_arm": {"same_as":"upper_arm"},
+    "far_forearm": {"same_as":"forearm"},
+    "far_hand": {"same_as":"hand","pivot":[115,41]},
+    "far_thigh": {"same_as":"thigh"},
+    "far_shin": {"same_as":"shin"},
+    "far_foot": {"same_as":"foot"},
+    "head": {"pivot":[66,132],"behind":true},
+    "torso": {"pivot":[216,536],"neck":[207.55,96.65],"shoulder":[111.1580632,117.9026023],"scale":[0.51,0.405]},
+    "pelvis": {"pivot":[173,37],"at":[180.2402,536.0562],"hip":[158,138],"scale":[0.51,0.413]},
+    "upper_arm": {"pivot":[113,109],"end":[84,375],"scale":[0.43,0.4727866]},
+    "forearm": {"pivot":[72,68],"wrist":[104,351],"scale":[0.415,0.4088837]},
+    "hand": {"pivot":[65,41],"scale":[0.38,0.33]},
+    "thigh": {"pivot":[124,90],"end":[122,331],"scale":[0.5,0.6347336]},
+    "shin": {"pivot":[129,72],"ankle":[91,497],"sole":[91,640.9575197],"scale":[0.43,0.4119291]},
+    "foot": {"pivot":[89,46],"ball":[246,167],"scale":[0.29,0.31],"foot_roll_height":0.18}
+  },
+  "idle":{"torso":0,"neck":0,"hip":0.9872852,"arm_near_up":-9.9413432,"arm_near_lo":8.917336,"arm_far_up":2.50883,"arm_far_lo":17.53736,"foot_near_x":-0.1403188,"foot_far_x":-0.056,"blade":0,"dx":-0.0031674},
+  "ready":{"torso":0,"neck":-1,"hip":0.92,"arm_near_up":24,"arm_near_lo":78,"arm_far_up":-10,"arm_far_lo":72,"foot_near_x":0.34,"foot_far_x":-0.30,"blade":-9},
+  "walk":{"arm":30,"far_up":14,"elbow":42,"pump":15,"back_extension":8,"lean":6,"near_arm":0.66,"near_up":7,"near_lo":25,"near_blade":0,"reach":0.35,"push":0.32,"duty":0.60,"lift":0.13,"hip":0.92,"period":0.88},
+  "run":{"arm":37,"far_up":14,"elbow":65,"pump":22,"back_extension":12,"lean":15,"near_arm":0.58,"near_up":-10,"near_lo":52,"near_blade":2,"reach":0.49,"push":0.52,"duty":0.40,"hip":0.86,"lift":0.29,"kick":0.26,"period":0.62,"heel":20},
+  "attack_wrist":20,
+  "attack_strike":1,
+  "combo":[
+    [0,{}],
+    [0.10,{"torso":-3,"neck":2,"arm_near_up":48,"arm_near_lo":83,"arm_far_up":9,"arm_far_lo":53,"dx":-0.025,"hip":0.90,"step":0,"blade":-12}],
+    [0.19,{"torso":6,"neck":-3,"arm_near_up":75,"arm_near_lo":28,"arm_far_up":-6,"arm_far_lo":57,"dx":0.065,"hip":0.885,"step":0.12,"blade":6}],
+    [0.25,{"torso":12,"neck":-6,"arm_near_up":57,"arm_near_lo":8,"arm_far_up":-24,"arm_far_lo":81,"dx":0.13,"hip":0.85,"step":0.23,"blade":19}],
+    [0.42,{"torso":10,"neck":-6,"arm_near_up":13,"arm_near_lo":27,"arm_far_up":-36,"arm_far_lo":122,"dx":0.11,"hip":0.83,"step":0.23,"blade":16}],
+    [0.53,{"torso":8,"neck":-4,"arm_near_up":27,"arm_near_lo":32,"arm_far_up":-32,"arm_far_lo":123,"dx":0.12,"hip":0.84,"step":0.23,"blade":9}],
+    [0.70,{"torso":1,"neck":-1,"arm_near_up":103,"arm_near_lo":27,"arm_far_up":14,"arm_far_lo":51,"dx":0.15,"hip":0.90,"step":0.23,"blade":-16}],
+    [0.79,{"torso":-1,"neck":0,"arm_near_up":111,"arm_near_lo":36,"arm_far_up":28,"arm_far_lo":39,"dx":0.13,"hip":0.91,"step":0.23,"blade":-14}],
+    [1.02,{"torso":1,"neck":-1,"arm_near_up":51,"arm_near_lo":62,"arm_far_up":5,"arm_far_lo":52,"dx":0.055,"hip":0.91,"step":0.10,"blade":-9}],
+    [1.22,{}]
+  ],
+  "attack":[
+    [0,{}],
+    [0.30,{"torso":-7,"neck":6,"arm_near_up":107,"arm_near_lo":65,"arm_far_up":30,"arm_far_lo":78,"blade":-12,"dx":-0.045,"hip":0.91,"step":0}],
+    [0.41,{"torso":1,"neck":0,"arm_near_up":113,"arm_near_lo":28,"arm_far_up":26,"arm_far_lo":89,"blade":-6,"dx":0.065,"hip":0.895,"step":0.12}],
+    [0.53,{"torso":14,"neck":-10,"arm_near_up":83,"arm_near_lo":0,"arm_far_up":8,"arm_far_lo":96,"blade":18,"dx":0.20,"hip":0.825,"step":0.31}],
+    [0.65,{"torso":15,"neck":-12,"arm_near_up":73,"arm_near_lo":3,"arm_far_up":10,"arm_far_lo":94,"blade":19,"dx":0.20,"hip":0.825,"step":0.31}],
+    [0.90,{"torso":4,"neck":-3,"arm_near_up":44,"arm_near_lo":21,"arm_far_up":20,"arm_far_lo":98,"blade":13,"dx":0.10,"hip":0.88,"step":0.16}],
+    [1.26,{}]
+  ]
+}

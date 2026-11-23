@@ -58,6 +58,8 @@ static func plain(form: String) -> Dictionary:
 
 # entry 是一件兵器的推导结果（Derive.derive），amount 是它的外观强度（Appearance.amount_of）。
 static func pick(entry: Dictionary, form: String, amount: float = 0.0) -> Dictionary:
+	if form == "jian":
+		form = "sword"
 	var ranked := _ranked(entry.get("wuxing", {}))
 	if ranked.is_empty():
 		return plain(form)

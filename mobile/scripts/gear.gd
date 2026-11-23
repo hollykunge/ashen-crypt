@@ -9,6 +9,7 @@ const Bazi = preload("res://scripts/rules/bazi.gd")
 const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
 const Places = preload("res://scripts/rules/places.gd")
+const Pigments = preload("res://scripts/pigments.gd")
 const Loadout = preload("res://scripts/loadout.gd")
 
 const SAVE_PATH := "user://forge-profile.json"
@@ -29,17 +30,17 @@ const SLOT_NAMES := Equipment.SLOT_NAMES
 const WEAPON_FORMS := {
 	# 剑：两段快剑。长枪：出手慢一拍，够得最远，一枪扎穿一路。弓：远处快射。
 	"sword": {"interval": 0.33, "reach": 104.0},
+	"jian": {"interval": 0.28, "reach": 116.0},
 	"spear": {"interval": 0.45, "reach": 152.0},
 	"bow": {"interval": 0.29, "reach": 530.0}
 }
-# 甲型：护甲、护手、鞋子在炉坊里选布衣、皮甲或链甲，只改样子，数值仍由五行与材料决定。
+# 甲型：上衣、护腕、护腿、靴子在炉坊里选布衣、皮甲或链甲，只改样子，数值仍由五行与材料决定。
 const ARMOR_TYPES := ["cloth", "leather", "chain"]
-const ARMOR_TYPE_SLOTS := ["armor", "gloves", "boots"]
+const ARMOR_TYPE_SLOTS := ["armor", "gloves", "greaves", "boots"]
 # 兵器只留剑、长枪、弓三种；旧存档里别的形制按打法归过来：近身的刀剑归剑，重锤归长枪，远程的归弓。
 const RENAMED_FORMS := {"long_blade": "sword", "dual_blades": "sword", "hammer": "spear",
 	"staff": "bow", "wand": "bow"}
-const MATERIAL_COLORS := {"jin": Color("#e1c592"), "mu": Color("#a9cb93"), "shui": Color("#8ac7dc"),
-	"huo": Color("#efa588"), "tu": Color("#c3ad79")}
+const MATERIAL_COLORS = Pigments.INK
 const MATERIAL_ICONS := {"jin": 0, "mu": 1, "shui": 1, "huo": 2, "tu": 0}
 
 # V3 的三种原料按旧名称对应的当前材料阶折价；返还时保留同等买入价值。
@@ -75,7 +76,15 @@ func load_profile() -> void:
 			and parsed.get("items") is Dictionary and parsed.get("equipped") is Dictionary:
 		state = parsed
 		for item in state.items.values():
-			_rename_forms(item)
+			_migrate_item(item)
+		var equipped_slots: Dictionary = _empty_profile().equipped
+		for slot in SLOTS:
+			equipped_slots[slot] = state.equipped.get(slot, "")
+		for old_slot in ["charm", "ring"]:
+			var uid: String = state.equipped.get(old_slot, "")
+			if equipped_slots.greaves == "" and item(uid).get("slot") == "greaves":
+				equipped_slots.greaves = uid
+		state.equipped = equipped_slots
 		return
 	if version not in [1, 2, 3]:
 		storage_error = "存档读取失败"
@@ -92,13 +101,17 @@ func load_profile() -> void:
 	_commit(migrated)
 
 # 旧存档里去掉的形制换成留下的那三种；熔合留下的来源件也一并换。
-static func _rename_forms(item: Variant) -> void:
+static func _migrate_item(item: Variant) -> void:
 	if not item is Dictionary:
 		return
+	if item.get("slot") in ["charm", "ring"]:
+		item.slot = "greaves"
+		if item.get("armor_type", "") not in ARMOR_TYPES:
+			item.armor_type = "cloth"
 	if RENAMED_FORMS.has(item.get("weapon_form", "")):
 		item.weapon_form = RENAMED_FORMS[item.weapon_form]
 	for source in item.get("merge_sources", []):
-		_rename_forms(source)
+		_migrate_item(source)
 
 static func _legacy_refund(saved: Dictionary) -> Dictionary:
 	var totals := {"iron": 0, "bone": 0, "ember": 0}
@@ -559,11 +572,18 @@ func bonuses(encounter_ling: String = "") -> Dictionary:
 
 func toggle_equip(uid: String) -> bool:
 	var input := item(uid)
-	if input.is_empty():
+	if input.get("slot") not in SLOTS:
 		return false
 	var slot: String = input.slot
 	var next := state.duplicate(true)
 	next.equipped[slot] = "" if equipped(slot) == uid else uid
+	return _commit(next)
+
+func dye_item(uid: String, dye: String) -> bool:
+	if item(uid).get("slot", "") not in ARMOR_TYPE_SLOTS or not Pigments.GARMENT_DYES.has(dye):
+		return false
+	var next := state.duplicate(true)
+	next.items[uid].dye = dye
 	return _commit(next)
 
 func rename_item(uid: String, title: String) -> bool:
@@ -758,4 +778,4 @@ func _commit(next: Dictionary) -> bool:
 
 static func _empty_profile() -> Dictionary:
 	return {"version": VERSION, "character": {}, "materials": {}, "items": {}, "residue": 0.0, "purchase_layer": 0,
-		"purchase_count": 0, "equipped": {"weapon": "", "armor": "", "gloves": "", "charm": "", "ring": "", "boots": ""}}
+		"purchase_count": 0, "equipped": {"weapon": "", "armor": "", "gloves": "", "greaves": "", "boots": ""}}

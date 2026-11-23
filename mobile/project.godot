@@ -4,10 +4,10 @@ config_version=5
 
 config/name="余烬地牢"
 run/main_scene="res://main.tscn"
-config/description="中式暗黑神话 · 侧视像素动作游戏"
+config/description="中式暗黑神话 · 手绘皮影动作游戏"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false
-boot_splash/bg_color=Color(0.063, 0.055, 0.055, 1)
+boot_splash/bg_color=Color(0.941, 0.878, 0.749, 1)
 config/icon="res://art/immortals/seal.png"
 
 [display]

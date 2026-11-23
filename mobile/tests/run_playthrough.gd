@@ -123,10 +123,10 @@ func _play(game) -> bool:
 			"操控角色战胜层主，自动切入第二层并播放演出"):
 		return false
 	var new_entry: Dictionary = game.profile.describe(item, true)
-	_check(game.turnover.cards.size() == 6 and game.turnover.outgoing.text == "甲木" and game.turnover.incoming.text == "乙木"
+	_check(game.turnover.cards.size() == 5 and game.turnover.outgoing.text == "甲木" and game.turnover.incoming.text == "乙木"
 		and game.turnover.cards.weapon.label.text.contains("阴阳势") and not is_equal_approx(old_entry.shi, new_entry.shi)
 		and game.run.encounter_stem == "yi" and not game.boss_controls.visible,
-		"六个槽位演出使用前后推导，下一层装备与当令已刷新")
+		"五个槽位演出使用前后推导，下一层装备与当令已刷新")
 	_ticks(game, 400)
 	_check(game.profile.stock("yi") > 0 and game.pouch.drop.name == "藤筋", "新层继续自动掉落")
 	game.challenge_button.pressed.emit()
@@ -196,7 +196,7 @@ func _test_armory() -> bool:
 	_press(game, "查看同部位背包")
 	_check(armory.bag_items.has(blade.uid) and not armory.bag_items.has(bow.uid), "替换后旧武器回到背包")
 	armory.outfit_slots.boots.pressed.emit()
-	_check(armory.empty_hint.visible and _press(game, "打造鞋子") and game.forge.draft.slot == "boots", "空槽能跳转到对应的锻造部位")
+	_check(armory.empty_hint.visible and _press(game, "打造靴子") and game.forge.draft.slot == "boots", "空槽能跳转到对应的锻造部位")
 	game.forge.close_requested.emit()
 	_check(game.run.weapon_form == "bow" and game.run.hero.damage == projected.attack and game.run.hero.reach == projected.reach
 		and game.run.max_hp == projected.hp, "角色装备所示数值与实战一致")
@@ -374,6 +374,32 @@ func _test_migration() -> bool:
 	_check(profile.rotate_item(combined) and int(profile.item(combined).wear) == 1, "穷人的熔合成品轮转不额外磨损")
 	profile.load_profile()
 	_check(float(profile.describe(profile.item(combined)).budget) > 0.0, "熔合配方重读后仍可推导")
+	# 两件旧饰品仍各自保留。已穿戴的项链优先占用新护腿栏。
+	var old := profile.state.duplicate(true)
+	old.equipped.erase("greaves")
+	for slot in ["charm", "ring"]:
+		var legacy := Gear.new_draft()
+		legacy.slot = slot
+		legacy.forge_level = 1
+		legacy.materials = {"geng": 2}
+		legacy.name = "旧物" + slot
+		legacy.merge_sources = [legacy.duplicate(true), legacy.duplicate(true)]
+		old.items[legacy.uid] = legacy
+		old.equipped[slot] = legacy.uid
+	file = FileAccess.open(legacy_path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(old))
+	file.close()
+	profile.load_profile()
+	_check(profile.state.equipped.size() == 5 and profile.equipped("greaves") == old.equipped.charm,
+		"两件已穿的旧饰品映射为一个护腿栏")
+	var spare := profile.item(old.equipped.ring)
+	_check(spare.slot == "greaves" and spare.name == "旧物ring" and spare.merge_sources[0].slot == "greaves",
+		"背包与熔合来源保留旧装备")
+	_check(profile.toggle_equip(spare.uid), "可以替换迁移后的护腿")
+	profile.load_profile()
+	_check(profile.equipped("greaves") == spare.uid and profile.state.items.size() == old.items.size(),
+		"重读后保留装备及护腿选择")
+	_check(profile.loadout().entries.greaves.budget > 0.0, "迁移后的熔合护腿参与属性计算")
 	return true
 
 # 驻留行善、违规的代价、抗敕。对应 docs/story.md §1.2 与 §2.1。

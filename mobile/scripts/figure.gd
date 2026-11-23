@@ -126,31 +126,6 @@ static func halo(canvas: CanvasItem, rig: Rig, look: Dictionary, clock: float) -
 			var pixels := (2.6 if mark % 3 == 0 else 1.8) * rig.zoom
 			canvas.draw_rect(Rect2(point - Vector2.ONE * pixels * 0.5, Vector2.ONE * pixels), Color(look.halo_color, alpha))
 
-# 符牌与符环：项链挂在胸前，戒指绕身旋转。
-static func charms(canvas: CanvasItem, rig: Rig, look: Dictionary, clock: float) -> void:
-	if look.charm:
-		# 项链是一粒悬在胸前的灵珠：外晕大而虚，珠心小而亮，别画成硬边的图形。
-		var float_y := -rig.height * 0.64 + sin(clock * 1.9) * 2.6
-		var point := rig.at(rig.width * 0.34, float_y)
-		var pulse := 0.82 + 0.18 * sin(clock * 2.7)
-		_bead(canvas, point, 2.3 * rig.zoom * pulse, look.charm_color, 1.0)
-	if look.ring:
-		# 戒指化一道符环绕身飞，转到身前时亮，转到身后时暗。
-		var angle := clock * 1.35
-		var depth := sin(angle)
-		var orbit := rig.ground() + Vector2(cos(angle) * 32.0, -rig.height * 0.46 + depth * 9.0) * rig.zoom
-		_bead(canvas, orbit, 2.0 * rig.zoom, look.ring_color, 0.45 + 0.55 * (depth * 0.5 + 0.5))
-		for i in range(1, 4):
-			var tail := angle - i * 0.16
-			var point := rig.ground() + Vector2(cos(tail) * 32.0, -rig.height * 0.46 + sin(tail) * 9.0) * rig.zoom
-			canvas.draw_circle(point, (1.6 - i * 0.35) * rig.zoom, Color(look.ring_color, 0.22 - i * 0.05), true, -1.0, true)
-
-# 一粒发光的珠子：三层由虚到实，看着像光而不是色块。
-static func _bead(canvas: CanvasItem, point: Vector2, radius: float, ink: Color, strength: float) -> void:
-	canvas.draw_circle(point, radius * 3.4, Color(ink, 0.10 * strength), true, -1.0, true)
-	canvas.draw_circle(point, radius * 1.9, Color(ink, 0.22 * strength), true, -1.0, true)
-	canvas.draw_circle(point, radius, Color(ink.lerp(Color.WHITE, 0.5), 0.78 * strength), true, -1.0, true)
-
 # 尘土：落脚、蹬地、砸地时从脚下往后扬。
 static func dust(canvas: CanvasItem, rig: Rig, look: Dictionary, seed_value: float) -> void:
 	var amount := float(rig.pose.dust)

@@ -148,8 +148,11 @@ static func _draw_bow_parts(canvas: CanvasItem, design: Dictionary, frame: Trans
 		nock := Vector2.INF) -> void:
 	var spec: Dictionary = Parts.PARTS[design.head]
 	var tip: Vector2 = spec.tip
-	var top := frame * (Vector2(tip.y, tip.x) * k)
-	var bottom := frame * (Vector2(-tip.y, tip.x) * k)
+	# The painted limbs meet to the side of the atlas cell's center line.
+	var root_x: float = {"fanqu": 13.0, "jiao": 13.0, "chang": 15.0, "yun": 8.0}[design.head]
+	var limbs := frame.translated_local(Vector2(0.0, -root_x * k))
+	var top := limbs * (Vector2(tip.y, tip.x) * k)
+	var bottom := limbs * (Vector2(-tip.y, tip.x) * k)
 	var drawing := nock != Vector2.INF
 	var middle := nock if drawing else (top + bottom) * 0.5
 	var zoom := k / BOW_SCALE
@@ -161,8 +164,8 @@ static func _draw_bow_parts(canvas: CanvasItem, design: Dictionary, frame: Trans
 		canvas.draw_line(nock, point, Color("#ba8c58") * light, 1.0, true)
 		canvas.draw_colored_polygon(PackedVector2Array([point + aim * 2.5, point + aim.orthogonal() * 1.25,
 			point - aim.orthogonal() * 1.25]), Color("#c4cbd0") * light)
-	_draw_part(canvas, design.head, frame, 0.0, k, false, design, light)
-	_draw_part(canvas, design.head, frame, 0.0, k, false, design, light, true)
+	_draw_part(canvas, design.head, limbs, 0.0, k, false, design, light)
+	_draw_part(canvas, design.head, limbs, 0.0, k, false, design, light, true)
 	var grip_k := k * 1.3
 	var half: float = float(Parts.PARTS[design.grip].length) * 0.5
 	_draw_part(canvas, design.grip, frame, -half, grip_k, false, design, light)
@@ -181,6 +184,8 @@ static func _draw_assembled(canvas: CanvasItem, design: Dictionary, frame: Trans
 	var guard_at := half - 1.0
 	var blade_at := guard_at + float(Parts.PARTS[design.guard].length) - 1.5
 	var pommel_at := -half + 1.0
+	canvas.draw_line(frame * Vector2(guard_at * k, 0), frame * Vector2((blade_at + 2.0) * k, 0),
+		design.steel * light, 3.5 * k, true)
 	_draw_part(canvas, design.pommel, frame, pommel_at, k, true, design, light)
 	_draw_part(canvas, design.grip, frame, -half, k, false, design, light)
 	_draw_part(canvas, design.blade, frame, blade_at, k, false, design, light)
@@ -223,7 +228,7 @@ static func draw_icon(canvas: CanvasItem, form: String, design: Dictionary, rect
 	var back := 0.0
 	var front := 0.0
 	match form:
-		"sword":
+		"jian", "sword":
 			if WeaponDesign.painted_blade(design):
 				return false
 			var half: float = float(Parts.PARTS[design.grip].length) * 0.5
@@ -245,7 +250,7 @@ static func draw_icon(canvas: CanvasItem, form: String, design: Dictionary, rect
 	var hand := rect.get_center() - axis * (front - back) * 0.5 * k
 	var frame := Transform2D(angle, hand)
 	match form:
-		"sword":
+		"jian", "sword":
 			_draw_assembled(canvas, design, frame, k, light)
 		"bow":
 			_draw_bow_parts(canvas, design, frame, k, light)

@@ -45,7 +45,7 @@ func build(main) -> void:
 	list = ui._vbox(10)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
-	notice = ui._label("", 12, Color("#ffaca0"))
+	notice = ui._label("", 12, Color("#a13f32"))
 	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notice.hide()
 	add_child(notice)
@@ -137,7 +137,7 @@ func _broken_card(slot: int, error: String) -> void:
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(facts)
-	facts.add_child(ui._label("第 %d 格 · %s" % [slot + 1, error], 18, Color("#ffaca0")))
+	facts.add_child(ui._label("第 %d 格 · %s" % [slot + 1, error], 18, Color("#a13f32")))
 	facts.add_child(_line("这份存档读不出来。删掉之后这一格可以重新创角。", ui.MUTED))
 	var actions: VBoxContainer = ui._vbox(6)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -150,7 +150,7 @@ func _delete_button(slot: int) -> Button:
 	remove.add_theme_font_size_override("font_size", 13)
 	remove.custom_minimum_size.x = 76.0
 	if armed:
-		remove.add_theme_color_override("font_color", Color("#ffaca0"))
+		remove.add_theme_color_override("font_color", Color("#a13f32"))
 	remove.pressed.connect(_delete.bind(slot))
 	return remove
 

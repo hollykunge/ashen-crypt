@@ -204,7 +204,7 @@ func _build_inputs() -> void:
 	extras.add_child(forms)
 	types = _option()
 	for id in Gear.ARMOR_TYPES:
-		types.add_item(id)
+		types.add_item({"cloth": "布甲", "leather": "皮甲", "chain": "链甲"}[id])
 		types.set_item_metadata(types.item_count - 1, id)
 	types.item_selected.connect(func(index: int) -> void:
 		draft.armor_type = types.get_item_metadata(index)

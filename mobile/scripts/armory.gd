@@ -91,8 +91,8 @@ func _build_outfit() -> void:
 	board.alignment = BoxContainer.ALIGNMENT_CENTER
 	board.size_flags_vertical = SIZE_EXPAND_FILL
 	worn.add_child(board)
-	for side in [["weapon", "armor", "gloves"], ["charm", "ring", "boots"]]:
-		if side[0] == "charm":
+	for side in [["weapon", "armor", "gloves"], ["greaves", "boots"]]:
+		if side[0] == "greaves":
 			stage = DisplayFigure.new()
 			stage.mouse_filter = MOUSE_FILTER_IGNORE
 			stage.custom_minimum_size.x = 148
@@ -140,7 +140,7 @@ func _build_bag() -> void:
 	var content: VBoxContainer = ui._vbox(9)
 	content.size_flags_horizontal = SIZE_EXPAND_FILL
 	bag_scroll.add_child(content)
-	empty_plate = ui._box(Color("#1c1919"), Color("#493d34"), 1)
+	empty_plate = ui._box(Color("#e5d2b0"), Color("#9b7955"), 1)
 	bag_grid = forge._grid(content, 4, BAG_GAP)
 	bag_grid.size_flags_horizontal = SIZE_SHRINK_CENTER
 	bag_scroll.resized.connect(_fit_grid)
@@ -326,7 +326,11 @@ func _pad_grid() -> void:
 func _kind(input: Dictionary) -> String:
 	if input.slot == "weapon":
 		return Gear.Rules.NAME_PARTS.weapons.get(input.get("weapon_form", "sword"), "武器")
-	return _slot_name(input.slot)
+	var style: String = input.get("armor_type", "cloth")
+	if input.slot == "armor":
+		var names: Dictionary = Gear.Rules.NAME_PARTS.armor_types_female if profile.character().get("gender") == "female" else Gear.Rules.NAME_PARTS.armor_types
+		return names.get(style, "上衣")
+	return Gear.Rules.NAME_PARTS.gear_types.get(style, "布") + _slot_name(input.slot)
 
 func _combat_values(config: Dictionary, form: String) -> Dictionary:
 	var bonuses := Loadout.bonuses(config, profile.character(), profile.layer())
@@ -355,6 +359,13 @@ func _refresh_detail(input: Dictionary, config: Dictionary, form: String) -> voi
 	detail_meta.text = "%s  ·  %s行  ·  %s" % [_kind(input), WuXing.ELEMENT_NAMES.get(element, "无"), "已穿戴" if active else "背包"]
 	equip_button.text = "卸下" if active else "装备"
 	breakdown.text = "返回属性" if advanced else "更多操作"
+	if input.slot in Gear.ARMOR_TYPE_SLOTS:
+		var row := HFlowContainer.new()
+		detail_body.add_child(row)
+		for dye in Gear.Pigments.GARMENT_DYES:
+			var choice: Button = forge._button(dye, 32, _dye.bind(input.uid, dye))
+			choice.disabled = dye == input.get("dye", "本色")
+			row.add_child(choice)
 	if advanced:
 		_management(input)
 		return
@@ -422,6 +433,12 @@ func _value(stat: String, number: float) -> String:
 	if stat == "matchup":
 		return String.num(number, 2) + "×"
 	return _value_points(number) + ("%" if stat == "feed" or Gear.Rules.STAT_CURVES.has(stat) else "")
+
+func _dye(uid: String, dye: String) -> void:
+	if profile.dye_item(uid, dye):
+		refresh()
+	else:
+		forge._message(profile.storage_error)
 
 func _toggle_equipped() -> void:
 	var input := profile.item(selected_uid)

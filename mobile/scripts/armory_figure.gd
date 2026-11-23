@@ -24,7 +24,7 @@ func _init() -> void:
 
 
 func display(config: Dictionary, person: Dictionary, form: String, preview := false) -> void:
-	actor.dress(Appearance.build(config.get("entries", {}), config.get("patterns", {}), form))
+	actor.dress(Appearance.build(config.get("entries", {}), config.get("patterns", {}), form, person.get("gender", "")))
 	actor.present_outfit()
 	stature = 0.9 if person.get("gender") == "female" else 1.0
 	trying_label.visible = preview
@@ -36,6 +36,6 @@ func display(config: Dictionary, person: Dictionary, form: String, preview := fa
 func _draw() -> void:
 	if size.x < 1 or size.y < 1:
 		return
-	var height := minf(size.x * 1.14, size.y * (1.0 - MARGIN * 2.0) * stature)
+	var height := minf(size.x * 2.0, size.y * (1.0 - MARGIN * 2.0) * stature)
 	actor.fit(height / CutoutHero.SPRITE_HEIGHT, get_viewport().get_final_transform().get_scale().x)
 	actor.draw(self, Vector2(size.x * 0.45, size.y * (1.0 - MARGIN)), 1.0, tint)
