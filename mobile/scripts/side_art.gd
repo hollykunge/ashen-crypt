@@ -2,7 +2,8 @@ extends RefCounted
 
 const Places = preload("res://scripts/rules/places.gd")
 const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
-const PORTRAIT := preload("res://art/reference-hero/portrait.png")
+# 主角侧面半身像：3D 角色模型渲的（gen-out/model/scripts/render_portrait.py）
+const PORTRAIT := preload("res://art/model-hero/portrait.png")
 const INK_STAGE := preload("res://art/ink/mountain-road.png")
 const CELL := Vector2(96, 96)
 const PIVOT := Vector2(47, 89)

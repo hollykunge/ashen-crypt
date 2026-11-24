@@ -76,9 +76,6 @@ func _build_toolbar() -> void:
 	caption = game._label("", 17, game.INK)
 	caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(caption)
-	var sample: Button = game._button("衣片样板", false, 30)
-	sample.pressed.connect(func(): get_tree().change_scene_to_file("res://tailoring.tscn"))
-	header.add_child(sample)
 	var back: Button = game._button("返回题页", false, 30)
 	back.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://main.tscn"))
 	header.add_child(back)

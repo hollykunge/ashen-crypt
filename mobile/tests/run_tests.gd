@@ -20,6 +20,7 @@ const Places = preload("res://scripts/rules/places.gd")
 const FxArt = preload("res://scripts/fx_art.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
 const CutoutHero = preload("res://scripts/cutout_hero.gd")
+const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -392,40 +393,60 @@ func _test_appearance() -> bool:
 		_check(Appearance.ROBE_TINTS.has(element) and Appearance.EDGE_TINTS.has(element),
 			"%s行有成套的袍色与刃色" % element)
 	var figure := ArmoryFigure.new()
+	root.add_child(figure)
 	figure.display({}, {"gender": "male"}, "sword")
-	var base: Texture2D = figure.actor.rig._sprites.torso[0].texture
-	var head: Texture2D = figure.actor.rig._sprites.head[0].texture
+	var hero = figure.actor.hero
+	_check(hero.outfit.torso == "peasant" and hero.outfit.shoulder == "none", "没穿护甲是布衣、不带肩甲")
 	var armor: Dictionary = entries.armor.duplicate(true)
 	armor.armor_type = "leather"
 	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
-	var torso: Sprite2D = figure.actor.rig._sprites.torso[0]
-	_check(torso.texture != base and torso.modulate.r > torso.modulate.b, "试穿的皮甲用刀客拆件并显示火行染色")
-	_check(figure.actor.rig._sprites.head[0].texture == head and figure.actor.form == "bow",
-		"男女共用刀客头像与骨架，试穿预览保留角色兵器")
+	var tint: Color = hero._materials["Leather_Body"][0].get_shader_parameter("tint")
+	_check(hero.outfit.torso == "leather" and hero.outfit.shoulder == "leather" and tint.r > tint.b,
+		"试穿的皮甲换上皮甲上衣和肩甲，并显示火行染色")
+	_check(hero.outfit.arms == "peasant" and figure.actor.form == "bow", "只换上衣那一槽，试穿预览保留角色兵器")
 	_check(figure.trying_label.visible, "试穿时标出「试穿」")
 	figure.display({}, {"gender": "female"}, "spear")
-	_check(torso.texture == base and torso.modulate.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
-		"卸下装备恢复旧布短打")
+	tint = hero._materials["Male_Peasant_Body"][0].get_shader_parameter("tint")
+	_check(hero.outfit.torso == "peasant" and tint.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
+		"卸下装备恢复布衣原色")
 	figure.free()
 	return true
 
 
 func _test_weapon_grips() -> bool:
+	# 3D 模型主角：每种兵器有自己的出招动作，兵器画在手上（握点在拳里、弓在弓手）
 	var body := CutoutHero.new()
-	var sprite: Sprite2D = body.rig._sprites.hand[0]
-	var grip: Array = body.rig.rig.parts.hand.grip
-	_check(SideArt.pixels(sprite.texture).get_pixel(int(grip[0]), int(grip[1])).a > 0.5,
-		"刀客握点落在手掌上")
+	root.add_child(body)
+	body.fit(1.0, 1.0)
 	for form in Gear.WEAPON_FORMS:
 		body.dress(Appearance.bare(form))
 		body.drive(&"attack", 0.25, 0.0, false, [0.33])
-		_check(body.form == form and body.rig.show_weapon == (form == "sword"),
-			"%s 绑定真实兵器，刀只出现在剑形制" % form)
-		_check(body._draw_bowstring == (form == "bow") and body._brace_spear == (form == "spear"),
-			"%s 按自身形制拉弦或持枪" % form)
+		_check(body.form == form and body._action == CutoutHero.MOVES[form].attack, "%s 出招播自己的动作" % form)
+		var hand: Vector2 = body._point("hand_l") if form == "bow" else body._point("hand_r")
+		var grip: Vector2 = body.release_point() if form == "bow" else body._fist()
+		_check(grip.distance_to(hand) < 8.0, "%s 握点跟着手走" % form)
+		_check(body._drawing == (form == "bow"), "%s 出手前只有弓拉弦" % form)
+		var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
+		var prefix: String = "sword" if form == "jian" else form
+		_check(not shown.is_empty() and shown.all(func(p): return p.begins_with(prefix + "_")),
+			"%s 手里拿的是 3D %s 的零件" % [form, prefix])
+		_check(body.hero._kit.get_parent() == body.hero._hands["l" if form == "bow" else "r"]
+			and body.hero.fists[("l" if form == "bow" else "r")], "%s 兵器挂在握拳的那只手上" % form)
 		body.drive(&"", 0.0, 3.0, true, [])
-		_check(body.rig.current_action() == "run" and not body._draw_bowstring and not body._brace_spear,
-			"%s 走位时回到同一套持械步态" % form)
+		_check(body._action == "Sprint_Loop", "%s 跑动时播冲刺步态" % form)
+		body.drive(&"", 0.0, 3.0, false, [])
+		_check(body._action == "Walk_Loop", "%s 走动时播走路步态" % form)
+		body.drive(&"", 0.0, 0.0, false, [])
+		_check(body._action == "Sword_Idle", "%s 站着时摆戒备架势" % form)
+	var sword := WeaponDesign.plain("sword")
+	sword.blade = "qixing"
+	sword.guard = "crescent"
+	sword.pommel = "ring"
+	sword.tassel = Color("#3a6b4c")
+	body.hero.hold("sword", sword)
+	for part in ["sword_blade_qixing", "sword_inlay_qixing", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]:
+		_check(body.hero._kit_parts[part].visible, "锻出的剑按样子换零件：%s" % part)
+	_check(not body.hero._kit_parts["sword_blade_jian"].visible, "换了七星刃就不显示素刃")
 	body.free()
 	return true
 
@@ -466,32 +487,21 @@ func _test_cutout_hero() -> bool:
 	var look := Appearance.build({"armor": {"armor_type": "leather"}, "boots": {"armor_type": "chain"}}, {}, "sword")
 	_check(look.armor_types.get("armor") == "leather" and look.armor_types.get("boots") == "chain"
 		and not look.armor_types.has("gloves"), "外观带上护甲类别")
-	var rig := CutoutHero.Rig.new()
-	rig.setup(CutoutHero.ROOT + "rig.json", CutoutHero.ROOT + "parts")
-	var body_height: float = rig.stand_height()
-	var head: Sprite2D = rig._sprites.head[0]
-	var head_texture: Texture2D = head.texture
-	var image := head_texture.get_image()
-	var padded := Image.create(image.get_width() * 2, image.get_height() * 2, false, Image.FORMAT_RGBA8)
-	padded.blit_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), Vector2i.ZERO)
-	head.texture = ImageTexture.create_from_image(padded)
-	_near(rig.stand_height(), body_height, "人物身高不受头部贴图透明留白影响", 0.001)
-	head.texture = head_texture
-	var hair: Sprite2D = rig._sprites.hair[0]
-	var hair_scale := hair.scale
-	hair.scale *= 4.0
-	_near(rig.stand_height(), body_height, "马尾大小不改变人物身体在游戏里的缩放", 0.001)
-	hair.scale = hair_scale
-	rig.play("run")
-	var airborne := rig._pose_gait(0.5 * float(rig._run.period), rig._run)
-	airborne.foot_near_y = float(rig.rig.parts.boot.get("foot_roll_height", 0.04)) * 0.5
-	rig._apply(airborne, 0.0)
-	var ankle_rotation: float = rig._bones.foot_near.rotation
-	rig._spring.leg_near_lo[0] += 360.0
-	rig._apply(airborne, 0.0)
-	var ankle_rotation_after_wrap: float = rig._bones.foot_near.rotation
-	rig.free()
-	_check(is_equal_approx(ankle_rotation, ankle_rotation_after_wrap), "皮影跑步：腾空时小腿角差一整圈，靴子姿态相同")
+	# 3D 模型主角：结算那一下挥砍正好打中；装备类别落到模型各槽；步态按走过的距离推进
+	var body := CutoutHero.new()
+	root.add_child(body)
+	body.fit(1.0, 1.0)
+	body.drive(&"attack", cues[0], 0.0, false, cues)
+	_near(body.hero.anim.current_animation_position, CutoutHero.ATTACK_HIT, "主角挥砍：结算那一下正是打中那一帧", 0.01)
+	body.dress(look)
+	_check(body.hero.outfit.torso == "leather" and body.hero.outfit.feet == "ranger" and body.hero.outfit.arms == "peasant",
+		"皮甲上衣、链甲靴子（暂用游侠靴）、没戴护腕是布衣袖")
+	var stride: float = CutoutHero.GAIT.Walk_Loop * body._height
+	body.drive(&"", 0.0, stride * 0.25, false, [])
+	var quarter: float = body.hero.anim.current_animation_position
+	body.drive(&"", 0.0, stride * 1.25, false, [])
+	_near(body.hero.anim.current_animation_position, quarter, "走路：多走一整个步态循环，脚下姿势相同", 0.01)
+	body.free()
 	return true
 
 func _test_blade_flurry() -> bool:
