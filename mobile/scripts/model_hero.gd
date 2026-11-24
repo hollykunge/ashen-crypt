@@ -82,6 +82,7 @@ var anim: AnimationPlayer
 var skeleton: Skeleton3D
 var _meshes := {}  # 部件名 → MeshInstance3D
 var _materials := {}  # 部件名 → [卡通材质]（染色用）
+var hull_outline := true
 
 
 ## 模型在创建时就装好（不等进场景树），这样还没上场就能先换装、定动作
@@ -291,6 +292,17 @@ func _toonify(mesh: MeshInstance3D, outline := 0.006) -> void:
 		line.set_shader_parameter("width", outline)
 		# 眼睛、眉毛不描边，不然脸上一圈黑
 		if not mesh.name in ["Head_Eyes", "Head_Eyebrows"]:
-			toon.next_pass = line
+			toon.set_meta("hull", line)
+			if hull_outline:
+				toon.next_pass = line
 		mesh.set_surface_override_material(i, toon)
 		_materials.get_or_add(String(mesh.name), []).append(toon)
+
+
+## 每个部件一份外扩背面的描边（画得细，内部的线也有），但每帧绘制次数多一倍多。
+## 游戏里的主角画布改用屏幕空间描边（model_silhouette.gdshader），这里就关掉；试穿台等大图保留。
+func set_hull_outline(on: bool) -> void:
+	hull_outline = on
+	for part in _materials:
+		for mat: ShaderMaterial in _materials[part]:
+			mat.next_pass = mat.get_meta("hull") if on and mat.has_meta("hull") else null

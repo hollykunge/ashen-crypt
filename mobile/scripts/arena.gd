@@ -331,16 +331,30 @@ func _step_sparks(delta: float) -> void:
 		spark.pos += spark.vel * delta
 	sparks = sparks.filter(func(spark: Dictionary) -> bool: return spark.life > 0.0)
 
+## 火花：全部攒成一个三角形列表一次画完（原来每颗火花的光晕和亮点各画一次）
 func _draw_sparks() -> void:
 	_world_transform()
+	if sparks.is_empty():
+		return
+	var pts := PackedVector2Array()
+	var cols := PackedColorArray()
 	for spark in sparks:
 		var fade: float = clampf(spark.life / spark.total, 0.0, 1.0)
 		var ink: Color = spark.ink
 		var pixels: float = spark.size * (0.6 + 0.4 * fade)
+		var p: Vector2 = spark.pos
 		if spark.glow:
-			draw_circle(spark.pos, pixels * 2.2, Color(ink, 0.18 * fade))
+			var glow := Color(ink, 0.18 * fade)
+			var r := pixels * 2.2
+			for k in range(10):
+				pts.append_array([p, p + Vector2.from_angle(TAU * k / 10.0) * r, p + Vector2.from_angle(TAU * (k + 1) / 10.0) * r])
+				cols.append_array([glow, glow, glow])
 			ink = ink.lerp(Color("#ffd28a"), fade * 0.5)
-		draw_rect(Rect2(spark.pos - Vector2.ONE * pixels * 0.5, Vector2.ONE * pixels), Color(ink, fade))
+		var c := Color(ink, fade)
+		var h := pixels * 0.5
+		pts.append_array([p + Vector2(-h, -h), p + Vector2(h, -h), p + Vector2(h, h), p + Vector2(-h, -h), p + Vector2(h, h), p + Vector2(-h, h)])
+		cols.append_array([c, c, c, c, c, c])
+	RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), PackedInt32Array(), pts, cols)
 
 func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -597,9 +611,42 @@ func _draw_snow() -> void:
 
 # 镜头最前面那层剪影：沿画面底边一丛一丛，比长卷走得快，人和精怪就夹在两层中间。
 # 每丛的样子由序号算出来，镜头怎么走都是同一片草。
+## 这一层的所有叶片、穗头、石头、云团先攒成一个三角形列表，最后一次画完（原来每片叶子一次绘制，一屏一百多次）
+var _near_pts := PackedVector2Array()
+var _near_cols := PackedColorArray()
+
+
 func _draw_near() -> void:
 	if run == null or size.x <= 0.0:
 		return
+	_near_pts.clear()
+	_near_cols.clear()
+	_collect_near()
+	if not _near_pts.is_empty():
+		RenderingServer.canvas_item_add_triangle_array(near.get_canvas_item(), PackedInt32Array(), _near_pts, _near_cols)
+
+
+func _near_tri(a: Vector2, b: Vector2, c: Vector2, color: Color) -> void:
+	_near_pts.append_array([a, b, c])
+	_near_cols.append_array([color, color, color])
+
+
+## 扇形（凸的轮廓，从中心连到一圈点）
+func _near_fan(center: Vector2, ring: PackedVector2Array, color: Color, closed: bool) -> void:
+	for k in range(ring.size() if closed else ring.size() - 1):
+		_near_tri(center, ring[k], ring[(k + 1) % ring.size()], color)
+
+
+## 椭圆：圆心、半径、拉伸、旋转
+func _near_ellipse(center: Vector2, radius: float, stretch: Vector2, angle: float, color: Color, sides := 12) -> void:
+	var ring := PackedVector2Array()
+	for k in range(sides):
+		var a := TAU * k / sides
+		ring.append(center + (Vector2(cos(a), sin(a)) * radius * stretch).rotated(angle))
+	_near_fan(center, ring, color, true)
+
+
+func _collect_near() -> void:
 	var kind: StringName = plate.get("near", &"grass")
 	var ink: Color = plate.get("near_ink", Color("#1d1c17"))
 	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
@@ -641,13 +688,14 @@ func _near_blades(x: float, seed: float, unit: float, ink: Color, reed: bool) ->
 			var point := base + Vector2((lean * 0.5 * t + bend * t * t) * tall, -tall * t * (1.0 - 0.3 * bend * t))
 			var w := width * (1.0 - t * 0.9)
 			left.append(point - Vector2(w, 0.0))
-			right.insert(0, point + Vector2(w, 0.0))
-		near.draw_colored_polygon(left + right, Color(ink, 0.88 if reed else 0.78))
+			right.append(point + Vector2(w, 0.0))
+		var color := Color(ink, 0.88 if reed else 0.78)
+		for k in range(5):  # 叶片是一条从根到尖的带子，每段两个三角形
+			_near_tri(left[k], right[k], right[k + 1], color)
+			_near_tri(left[k], right[k + 1], left[k + 1], color)
 		if reed and pick > 0.66:
-			var head := left[4].lerp(right[1], 0.5)
-			near.draw_set_transform(head, lean * 0.5 + bend * 0.9, Vector2(1.0, 3.2))
-			near.draw_circle(Vector2.ZERO, 1.9 * unit, Color(ink.lightened(0.1), 0.9), true, -1.0, true)
-			near.draw_set_transform(Vector2.ZERO)
+			var head := left[4].lerp(right[4], 0.5)
+			_near_ellipse(head, 1.9 * unit, Vector2(1.0, 3.2), lean * 0.5 + bend * 0.9, Color(ink.lightened(0.1), 0.9), 10)
 
 func _near_rock(x: float, seed: float, unit: float, ink: Color) -> void:
 	var wide := (22.0 + 30.0 * seed) * unit
@@ -657,17 +705,15 @@ func _near_rock(x: float, seed: float, unit: float, ink: Color) -> void:
 		var angle := PI + PI * float(k) / 10.0
 		var bump := 0.82 + 0.18 * _hash(int(seed * 331.0) + k)
 		points.append(Vector2(x + cos(angle) * wide * bump, size.y + 6.0 + sin(angle) * tall * bump))
-	near.draw_colored_polygon(points, Color(ink, 0.94))
+	_near_fan(Vector2(x, size.y + 6.0), points, Color(ink, 0.94), false)
 
 func _near_cloud(x: float, seed: float, unit: float, ink: Color) -> void:
 	var drift := sin(ash_time * 0.21 + seed * 9.0) * 14.0 * unit
 	for k in range(5):
 		var r := (16.0 + 26.0 * _hash(int(seed * 211.0) + k)) * unit
 		var point := Vector2(x + drift + (float(k) - 2.0) * r * 1.3, size.y - r * 0.15 - (k % 2) * 8.0 * unit)
-		near.draw_set_transform(point, 0.0, Vector2(2.4, 1.0))
-		near.draw_circle(Vector2.ZERO, r * 1.4, Color(ink, ink.a * 0.06), true, -1.0, true)
-		near.draw_circle(Vector2.ZERO, r, Color(ink, ink.a * 0.11), true, -1.0, true)
-	near.draw_set_transform(Vector2.ZERO)
+		_near_ellipse(point, r * 1.4, Vector2(2.4, 1.0), 0.0, Color(ink, ink.a * 0.06), 20)
+		_near_ellipse(point, r, Vector2(2.4, 1.0), 0.0, Color(ink, ink.a * 0.11), 20)
 
 static func _hash(n: int) -> float:
 	return fposmod(sin(float(n) * 12.9898 + 78.233) * 43758.5453, 1.0)
