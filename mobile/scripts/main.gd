@@ -125,6 +125,8 @@ var hint_time := 0.0
 var boss_announced := false
 
 func _ready() -> void:
+	if OS.is_debug_build():  # 调试版显示帧率，真机测性能用
+		add_child(preload("res://scripts/perf_overlay.gd").new())
 	original_design_size = get_window().content_scale_size
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spell_grade.shader = SPELL_GRADE

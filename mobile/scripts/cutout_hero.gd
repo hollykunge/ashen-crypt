@@ -4,6 +4,7 @@ extends Node
 ## 战场（arena.gd）和行装页（armory_figure.gd）不用改调用方式。
 
 const ModelHero = preload("res://scripts/model_hero.gd")
+const SILHOUETTE = preload("res://scripts/model_silhouette.gdshader")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 
 ## 原来分格人物（ready 那一格）从脚底到头顶的高度，分格像素。战场按它定人物大小，站位、判定都不用改
@@ -46,6 +47,9 @@ var viewport := SubViewport.new()
 var hero: ModelHero
 var camera := Camera3D.new()
 var _texture: Texture2D
+var _outlined := SubViewport.new()     # 3D 画布描好轮廓以后的那一张
+var _outline_rect := TextureRect.new()
+var _canvas: CanvasItem                # 最近一次贴到哪；它藏起来时两张画布都停渲染
 var _density := 1.0  # 真实屏幕像素 / 界面逻辑像素
 var _height := 0.0
 var _look: Dictionary = {}
@@ -82,6 +86,7 @@ func _init() -> void:
 	key.transform = Transform3D.IDENTITY.looking_at(Vector3(3.0, -4.0, -2.5), Vector3.UP)
 
 	hero = ModelHero.new()
+	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
 	viewport.add_child(hero)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
@@ -91,7 +96,17 @@ func _init() -> void:
 	var width := camera.size * BOX.x / BOX.y
 	var center := Vector3(0.0, camera.size * (FEET.y / BOX.y - 0.5), width * (0.5 - FEET.x / BOX.x))
 	camera.transform = Transform3D(Basis.looking_at(Vector3.RIGHT, Vector3.UP), center + Vector3(-6.0, 0.0, 0.0))
-	_texture = viewport.get_texture()
+	# 轮廓画布：把 3D 画布贴一遍、沿人物外轮廓描墨线（model_silhouette.gdshader），战场和行装贴的是这一张
+	_outlined.transparent_bg = true
+	_outlined.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_outlined.size = viewport.size
+	add_child(_outlined)
+	_outline_rect.texture = viewport.get_texture()
+	var mat := ShaderMaterial.new()
+	mat.shader = SILHOUETTE
+	_outline_rect.material = mat
+	_outlined.add_child(_outline_rect)
+	_texture = _outlined.get_texture()
 
 	_skeleton = hero.find_child("Skeleton3D", true, false)
 	var node: Node = _skeleton
@@ -186,6 +201,13 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 func _process(delta: float) -> void:
 	if hero.anim == null:
 		return
+	# 贴画布的那个界面藏起来了（比如战斗时的行装页），两张画布都停渲染，不白花绘制
+	var shown := _canvas == null or not is_instance_valid(_canvas) or _canvas.is_visible_in_tree()
+	var mode := SubViewport.UPDATE_ALWAYS if shown else SubViewport.UPDATE_DISABLED
+	viewport.render_target_update_mode = mode
+	_outlined.render_target_update_mode = mode
+	if not shown:
+		return
 	if not _manual:
 		_clock += delta
 		hero.anim.seek(fposmod(_clock, maxf(_length(_action), 0.01)), true)
@@ -263,10 +285,15 @@ func fit(pixels: float, density: float) -> void:
 	_density = density
 	var real := height * density
 	viewport.size = Vector2i(maxi(ceili(BOX.x * real), 8), maxi(ceili(BOX.y * real), 8))
+	_outlined.size = viewport.size
+	_outline_rect.size = Vector2(viewport.size)
+	# 墨线粗细跟着人物在屏幕上的真实像素高度走（人越大线越粗），和原来 3D 描边差不多
+	(_outline_rect.material as ShaderMaterial).set_shader_parameter("width", clampf(real / 110.0, 1.2, 4.0))
 
 
 ## 把画布贴到 canvas 上：feet 是脚底的屏幕位置，facing 朝向，offset 是残影往后错开的屏幕像素
 func draw(canvas: CanvasItem, feet: Vector2, facing: float, ink: Color, offset := Vector2.ZERO) -> void:
+	_canvas = canvas
 	canvas.draw_set_transform(feet, 0.0, Vector2(facing, 1.0))
 	canvas.draw_texture_rect(_texture, Rect2(offset - FEET * _height, Vector2(viewport.size) / _density), false, ink)
 	canvas.draw_set_transform(Vector2.ZERO)
