@@ -12,6 +12,13 @@ OUT = argv[0]
 FRAMES = [int(x) for x in argv[1].split(",")]
 STYLE = set(argv[2].split("+")) if len(argv) > 2 and argv[2] != "none" else set()
 MAX_MIX = int(argv[3]) if len(argv) > 3 else 10 ** 6   # cap on random mixes rendered as 3D truth
+ACTION = argv[4] if len(argv) > 4 else None             # e.g. Sword_Attack; default: the action already on Rig
+if ACTION:
+    _rig = bpy.data.objects["Rig"]
+    _act = bpy.data.actions[ACTION]
+    _rig.animation_data.action = _act
+    if hasattr(_rig.animation_data, "action_slot") and _act.slots:
+        _rig.animation_data.action_slot = _act.slots[0]
 if "Leather_Body" in bpy.data.objects:
     R.enable_leather()
 SS = 2 if STYLE else 1  # styled renders are supersampled 2x and downscaled afterwards

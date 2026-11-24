@@ -46,7 +46,8 @@ def objects_for(outfit):
 
 def setup_scene(ortho_scale=2.3, cam_target_z=0.95, facing="right"):
     sc = bpy.context.scene
-    sc.render.engine = "BLENDER_EEVEE_NEXT"
+    # 4.2-4.5 call it EEVEE Next; 5.x renamed it back to EEVEE
+    sc.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in {e.identifier for e in sc.render.bl_rna.properties["engine"].enum_items} else "BLENDER_EEVEE"
     sc.render.resolution_x, sc.render.resolution_y = W, H
     sc.render.resolution_percentage = 100
     sc.render.film_transparent = True

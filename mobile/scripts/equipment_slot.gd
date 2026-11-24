@@ -75,20 +75,7 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	_icon = ForgeArt.texture(icon_index)
 	_ink_icon = null
 	_fabric_tint = Gear.Pigments.GARMENT_DYES.get(derived.get("dye", "本色"), Color.WHITE) if slot in Gear.ARMOR_TYPE_SLOTS else Color.WHITE
-	if slot in Gear.ARMOR_TYPE_SLOTS or (slot == "weapon" and _form == "sword"):
-		var style: String = derived.get("armor_type", "cloth")
-		var folder: String = {"leather": "set-leather", "chain": "set-mail"}.get(style, "parts")
-		var part: String = {"armor": "torso", "gloves": "forearm", "greaves": "shin", "boots": "boot", "weapon": "weapon"}[slot]
-		if slot == "weapon":
-			folder = "parts"
-		var path := "res://art/ink/hero/" + folder + "/" + part + ".png"
-		if not _ink_icons.has(path):
-			var texture := load(path) as Texture2D
-			var atlas := AtlasTexture.new()
-			atlas.atlas = texture
-			atlas.region = Rect2(texture.get_image().get_used_rect())
-			_ink_icons[path] = atlas
-		_ink_icon = _ink_icons[path]
+	# 原来护甲四槽和刀用旧皮影主角的部件图当图标（art/ink/hero，已删）；现在都画零件拼的装备图
 	if slot == "weapon":
 		_icon = ForgeArt.weapon_icon(_form)
 		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \

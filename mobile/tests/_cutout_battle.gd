@@ -48,16 +48,12 @@ func _process(_delta: float) -> bool:
 	var run = game.run
 	var path := "%s/shot-%02d.png" % [out_dir, taken]
 	image.save_png(path)
-	print("%s motion=%s stride=%.1f advancing=%s cutout_action=%s" % [path, run.motion, run.stride, run.advancing,
-		game.field.cutout.rig.current_action() if game.field.cutout != null else "-"])
-	if game.field.cutout != null and OS.get_environment("CUTOUT_DEBUG") != "":
-		var r = game.field.cutout.rig
-		game.field.cutout.viewport.get_texture().get_image().save_png(path.replace(".png", "-vp.png"))
-		var p: Dictionary = r._last
-		print("   t=%.2f drive=%.2f hip=%.2f fn=(%.2f,%.2f) ff=(%.2f,%.2f) legs=%s soft=%.3f scale=%s" % [r._action_t, r.drive_t,
-			p.get("hip", -1), p.get("foot_near_x", -9), p.get("foot_near_y", -9), p.get("foot_far_x", -9), p.get("foot_far_y", -9),
-			[snappedf(r._bones.leg_near_up.rotation_degrees, 1), snappedf(r._bones.leg_near_lo.rotation_degrees, 1), snappedf(r._bones.foot_near.rotation_degrees, 1)],
-			r._soft, game.field.cutout.holder.scale])
+	var hero = game.field.cutout
+	print("%s motion=%s stride=%.1f advancing=%s hero_action=%s t=%.2f outfit=%s" % [path, run.motion, run.stride, run.advancing,
+		hero._action if hero != null else "-", hero.hero.anim.current_animation_position if hero != null else 0.0,
+		hero.hero.outfit if hero != null else {}])
+	if hero != null and OS.get_environment("CUTOUT_DEBUG") != "":
+		hero.viewport.get_texture().get_image().save_png(path.replace(".png", "-vp.png"))
 	taken += 1
 	if taken >= shots:
 		_cleanup()
