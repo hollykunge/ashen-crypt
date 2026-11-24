@@ -53,4 +53,4 @@ blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/spli
 
 `build_scene.py` 和 `build_leather.py` 是从 Quaternius 原始文件一步步搭场景的脚本，里面写死了路径 `D:\quaternius\...`。如果只是在这个 .blend 上继续改，用不到它们。
 
-三套衣服对应的出图结果在 `gen-out/run-test-leather/`：67 种搭配 × 8 帧，2D 叠层和 3D 直出的轮廓 IoU 是 0.9999，颜色不一致的像素平均 0.86%。
+之前用这个模型出的图（三套衣服的分层图层、画风对比等）已经从分支里删掉了，需要的话可以从提交 `ec92450` 里找回。当时的结论：67 种搭配 × 8 帧，2D 叠层和 3D 直出的轮廓 IoU 是 0.9999，颜色不一致的像素平均 0.86%。
