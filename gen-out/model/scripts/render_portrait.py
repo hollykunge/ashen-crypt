@@ -23,12 +23,13 @@ sc = bpy.context.scene
 sc.frame_set(0)
 
 R.enable_leather()
-outfit = dict(head="bare", torso="peasant", arms="peasant", legs="peasant", feet="peasant", shoulder="none", hood="none")
+outfit = dict(head="bare", torso="peasant", arms="peasant", legs="peasant", feet="peasant", shoulder="none", hood="none",
+              headgear="hat")   # 默认（布衣）戴斗笠，和游戏里一致
 names = R.objects_for(outfit)
 cam = R.setup_scene()
 head = rig.matrix_world @ rig.pose.bones["Head"].head
-cam.data.ortho_scale = 0.72
-cam.location = Vector((-6.0, head.y - 0.05, head.z - 0.07))
+cam.data.ortho_scale = 0.8
+cam.location = Vector((-6.0, head.y - 0.04, head.z - 0.05))
 import style_lib
 style_lib.apply({"toon", "outline", "light", "paint"}, cam, names, outline_px=2.0)
 R.show_only(names)

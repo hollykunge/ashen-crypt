@@ -5,8 +5,8 @@ extends Node3D
 
 const ModelHero = preload("res://scripts/model_hero.gd")
 
-const SLOT_NAMES := {"torso": "上衣", "arms": "手臂", "legs": "裤子", "feet": "鞋", "shoulder": "肩甲", "hood": "兜帽"}
-const VARIANT_NAMES := {"peasant": "布衣", "ranger": "游侠", "leather": "皮甲", "chain": "链甲", "none": "无"}
+const SLOT_NAMES := {"torso": "上衣", "arms": "手臂", "legs": "裤子", "feet": "鞋", "shoulder": "肩甲", "hood": "兜帽", "headgear": "头饰"}
+const VARIANT_NAMES := {"peasant": "布衣", "ranger": "游侠", "leather": "皮甲", "chain": "链甲", "none": "无", "hat": "斗笠", "iron": "铁盔"}
 const ACTIONS := [
 	["Idle_Loop", "待机"], ["Walk_Loop", "走"], ["Jog_Fwd_Loop", "慢跑"], ["Sprint_Loop", "冲刺"],
 	["Sword_Idle", "戒备"], ["Sword_Attack", "挥砍"], ["Hit_Chest", "受击·胸"], ["Hit_Head", "受击·头"],
@@ -141,6 +141,7 @@ func _wear_all(variant: String) -> void:
 		hero.outfit[slot] = variant
 	hero.outfit.shoulder = variant if variant != "peasant" else "none"
 	hero.outfit.hood = "none"
+	hero.outfit.headgear = {"peasant": "hat", "leather": "leather", "chain": "iron"}.get(variant, "none")
 	hero.apply_outfit()
 	_refresh()
 

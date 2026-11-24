@@ -37,9 +37,18 @@ DARK_LEATHER = srgb("2e2520")
 for o in list(bpy.data.objects):
     if o.name.startswith("Chain_"):
         bpy.data.objects.remove(o, do_unlink=True)
+for me in list(bpy.data.meshes):      # orphaned meshes still hold their materials
+    if me.name.startswith("Chain_") and me.users == 0:
+        bpy.data.meshes.remove(me)
 for m in list(bpy.data.materials):
     if m.name.startswith("Chain_") and m.users == 0:
         bpy.data.materials.remove(m)
+# an earlier run may have left the live materials suffixed (.001): give them their plain names back
+for m in list(bpy.data.materials):
+    if m.name.startswith("Chain_") and "." in m.name:
+        plain = m.name.split(".")[0]
+        if plain not in bpy.data.materials:
+            m.name = plain
 
 
 def dup(src_name, new_name):
