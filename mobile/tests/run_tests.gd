@@ -494,8 +494,8 @@ func _test_cutout_hero() -> bool:
 	body.drive(&"attack", cues[0], 0.0, false, cues)
 	_near(body.hero.anim.current_animation_position, CutoutHero.ATTACK_HIT, "主角挥砍：结算那一下正是打中那一帧", 0.01)
 	body.dress(look)
-	_check(body.hero.outfit.torso == "leather" and body.hero.outfit.feet == "ranger" and body.hero.outfit.arms == "peasant",
-		"皮甲上衣、链甲靴子（暂用游侠靴）、没戴护腕是布衣袖")
+	_check(body.hero.outfit.torso == "leather" and body.hero.outfit.feet == "chain" and body.hero.outfit.arms == "peasant",
+		"皮甲上衣、链甲靴子、没戴护腕是布衣袖")
 	var stride: float = CutoutHero.GAIT.Walk_Loop * body._height
 	body.drive(&"", 0.0, stride * 0.25, false, [])
 	var quarter: float = body.hero.anim.current_animation_position

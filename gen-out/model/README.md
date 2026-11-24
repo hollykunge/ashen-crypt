@@ -1,4 +1,4 @@
-# 角色模型：共用骨架 + 三套可换装衣服
+# 角色模型：共用骨架 + 四套可换装衣服
 
 `ashen_char_3outfits.blend` 最初是用 Blender 4.5 LTS 存的，修肩甲后用 Blender 5.3 重新存过。`render_lib.py` 两个版本的渲染引擎名都认：4.x 叫 EEVEE Next，5.x 又改回了 EEVEE。贴图放在旁边的 `textures/` 里，用相对路径 `//textures/...` 引用，所以整个 `model/` 文件夹拷到哪台电脑上都能直接打开。打开时已经设好了侧面正交相机 `SideCam`、主光 `Key` 和世界光，直接按 F12 就能渲染。
 
@@ -30,15 +30,15 @@
   - 加动作：把名字加进 `add_actions.py` 的 `WANT` 列表，然后重跑，已有的同名动作会被替换。
 - **所有部件：** 都绑定在 `Rig` 上，用 Armature 修改器。
 
-| 槽位 | 农夫 peasant | 游侠 ranger | 皮甲 leather（自制） |
-|---|---|---|---|
-| 头（所有衣服共用） | `Head_Skin` `Head_Eyes` `Head_Eyebrows` `Head_Hair_Main` `Head_Hair_Beard` | 同左 | 同左 |
-| 上衣 torso | `Male_Peasant_Body` | `Male_Ranger_Body` + `_Belt_1/2` | `Leather_Body` + `Leather_Belt_1/2` |
-| 手臂 arms | `Male_Peasant_Arms` | `Male_Ranger_Arms` | `Leather_Arms` + `Leather_Bracer` |
-| 裤子 legs | `Male_Peasant_Legs` | `Male_Ranger_Legs` | `Leather_Legs` + `Leather_ThighGuard` |
-| 鞋 feet | `Male_Peasant_Feet` | `Male_Ranger_Feet_Boots` | `Leather_Boots` |
-| 肩甲 shoulder | 无 | `Male_Ranger_Acc_Pauldron`（只有左肩） | `Leather_Pauldron_L/R` |
-| 兜帽 hood | 无 | `Male_Ranger_Head_Hood`（戴兜帽时隐藏 `Head_Hair_Main`） | 无 |
+| 槽位 | 农夫 peasant | 游侠 ranger | 皮甲 leather（自制） | 链甲 chain（自制） |
+|---|---|---|---|---|
+| 头（所有衣服共用） | `Head_Skin` `Head_Eyes` `Head_Eyebrows` `Head_Hair_Main` `Head_Hair_Beard` | 同左 | 同左 | 同左 |
+| 上衣 torso | `Male_Peasant_Body` | `Male_Ranger_Body` + `_Belt_1/2` | `Leather_Body` + `Leather_Belt_1/2` | `Chain_Body` + `Chain_Belt_1/2` |
+| 手臂 arms | `Male_Peasant_Arms` | `Male_Ranger_Arms` | `Leather_Arms` + `Leather_Bracer` | `Chain_Arms` + `Chain_Bracer` |
+| 裤子 legs | `Male_Peasant_Legs` | `Male_Ranger_Legs` | `Leather_Legs` + `Leather_ThighGuard` | `Chain_Legs` |
+| 鞋 feet | `Male_Peasant_Feet` | `Male_Ranger_Feet_Boots` | `Leather_Boots` | `Chain_Boots` |
+| 肩甲 shoulder | 无 | `Male_Ranger_Acc_Pauldron`（只有左肩） | `Leather_Pauldron_L/R` | `Chain_Pauldron_L/R` |
+| 兜帽 hood | 无 | `Male_Ranger_Head_Hood`（戴兜帽时隐藏 `Head_Hair_Main`） | 无 | 无 |
 
 ## 皮甲套装是怎么做的（`scripts/build_leather.py`）
 
@@ -47,6 +47,15 @@
 - `Leather_Bracer`：用的是游侠护腕。它只在完整套装文件里有，模块化部件里没有，重新上成红色。
 - `Leather_Pauldron_L`：游侠肩甲换成红皮材质。`_R` 是它的镜像复制，同时把 `_l` 和 `_r` 的顶点组对调了。
 - `Leather_ThighGuard`（新建）：从裤子表面切出大腿外侧和前侧的面，沿法线往外推 1.6 cm，再用 Solidify 加 8 mm 厚度。
+
+## 链甲套装是怎么做的（`scripts/build_chain.py`）
+
+做法和皮甲一样，都是从现有部件复制再换材质。脚本可以重复跑，会先删掉旧的 `Chain_*` 再重建。游戏里的「链甲」就是这一套。
+
+- `Chain_Body`、`Chain_Arms`（只换袖子，皮肤不动）、`Chain_Legs`：分别复制游侠的上衣、手臂、裤子，换成程序化锁子甲。环间距 1.6 cm，每行错开半个环，环的上半圈亮一点，环与环之间压暗。和皮甲一样用 Generated 坐标（按网格尺寸换算成米），所以跑动时花纹贴在身上不游动。
+- `Chain_Bracer`、`Chain_Pauldron_L/R`：复制皮甲的护腕和肩甲（肩甲已经过 `fit_pauldrons.py` 调整，权重也一起带过来），换成钢板材质。
+- `Chain_Belt_1/2`、`Chain_Boots`：复制游侠的腰带和靴子，按亮度重新上成深色皮革，金属扣保留原色。
+- 颜色比 Blender 出图时调亮了一档：Godot 里的卡通光照会把它压暗，原来那档在游戏里看是深石板色。
 
 ## 已知问题，回家可以接着改的
 

@@ -6,13 +6,13 @@ extends Node3D
 const ModelHero = preload("res://scripts/model_hero.gd")
 
 const SLOT_NAMES := {"torso": "上衣", "arms": "手臂", "legs": "裤子", "feet": "鞋", "shoulder": "肩甲", "hood": "兜帽"}
-const VARIANT_NAMES := {"peasant": "布衣", "ranger": "游侠", "leather": "皮甲", "none": "无"}
+const VARIANT_NAMES := {"peasant": "布衣", "ranger": "游侠", "leather": "皮甲", "chain": "链甲", "none": "无"}
 const ACTIONS := [
 	["Idle_Loop", "待机"], ["Walk_Loop", "走"], ["Jog_Fwd_Loop", "慢跑"], ["Sprint_Loop", "冲刺"],
 	["Sword_Idle", "戒备"], ["Sword_Attack", "挥砍"], ["Hit_Chest", "受击·胸"], ["Hit_Head", "受击·头"],
 	["Death01", "倒地"], ["Roll", "翻滚"],
 ]
-const ALL_SAME := {"布衣全套": "peasant", "游侠全套": "ranger", "皮甲全套": "leather"}
+const ALL_SAME := {"布衣": "peasant", "游侠": "ranger", "皮甲": "leather", "链甲": "chain"}
 ## 自检截图：[款式, 动作, 动作播到第几秒]
 const SHOTS := [
 	[{"torso": "leather", "arms": "leather", "legs": "leather", "feet": "leather", "shoulder": "leather", "hood": "none"}, "Idle_Loop", 0.5],

@@ -24,10 +24,22 @@ LEATHER = {
 }
 
 
+CHAIN = {
+    "torso": ["Chain_Body", "Chain_Belt_1", "Chain_Belt_2"],
+    "arms": ["Chain_Arms", "Chain_Bracer"],
+    "legs": ["Chain_Legs"],
+    "feet": ["Chain_Boots"],
+    "shoulder": ["Chain_Pauldron_L", "Chain_Pauldron_R"],
+}
+
+
 def enable_leather():
-    """Register the 'leather' outfit (only in scenes built with build_leather.py)."""
+    """Register the 'leather' outfit (build_leather.py) and, when present, the 'chain' outfit (build_chain.py)."""
     for slot, parts in LEATHER.items():
         SLOTS[slot]["leather"] = parts
+    if "Chain_Body" in bpy.data.objects:
+        for slot, parts in CHAIN.items():
+            SLOTS[slot]["chain"] = parts
 
 
 def all_part_names():

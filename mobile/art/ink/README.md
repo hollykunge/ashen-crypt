@@ -15,7 +15,7 @@
 ## 已接入范围
 
 - 标题、选角、创角、战斗、行装、炉坊使用统一纸色面板、深墨文字、朱红强调与墨线图标。
-- 主角的布衣、皮甲、链甲（暂用游侠那套代替）与混搭由 3D 模型按槽换装，在离屏画布里从侧面渲染（`scripts/cutout_hero.gd`、`scripts/model_hero.gd`）。兵器是 3D 零件（`art/model-hero/weapons.glb`，由 `gen-out/model/scripts/build_weapons.py` 生成），按锻造结果挑刃形、护手、柄首、枪头、弓臂并上色，挂在手骨上、四指握拳攥住：剑握在右手，长枪右手握，弓在左手。装备格里的兵器图标仍用原来的 2D 零件图（`scripts/held_weapon.gd`）。
+- 主角的布衣、皮甲、链甲与混搭由 3D 模型按槽换装，在离屏画布里从侧面渲染（`scripts/cutout_hero.gd`、`scripts/model_hero.gd`）。兵器是 3D 零件（`art/model-hero/weapons.glb`，由 `gen-out/model/scripts/build_weapons.py` 生成），按锻造结果挑刃形、护手、柄首、枪头、弓臂并上色，挂在手骨上、四指握拳攥住：剑握在右手，长枪右手握，弓在左手。装备格里的兵器图标仍用原来的 2D 零件图（`scripts/held_weapon.gd`）。
 - 第一地域采用 `mountain-road.png` 手绘场景，藤精采用 `vine-spirit.png` 十二帧图集。其他地域长卷和三类怪物仍保留原素材，未冒充完成全游戏美术替换。
 
 ## 素材制作与复现
