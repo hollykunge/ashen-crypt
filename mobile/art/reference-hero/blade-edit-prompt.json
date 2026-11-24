@@ -1,7 +1,0 @@
-{
-  "tool": "built-in image_gen.imagegen",
-  "purpose": "Remove baked steel blades for a fixed-length weapon while preserving approved character pixels outside authored blade contours",
-  "source": "source/blade-removal-layout.png",
-  "result": "source/blade-removal.png",
-  "prompt": "Use case: precise-object-edit. This is a technical 3 columns by 3 rows sheet of NINE painted full-body swordsman poses. Remove ONLY the steel blade projecting from each curved saber, leaving the gripping hands, brass guard, handle and pommel EXACTLY in place. All nine must have a bladeless hilt after the edit. Where a blade previously crossed the man's tunic, red sash or trousers, restore the clothing under that blade naturally. Where the removed blade was in empty space, leave true transparent alpha zero. Do not move or redraw any face, mantle, limb, clothing, fingers, hilt, body proportion or pose. The existing character is approved. Maintain the exact 3x3 grid, full canvas aspect ratio, object positions and size, same ink contours and colors. Remove the tiny detached stray flecks in empty space. No new objects, no text, no shadows or background. Genuine transparent RGBA."
-}
