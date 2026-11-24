@@ -16,8 +16,8 @@ const FOLLOW_SHARE := 0.45
 ## 模型身高（米，脚底到头顶），画布按它换算
 const MODEL_HEIGHT := 1.80
 
-## 游戏里的护甲类别 → 模型的款式。链甲还没做，先用游侠那套代替
-const OUTFITS := {"cloth": "peasant", "leather": "leather", "chain": "ranger"}
+## 游戏里的护甲类别 → 模型的款式（游侠那套没有对应的护甲类别，只在试穿台里用）
+const OUTFITS := {"cloth": "peasant", "leather": "leather", "chain": "chain"}
 ## 游戏的装备槽 → 模型的槽
 const SLOT_OF := {"armor": "torso", "gloves": "arms", "greaves": "legs", "boots": "feet"}
 
@@ -118,7 +118,7 @@ func dress(look: Dictionary) -> void:
 	var types: Dictionary = look.get("armor_types", {})
 	for slot in SLOT_OF:
 		hero.outfit[SLOT_OF[slot]] = OUTFITS.get(types.get(slot, "cloth"), "peasant")
-	# 肩甲跟着上衣走：皮甲配皮肩甲，链甲（暂用游侠）配游侠肩甲，布衣不带
+	# 肩甲跟着上衣走：皮甲配皮肩甲，链甲配钢肩甲，布衣不带
 	var torso: String = hero.outfit.torso
 	hero.outfit.shoulder = torso if torso != "peasant" and types.has("armor") else "none"
 	hero.outfit.hood = "none"

@@ -9,32 +9,37 @@ const TOON := preload("res://scripts/model_toon.gdshader")
 const OUTLINE := preload("res://scripts/model_outline.gdshader")
 
 const HEAD := ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main", "Head_Hair_Beard"]
-## 槽 → 款式 → 部件。和 gen-out/model/scripts/render_lib.py 的 SLOTS / LEATHER 对应
+## 槽 → 款式 → 部件。和 gen-out/model/scripts/render_lib.py 的 SLOTS / LEATHER / CHAIN 对应
 const SLOTS := {
 	"torso": {
 		"peasant": ["Male_Peasant_Body"],
 		"ranger": ["Male_Ranger_Body", "Male_Ranger_Body_Belt_1", "Male_Ranger_Body_Belt_2"],
 		"leather": ["Leather_Body", "Leather_Belt_1", "Leather_Belt_2"],
+		"chain": ["Chain_Body", "Chain_Belt_1", "Chain_Belt_2"],
 	},
 	"arms": {
 		"peasant": ["Male_Peasant_Arms"],
 		"ranger": ["Male_Ranger_Arms"],
 		"leather": ["Leather_Arms", "Leather_Bracer"],
+		"chain": ["Chain_Arms", "Chain_Bracer"],
 	},
 	"legs": {
 		"peasant": ["Male_Peasant_Legs"],
 		"ranger": ["Male_Ranger_Legs"],
 		"leather": ["Leather_Legs", "Leather_ThighGuard"],
+		"chain": ["Chain_Legs"],
 	},
 	"feet": {
 		"peasant": ["Male_Peasant_Feet"],
 		"ranger": ["Male_Ranger_Feet_Boots"],
 		"leather": ["Leather_Boots"],
+		"chain": ["Chain_Boots"],
 	},
 	"shoulder": {
 		"none": [],
 		"ranger": ["Male_Ranger_Acc_Pauldron"],
 		"leather": ["Leather_Pauldron_L", "Leather_Pauldron_R"],
+		"chain": ["Chain_Pauldron_L", "Chain_Pauldron_R"],
 	},
 	"hood": {
 		"none": [],
