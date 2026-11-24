@@ -120,7 +120,7 @@ for mat in bpy.data.materials:
         add_side_mask(mat)
 
 # head without hair (used when the hood is on)
-R.SLOTS["head"]["hooded"] = [n for n in R.SLOTS["head"]["bare"] if n != "Head_Hair_Main"]
+R.SLOTS["head"]["hooded"] = [n for n in R.SLOTS["head"]["bare"] if n != "Head_Hair_Main" and n not in R.TOPKNOT]
 
 
 # ---- one layer per slot / variant / side (parts of the same slot are rendered together -> exact occlusion inside a slot)
@@ -140,7 +140,7 @@ for slot, variants in R.SLOTS.items():
 # ---- 3D truth: every full outfit + (up to MAX_MIX) random mixes (hood on -> hair hidden, same as objects_for)
 import random
 slots = [s for s in R.SLOTS if s != "head"]
-short = {"peasant": "p", "ranger": "r", "leather": "l", "none": "0"}
+short = {"peasant": "p", "ranger": "r", "leather": "l", "chain": "c", "none": "0"}
 all_c = {}
 for vals in itertools.product(*[[v for v in R.SLOTS[s]] for s in slots]):
     m = dict(zip(slots, vals))

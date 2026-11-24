@@ -18,6 +18,8 @@ const MODEL_HEIGHT := 1.80
 
 ## 游戏里的护甲类别 → 模型的款式（游侠那套没有对应的护甲类别，只在试穿台里用）
 const OUTFITS := {"cloth": "peasant", "leather": "leather", "chain": "chain"}
+## 上衣的护甲类别 → 头饰
+const HEADGEAR := {"cloth": "hat", "leather": "leather", "chain": "iron"}
 ## 游戏的装备槽 → 模型的槽
 const SLOT_OF := {"armor": "torso", "gloves": "arms", "greaves": "legs", "boots": "feet"}
 
@@ -122,6 +124,8 @@ func dress(look: Dictionary) -> void:
 	var torso: String = hero.outfit.torso
 	hero.outfit.shoulder = torso if torso != "peasant" and types.has("armor") else "none"
 	hero.outfit.hood = "none"
+	# 头饰跟着上衣的护甲类别：布衣或没穿护甲戴斗笠，皮甲戴皮兜鍪，链甲戴铁兜鍪
+	hero.outfit.headgear = HEADGEAR.get(types.get("armor", "cloth"), "hat")
 	hero.apply_outfit()
 	var dyes: Dictionary = look.get("dyes", {})
 	_tint("armor", look.get("robe", Color.WHITE), look.get("robe_amount", 0.0), dyes)

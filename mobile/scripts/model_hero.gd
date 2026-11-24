@@ -8,7 +8,10 @@ const WEAPONS := preload("res://art/model-hero/weapons.glb")
 const TOON := preload("res://scripts/model_toon.gdshader")
 const OUTLINE := preload("res://scripts/model_outline.gdshader")
 
-const HEAD := ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main", "Head_Hair_Beard"]
+## 发髻（发包、发尾、发带、簪子，gen-out/model/scripts/build_topknot.py；头发本身是往后梳、贴头皮的发壳）：
+## 戴头饰时藏起来（头饰盖住头顶），戴兜帽时连头发一起藏
+const TOPKNOT := ["Head_Hair_Bun", "Head_Hair_Tail", "Head_Band", "Head_Pin"]
+const HEAD := ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main", "Head_Hair_Beard"] + TOPKNOT
 ## 槽 → 款式 → 部件。和 gen-out/model/scripts/render_lib.py 的 SLOTS / LEATHER / CHAIN 对应
 const SLOTS := {
 	"torso": {
@@ -45,6 +48,13 @@ const SLOTS := {
 		"none": [],
 		"ranger": ["Male_Ranger_Head_Hood"],
 	},
+	## 头饰（gen-out/model/scripts/build_headgear.py）：斗笠、皮兜鍪、铁兜鍪
+	"headgear": {
+		"none": [],
+		"hat": ["Head_Hat"],
+		"leather": ["Head_Helm_Leather"],
+		"iron": ["Head_Helm_Iron"],
+	},
 }
 ## 循环播放的动作；其余（挥砍、受击、倒地、翻滚）播一次停在最后一帧
 const LOOPING := ["Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Sword_Idle"]
@@ -67,7 +77,7 @@ var _kit_parts := {}       # 零件名 → MeshInstance3D
 var _hands := {}           # "r" / "l" → BoneAttachment3D
 
 var outfit := {"torso": "leather", "arms": "leather", "legs": "leather", "feet": "leather",
-	"shoulder": "leather", "hood": "none"}
+	"shoulder": "leather", "hood": "none", "headgear": "leather"}
 var anim: AnimationPlayer
 var skeleton: Skeleton3D
 var _meshes := {}  # 部件名 → MeshInstance3D
@@ -122,8 +132,13 @@ func apply_outfit() -> void:
 	var wanted := HEAD.duplicate()
 	for slot in outfit:
 		wanted += SLOTS[slot][outfit[slot]]
-	if outfit.hood != "none":  # 戴兜帽时藏起头发
-		wanted.erase("Head_Hair_Main")
+	var gear: String = outfit.get("headgear", "none")
+	if outfit.get("hood", "none") != "none":  # 戴兜帽时藏起头发和头饰
+		for part in ["Head_Hair_Main"] + TOPKNOT + SLOTS.headgear[gear]:
+			wanted.erase(part)
+	elif gear != "none":  # 头饰盖住头顶：发髻收在里面
+		for part in TOPKNOT:
+			wanted.erase(part)
 	for part in _meshes:
 		_meshes[part].visible = part in wanted
 

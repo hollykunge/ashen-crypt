@@ -4,8 +4,13 @@ from mathutils import Vector
 
 W, H = 480, 832
 
+# 发髻（build_topknot.py）：有就加进头部，戴兜帽时和头发一起藏起来
+TOPKNOT = [n for n in ("Head_Hair_Bun", "Head_Hair_Tail", "Head_Band", "Head_Pin") if n in bpy.data.objects]
+# 头饰（build_headgear.py）：按护甲类别戴，戴着时藏起发髻
+HEADGEAR = {"hat": "Head_Hat", "leather": "Head_Helm_Leather", "iron": "Head_Helm_Iron"}
+
 SLOTS = {
-    "head":   {"bare": ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main", "Head_Hair_Beard"]},
+    "head":   {"bare": ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main", "Head_Hair_Beard"] + TOPKNOT},
     "torso":  {"peasant": ["Male_Peasant_Body"], "ranger": ["Male_Ranger_Body", "Male_Ranger_Body_Belt_1", "Male_Ranger_Body_Belt_2"]},
     "arms":   {"peasant": ["Male_Peasant_Arms"], "ranger": ["Male_Ranger_Arms"]},
     "legs":   {"peasant": ["Male_Peasant_Legs"], "ranger": ["Male_Ranger_Legs"]},
@@ -43,16 +48,21 @@ def enable_leather():
 
 
 def all_part_names():
-    return sorted({n for s in SLOTS.values() for v in s.values() for n in v})
+    gear = [n for n in HEADGEAR.values() if n in bpy.data.objects]
+    return sorted({n for s in SLOTS.values() for v in s.values() for n in v} | set(gear))
 
 
 def objects_for(outfit):
-    """outfit: dict slot -> variant"""
+    """outfit: dict slot -> variant; optional "headgear": wrap | leather | iron | none (not a layered slot)"""
     names = []
     for slot, variant in outfit.items():
+        if slot == "headgear":
+            continue
         names += SLOTS[slot][variant]
     if outfit.get("hood", "none") != "none":  # hood replaces the hair
-        names = [n for n in names if n != "Head_Hair_Main"]
+        names = [n for n in names if n != "Head_Hair_Main" and n not in TOPKNOT]
+    elif outfit.get("headgear", "none") in HEADGEAR and HEADGEAR[outfit["headgear"]] in bpy.data.objects:
+        names = [n for n in names if n not in TOPKNOT] + [HEADGEAR[outfit["headgear"]]]
     return names
 
 
