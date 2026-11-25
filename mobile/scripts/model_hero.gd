@@ -70,6 +70,8 @@ var fists := {"r": false, "l": false}
 ## 兵器：零件按锻造出的样子挑（weapon_design.gd 的 blade / guard / pommel / head），按用途上色
 ## 剑身放大（x 刃宽、z 刃厚，刃长不变）：照实的剑在手机战场上只有几个像素宽，侧过来时细成一根线、混进地面
 const BLADE_SCALE := Vector3(1.35, 1.0, 2.0)
+## 刀身本来就宽，只加厚（侧过来时别细成一根线）
+const DAO_BLADE_SCALE := Vector3(1.0, 1.0, 2.0)
 const STRING_COLOR := Color("#d4c4a5")
 const SPEAR_TUFT := Color("#b8342a")
 var weapon_form := ""
@@ -115,6 +117,8 @@ func _init() -> void:
 		node.visible = false
 		if String(node.name).begins_with("sword_blade_") or String(node.name).begins_with("sword_inlay_"):
 			node.scale *= BLADE_SCALE
+		elif String(node.name).begins_with("dao_blade_"):
+			node.scale *= DAO_BLADE_SCALE
 	for i in 2:
 		var piece := MeshInstance3D.new()
 		var rod := CylinderMesh.new()
@@ -202,14 +206,16 @@ func hold(form: String, design: Dictionary) -> void:
 			var limbs := "chang" if design.get("head", "") == "chang" else "fanqu"
 			show = ["bow_limbs_" + limbs, "bow_grip", "bow_string_" + limbs]
 		_:
+			# 刀（形制 sword）用 dao_ 那套零件，剑（形制 jian）用 sword_ 那套；锻造的刃型、护手、首的名字两套通用
+			var kit := kit_of(form)
 			var blade := _pick(design.get("blade", ""), ["jian", "qixing", "bolang"])
-			show = ["sword_blade_" + blade, "sword_grip",
-				"sword_guard_" + _pick(design.get("guard", ""), ["disc", "bar", "ruyi", "crescent"]),
-				"sword_pommel_" + _pick(design.get("pommel", ""), ["knob", "hex", "ring", "cloud"])]
-			if blade == "qixing":
+			show = [kit + "_blade_" + blade, kit + "_grip",
+				kit + "_guard_" + _pick(design.get("guard", ""), ["disc", "bar", "ruyi", "crescent"]),
+				kit + "_pommel_" + _pick(design.get("pommel", ""), ["knob", "hex", "ring", "cloud"])]
+			if blade == "qixing" and kit == "sword":
 				show.append("sword_inlay_qixing")
 			if Color(design.get("tassel", Color.TRANSPARENT)).a > 0.0:
-				show.append("sword_tassel")
+				show.append(kit + "_tassel")
 	_bow_limbs = limbs_of(design) if form == "bow" else ""
 	var pole: Dictionary = design.get("pole", {})
 	var tassel: Color = design.get("tassel", Color.TRANSPARENT)
@@ -231,6 +237,11 @@ func hold(form: String, design: Dictionary) -> void:
 
 
 var _bow_limbs := ""
+
+## 刀剑用哪套零件：刀（sword）是 dao_，剑（jian）是 sword_
+static func kit_of(form: String) -> String:
+	return "dao" if form == "sword" else "sword"
+
 
 static func limbs_of(design: Dictionary) -> String:
 	return "chang" if design.get("head", "") == "chang" else "fanqu"

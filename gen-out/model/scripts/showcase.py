@@ -36,6 +36,9 @@ OUTFITS = {
 PIECES = [("上衣", ["torso", "shoulder"]), ("护腕", ["arms"]), ("护腿", ["legs"]), ("靴子", ["feet"]), ("头饰", ["headgear"])]
 # 兵器：名字 → 零件（共用一个原点：握点）
 ARMS = [
+    ("柳叶刀", ["dao_blade_jian", "dao_grip", "dao_guard_disc", "dao_pommel_knob"]),
+    ("雁翎刀", ["dao_blade_qixing", "dao_grip", "dao_guard_bar", "dao_pommel_ring", "dao_tassel"]),
+    ("朴刀", ["dao_blade_bolang", "dao_grip", "dao_guard_ruyi", "dao_pommel_hex"]),
     ("素刃剑", ["sword_blade_jian", "sword_grip", "sword_guard_disc", "sword_pommel_knob"]),
     ("七星剑", ["sword_blade_qixing", "sword_inlay_qixing", "sword_grip", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]),
     ("波浪剑", ["sword_blade_bolang", "sword_grip", "sword_guard_ruyi", "sword_pommel_cloud"]),
@@ -180,7 +183,7 @@ x = 0.0
 label("兵器", x + 0.2, WEAPON_ROW + 2.75, 0.22)
 for name, parts in ARMS:
     # 握点在原点：剑往上 0.9 米，枪尾在握点下 0.8 米，弓上下各 0.7 米，都抬到地面以上
-    lift = {"sword": 0.25, "spear": 0.85, "bow": 0.75}[parts[0].split("_")[0]]
+    lift = {"sword": 0.25, "dao": 0.25, "spear": 0.85, "bow": 0.75}[parts[0].split("_")[0]]
     place(parts, x, WEAPON_ROW + lift)
     label(name, x, WEAPON_ROW - 0.2, 0.12)
     x += 0.55

@@ -350,56 +350,201 @@ obj("sword_guard_crescent", [(smooth(cres), "trim"),
                                     sphere(Vector((-0.075, 0, g0 + 0.045)), 0.0115, 0.0115, 0.0115)), "trim"),
                              (gem(0, g0 + 0.010, 0.0058), "accent")])
 
-# ---------------------------------------------------------------- 剑柄：深色木芯、菱形缠绳、两头铜箍
-core_r = 0.0140
-grip_core = cylinder(-GRIP_HALF + 0.010, GRIP_HALF - 0.010, core_r, 12)
-cords = []
-L = 2 * (GRIP_HALF - 0.016)
-turns = 4.0
-for direction in (1, -1):
-    for start in (0.0, math.pi):
-        pts = []
-        for k in range(49):
-            u = k / 48
-            a = start + direction * 2 * math.pi * turns * u
-            pts.append(Vector(((core_r + 0.0012) * math.cos(a), (core_r + 0.0012) * math.sin(a), -L / 2 + L * u)))
-        cords.append(tube(pts, 0.0019, 5))
-ferrules = merge(lathe([(-GRIP_HALF, 0.0), (-GRIP_HALF, 0.0175), (-GRIP_HALF + 0.004, 0.0185), (-GRIP_HALF + 0.012, 0.0172),
-                        (-GRIP_HALF + 0.014, 0.0)], 16),
-                 lathe([(GRIP_HALF - 0.014, 0.0), (GRIP_HALF - 0.012, 0.0172), (GRIP_HALF - 0.004, 0.0185), (GRIP_HALF, 0.0175),
-                        (GRIP_HALF, 0.0)], 16))
-obj("sword_grip", [(grip_core, "core"), (merge(*cords), "wrap"), (ferrules, "trim")])
+# ---------------------------------------------------------------- 柄、首、穗：剑和刀各出一套（前缀 sword / dao）
+def hilt(prefix, oval=1.0):
+    """柄：深色木芯、菱形缠绳、两头铜箍。oval < 1 是刀柄那种扁圆柄"""
+    core_r = 0.0140
+    grip_core = loft([ring(z, core_r, core_r * oval, 12) for z in (-GRIP_HALF + 0.010, GRIP_HALF - 0.010)])
+    cords = []
+    L = 2 * (GRIP_HALF - 0.016)
+    for direction in (1, -1):
+        for start in (0.0, math.pi):
+            pts = []
+            for k in range(49):
+                u = k / 48
+                a = start + direction * 2 * math.pi * 4.0 * u
+                pts.append(Vector(((core_r + 0.0012) * math.cos(a), (core_r * oval + 0.0012) * math.sin(a), -L / 2 + L * u)))
+            cords.append(tube(pts, 0.0019, 5))
+    def ferrule(z0):
+        """一道 1.4 厘米宽的铜箍，中间略鼓"""
+        return smooth(loft([ring(z, r, r * oval, 16) if r > 1e-5 else [Vector((0, 0, z))] for z, r in
+                            [(z0, 0.0), (z0, 0.0175), (z0 + 0.004, 0.0185), (z0 + 0.012, 0.0172), (z0 + 0.014, 0.0)]]))
+    ferrules = merge(ferrule(-GRIP_HALF), ferrule(GRIP_HALF - 0.014))
+    obj(f"{prefix}_grip", [(smooth(grip_core), "core"), (merge(*cords), "wrap"), (ferrules, "trim")])
 
-# ---------------------------------------------------------------- 剑首
-p0 = -GRIP_HALF
-# 圆首：圆盘形剑首，底面起两道同心圈，正中一点宝
-knob = lathe([(p0 - 0.022, 0.0), (p0 - 0.022, 0.024), (p0 - 0.018, 0.028), (p0 - 0.010, 0.027), (p0 - 0.004, 0.019),
-              (p0, 0.016), (p0, 0.0)], 24)
-rings_ = merge(torus(Vector((0, 0, p0 - 0.0225)), 0.018, 0.0014, "z", 24, 5),
-               torus(Vector((0, 0, p0 - 0.0225)), 0.010, 0.0012, "z", 20, 5))
-obj("sword_pommel_knob", [(knob, "trim"), (rings_, "core"),
-                          (sphere(Vector((0, 0, p0 - 0.0235)), 0.004, 0.004, 0.0025, 10, 5), "accent")])
-# 六棱首：六棱柱收顶，腰上一圈箍
-hexp = loft([ring(p0, 0.017, 0.017, 6, phase=math.pi / 6), ring(p0 - 0.006, 0.022, 0.022, 6, phase=math.pi / 6),
-             ring(p0 - 0.030, 0.022, 0.022, 6, phase=math.pi / 6), ring(p0 - 0.040, 0.012, 0.012, 6, phase=math.pi / 6),
-             [Vector((0, 0, p0 - 0.046))]], True, False)
-obj("sword_pommel_hex", [(hexp, "trim"), (torus(Vector((0, 0, p0 - 0.018)), 0.0225, 0.0022, "z", 18, 5), "core")])
-# 云头首：扁平如意云头
-cloud = [smooth(plate([(-0.016, p0), (0.016, p0), (0.018, p0 - 0.012), (-0.018, p0 - 0.012)], 0.011, 0.1))]
-for dx, dz, r in ((0.0, -0.024, 0.016), (0.018, -0.016, 0.011), (-0.018, -0.016, 0.011)):
-    cloud.append(sphere(Vector((dx, 0, p0 + dz)), r, 0.010, r, 12, 6))
-obj("sword_pommel_cloud", [(merge(*cloud), "trim"),
-                           (merge(torus(Vector((0, 0.0105, p0 - 0.024)), 0.008, 0.0014, "y", 14, 5),
-                                  torus(Vector((0, -0.0105, p0 - 0.024)), 0.008, 0.0014, "y", 14, 5)), "core")])
-# 环首：在刃宽那个平面里立一个粗环，颈上一道箍
-obj("sword_pommel_ring", [(torus(Vector((0, 0, p0 - 0.036)), 0.030, 0.0075, "y", 24, 8), "trim"),
-                          (lathe([(p0 - 0.008, 0.0), (p0 - 0.008, 0.012), (p0 - 0.002, 0.016), (p0, 0.0155), (p0, 0.0)], 14), "trim"),
-                          (merge(sphere(Vector((0.030, 0, p0 - 0.036)), 0.0085, 0.0085, 0.0085),
-                                 sphere(Vector((-0.030, 0, p0 - 0.036)), 0.0085, 0.0085, 0.0085)), "core")])
-# 剑穗：金珠打结，下垂一把丝穗
-obj("sword_tassel", [(sphere(Vector((0, 0, p0 - 0.074)), 0.0075, 0.0075, 0.0085), "trim"),
-                     (tube([Vector((0, 0, p0 - 0.04)), Vector((0, 0, p0 - 0.068))], 0.0016, 5), "tassel"),
-                     (tassel(p0 - 0.080, 0.17, 0.026, 26, width=0.0035), "tassel")])
+    p0 = -GRIP_HALF
+    # 圆首：剑是圆盘形剑首，底面两道同心圈；刀是圆顶帽，顶上一个系穗的小环
+    if prefix == "dao":
+        knob = lathe([(p0 - 0.026, 0.0), (p0 - 0.024, 0.008), (p0 - 0.018, 0.016), (p0 - 0.008, 0.0195), (p0 - 0.002, 0.0185),
+                      (p0, 0.0170), (p0, 0.0)], 24)
+        extra = torus(Vector((0, 0, p0 - 0.032)), 0.006, 0.0018, "y", 14, 5)
+        obj(f"{prefix}_pommel_knob", [(knob, "trim"), (torus(Vector((0, 0, p0 - 0.010)), 0.0198, 0.0018, "z", 20, 5), "core"),
+                                      (extra, "trim")])
+    else:
+        knob = lathe([(p0 - 0.022, 0.0), (p0 - 0.022, 0.024), (p0 - 0.018, 0.028), (p0 - 0.010, 0.027), (p0 - 0.004, 0.019),
+                      (p0, 0.016), (p0, 0.0)], 24)
+        rings_ = merge(torus(Vector((0, 0, p0 - 0.0225)), 0.018, 0.0014, "z", 24, 5),
+                       torus(Vector((0, 0, p0 - 0.0225)), 0.010, 0.0012, "z", 20, 5))
+        obj(f"{prefix}_pommel_knob", [(knob, "trim"), (rings_, "core"),
+                                      (sphere(Vector((0, 0, p0 - 0.0235)), 0.004, 0.004, 0.0025, 10, 5), "accent")])
+    # 六棱首：六棱柱收顶，腰上一圈箍
+    hexp = loft([ring(p0, 0.017, 0.017, 6, phase=math.pi / 6), ring(p0 - 0.006, 0.022, 0.022, 6, phase=math.pi / 6),
+                 ring(p0 - 0.030, 0.022, 0.022, 6, phase=math.pi / 6), ring(p0 - 0.040, 0.012, 0.012, 6, phase=math.pi / 6),
+                 [Vector((0, 0, p0 - 0.046))]], True, False)
+    obj(f"{prefix}_pommel_hex", [(hexp, "trim"), (torus(Vector((0, 0, p0 - 0.018)), 0.0225, 0.0022, "z", 18, 5), "core")])
+    # 云头首：扁平如意云头
+    cloud = [smooth(plate([(-0.016, p0), (0.016, p0), (0.018, p0 - 0.012), (-0.018, p0 - 0.012)], 0.011, 0.1))]
+    for dx, dz, r in ((0.0, -0.024, 0.016), (0.018, -0.016, 0.011), (-0.018, -0.016, 0.011)):
+        cloud.append(sphere(Vector((dx, 0, p0 + dz)), r, 0.010, r, 12, 6))
+    obj(f"{prefix}_pommel_cloud", [(merge(*cloud), "trim"),
+                                   (merge(torus(Vector((0, 0.0105, p0 - 0.024)), 0.008, 0.0014, "y", 14, 5),
+                                          torus(Vector((0, -0.0105, p0 - 0.024)), 0.008, 0.0014, "y", 14, 5)), "core")])
+    # 环首：在刃宽那个平面里立一个粗环，颈上一道箍（刀的环首刀环更大）
+    R = 0.034 if prefix == "dao" else 0.030
+    obj(f"{prefix}_pommel_ring", [(torus(Vector((0, 0, p0 - 0.006 - R)), R, 0.0075, "y", 24, 8), "trim"),
+                                  (lathe([(p0 - 0.008, 0.0), (p0 - 0.008, 0.012), (p0 - 0.002, 0.016), (p0, 0.0155), (p0, 0.0)], 14), "trim"),
+                                  (merge(sphere(Vector((R, 0, p0 - 0.006 - R)), 0.0085, 0.0085, 0.0085),
+                                         sphere(Vector((-R, 0, p0 - 0.006 - R)), 0.0085, 0.0085, 0.0085)), "core")])
+    # 穗：金珠打结，下垂一把丝穗
+    obj(f"{prefix}_tassel", [(sphere(Vector((0, 0, p0 - 0.074)), 0.0075, 0.0075, 0.0085), "trim"),
+                             (tube([Vector((0, 0, p0 - 0.04)), Vector((0, 0, p0 - 0.068))], 0.0016, 5), "tassel"),
+                             (tassel(p0 - 0.080, 0.17, 0.026, 26, width=0.0035), "tassel")])
+
+
+hilt("sword")
+hilt("dao", oval=0.78)
+
+# ================================================================== 刀
+# 照古刀的样子：单刃，刃口朝 +X（挥砍时领先那侧），刀身往刀背那侧弯；刀头比刀根宽，刀尖收在刀背一侧。
+# 三款和锻造的刃型对应（weapon_design.gd 的 blade）：jian → 柳叶刀，qixing → 雁翎刀，bolang → 朴刀。
+DAO_BASE = 0.118
+DAO_LEN = 0.70
+# 照古刀：刀身宽（最宽处约刀长的六分之一），越往前越宽，刀背近乎直，刃口外鼓，刀尖是一道斜削收到刀背那侧
+DAO = {
+    "liuye": dict(w0=0.042, w1=0.068, bend=0.022, late=False, clip=0.0),    # 柳叶刀：中宽，通体微弯
+    "yanling": dict(w0=0.040, w1=0.060, bend=0.040, late=True, clip=0.0),   # 雁翎刀：前段直，后三成上挑
+    "pudao": dict(w0=0.046, w1=0.104, bend=0.012, late=False, clip=0.020),  # 朴刀：刀头宽大，刀背近尖处削进一道
+}
+
+
+def dao_shape(kind, u):
+    """刀背、刃口的 x 和刀背厚：返回 (spine_x, edge_x, t)"""
+    d = DAO[kind]
+    if d["late"]:
+        c = -d["bend"] * max(0.0, (u - 0.6) / 0.4) ** 2
+    else:
+        c = -d["bend"] * u * u
+    w = d["w0"] + (d["w1"] - d["w0"]) * min(1.0, u / 0.84) ** 1.8
+    spine = c - w * 0.25
+    edge = c + w * 0.75
+    if u > 0.84:   # 刀尖：刃口一道斜削收到刀背那侧
+        k = (u - 0.84) / 0.16
+        edge = spine + (edge - spine) * (1 - k ** 1.15)
+    if d["clip"] > 0 and u > 0.72:   # 朴刀刀背削进去
+        k = (u - 0.72) / 0.28
+        spine += d["clip"] * math.sin(k * math.pi / 2) ** 1.5
+        edge = max(edge, spine + 0.0015)
+    t = 0.0085 * (1 - 0.55 * u)
+    return spine, edge, t
+
+
+def dao_section(spine, edge, t, z):
+    m = spine + (edge - spine) * 0.42
+    return [Vector((edge, 0, z)), Vector((m, t * 0.40, z)), Vector((spine, t / 2, z)),
+            Vector((spine, -t / 2, z)), Vector((m, -t * 0.40, z))]
+
+
+def dao_blade(kind):
+    rings = []
+    steps = 36
+    for i in range(steps + 1):
+        u = i / steps * 0.995
+        spine, edge, t = dao_shape(kind, u)
+        rings.append(dao_section(spine, max(edge, spine + 0.0015), max(t, 0.0012), DAO_BASE + u * DAO_LEN))
+    spine, edge, t = dao_shape(kind, 1.0)
+    rings.append([Vector((spine, 0, DAO_BASE + DAO_LEN))])
+    return loft(rings, True, False)
+
+
+def dao_fuller(kind, u0=0.04, u1=0.62):
+    """血槽：靠刀背一侧一道深色细槽，两面都有"""
+    out = []
+    for side in (1, -1):
+        rings = []
+        for i in range(21):
+            u = u0 + (u1 - u0) * i / 20
+            spine, edge, t = dao_shape(kind, u)
+            x = spine + (edge - spine) * 0.22
+            y = side * (t * 0.47 + 0.0004)
+            z = DAO_BASE + u * DAO_LEN
+            hw = 0.0022
+            rings.append([Vector((x - hw, y, z)), Vector((x + hw, y, z)), Vector((x + hw, y - side * 0.0006, z)),
+                          Vector((x - hw, y - side * 0.0006, z))])
+        out.append(loft(rings))
+    return merge(*out)
+
+
+def dao_collar(kind):
+    """吞口：刀根上一块铜，包住刀身，刀背那侧起一道兽面似的尖"""
+    spine, edge, t = dao_shape(kind, 0.0)
+    pad = 0.0025
+    def box(z, grow):
+        return [Vector((edge + pad + grow, t / 2 + pad + grow, z)), Vector((spine - pad - grow, t / 2 + pad + grow, z)),
+                Vector((spine - pad - grow, -t / 2 - pad - grow, z)), Vector((edge + pad + grow, -t / 2 - pad - grow, z))]
+    body = loft([box(DAO_BASE - 0.018, 0.002), box(DAO_BASE + 0.010, 0.0015), box(DAO_BASE + 0.030, 0.0)])
+    tip = loft([[Vector((spine - pad, t / 2 + pad, DAO_BASE + 0.030)), Vector((spine - pad, -t / 2 - pad, DAO_BASE + 0.030)),
+                 Vector((spine + 0.010, -t / 2 - pad, DAO_BASE + 0.030)), Vector((spine + 0.010, t / 2 + pad, DAO_BASE + 0.030))],
+                [Vector((spine + 0.002, 0, DAO_BASE + 0.052))]], True, False)
+    return merge(body, tip)
+
+
+for design_key, kind in (("jian", "liuye"), ("qixing", "yanling"), ("bolang", "pudao")):
+    obj(f"dao_blade_{design_key}", [(dao_blade(kind), "steel"), (dao_fuller(kind), "core"), (dao_collar(kind), "trim")])
+
+# ---------------------------------------------------------------- 刀镡：刀的护手是一块横在柄上的盘（垂直于刀身）
+t0 = GRIP_HALF
+
+
+def dao_disc(rx, ry, z0, z1, lobes=0, amp=0.0, n=40, cup=0.0):
+    def outline(scale, z, lift=0.0):
+        pts = []
+        for k in range(n):
+            a = 2 * math.pi * k / n
+            r = 1.0 + amp * math.cos(lobes * a) if lobes else 1.0
+            pts.append(Vector((rx * scale * r * math.cos(a), ry * scale * r * math.sin(a), z + lift)))
+        return pts
+    return smooth(loft([outline(0.62, z0), outline(1.0, z0 + 0.002, cup * 0.2), outline(1.0, z1, cup),
+                        outline(0.62, z1 + 0.002)]), False)
+
+
+def studs(z, rx, ry, count=6, r=0.0035):
+    return merge(*[sphere(Vector((rx * 0.82 * math.cos(2 * math.pi * k / count + math.pi / count),
+                                  ry * 0.82 * math.sin(2 * math.pi * k / count + math.pi / count), z)), r, r, r * 0.8, 8, 4)
+                   for k in range(count)])
+
+
+# 圆镡：椭圆盘，边上一圈深色线，上面六颗铜钉
+obj("dao_guard_disc", [(dao_disc(0.046, 0.034, t0, t0 + 0.011), "trim"),
+                       (torus(Vector((0, 0, t0 + 0.0115)), 0.030, 0.0014, "z", 28, 5), "core"),
+                       (studs(t0 + 0.012, 0.046, 0.034), "accent")])
+# S 形护手：一头朝刀尖弯，一头朝刀柄弯，两头圆珠（照 S 形格的古刀）
+s_pts = []
+for i in range(25):
+    u = -1 + 2 * i / 24
+    s_pts.append(Vector((0.068 * u, 0, t0 + 0.008 + 0.030 * math.sin(u * math.pi) * (0.5 + 0.5 * abs(u)))))
+obj("dao_guard_bar", [(tube(s_pts, 0.0065, 8), "trim"),
+                      (merge(sphere(s_pts[0], 0.0095, 0.0095, 0.0095), sphere(s_pts[-1], 0.0095, 0.0095, 0.0095)), "trim"),
+                      (dao_disc(0.022, 0.018, t0, t0 + 0.014), "trim"),
+                      (merge(sphere(Vector((0, 0.019, t0 + 0.007)), 0.0055, 0.003, 0.0055),
+                             sphere(Vector((0, -0.019, t0 + 0.007)), 0.0055, 0.003, 0.0055)), "accent")])
+# 云镡：四瓣云头边的盘
+obj("dao_guard_ruyi", [(dao_disc(0.044, 0.036, t0, t0 + 0.012, lobes=4, amp=0.12), "trim"),
+                       (torus(Vector((0, 0, t0 + 0.0125)), 0.024, 0.0016, "z", 24, 5), "core"),
+                       (studs(t0 + 0.013, 0.040, 0.032, 4, 0.0042), "accent")])
+# 碗镡：盘边朝刀身翘起成浅碗
+obj("dao_guard_crescent", [(dao_disc(0.044, 0.036, t0, t0 + 0.010, cup=0.012), "trim"),
+                           (torus(Vector((0, 0, t0 + 0.0105)), 0.022, 0.0016, "z", 24, 5), "core"),
+                           (studs(t0 + 0.011, 0.034, 0.027, 8, 0.0028), "accent")])
 
 # ================================================================== 长枪
 BUTT, TOP = -0.80, 1.40
@@ -442,11 +587,11 @@ def head_section(w, t, cx=0.0):
 def spear_head(kind):
     rings = []
     steps = 22
-    length = 0.36 if kind == "snake" else 0.30
+    length = 0.36 if kind == "snake" else (0.34 if kind == "leaf" else 0.30)
     for i in range(steps + 1):
         u = i / steps * 0.98
         if kind == "leaf":
-            w = 0.014 + 0.052 * math.sin(math.pi * min(1.0, u * 1.25)) ** 0.8 * (1 - u) ** 0.35
+            w = 0.012 + 0.038 * math.sin(math.pi * min(1.0, u * 1.2)) ** 0.9 * (1 - u) ** 0.45
             cx = 0.0
         elif kind == "snake":
             w = 0.044 * (1 - u) ** 0.8 + 0.010
@@ -461,11 +606,33 @@ def spear_head(kind):
     return loft(rings, True, False)
 
 
-# 枪头根部一道金箍（压在銎口上）
+# 枪头根部：一道金箍、一颗铜珠、一圈莲瓣似的小尖（照古枪那种叠起来的枪头座）
+def head_mount():
+    bead = sphere(Vector((0, 0, H0 - 0.002)), 0.0135, 0.0135, 0.010, 14, 7)
+    petals = []
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        d = Vector((math.cos(a), math.sin(a), 0))
+        base = Vector((0, 0, H0 + 0.004))
+        petals.append(loft([[base + d * 0.009 + d.cross(Vector((0, 0, 1))) * 0.004, base + d * 0.009 - d.cross(Vector((0, 0, 1))) * 0.004,
+                             base + d * 0.009 + Vector((0, 0, 0.006))],
+                            [base + d * 0.019 + Vector((0, 0, 0.016))]], True, False))
+    return merge(bead, *petals)
+
+
+def wings():
+    """柳叶枪头根部两片往后掠的小翼"""
+    out = []
+    for sx in (1, -1):
+        out.append(prism([(sx * 0.008, H0 + 0.040), (sx * 0.044, H0 + 0.008), (sx * 0.050, H0 - 0.012),
+                          (sx * 0.030, H0 + 0.006), (sx * 0.008, H0 + 0.020)][::sx], -0.0025, 0.0025))
+    return merge(*out)
+
+
 collar = lathe([(H0 - 0.006, 0.0), (H0 - 0.006, 0.0105), (H0, 0.0125), (H0 + 0.010, 0.0105), (H0 + 0.010, 0.0)], 12)
-obj("spear_head_leaf", [(spear_head("leaf"), "steel"), (collar, "trim")])
+obj("spear_head_leaf", [(merge(spear_head("leaf"), wings()), "steel"), (merge(collar, head_mount()), "trim")])
 collar = lathe([(H0 - 0.006, 0.0), (H0 - 0.006, 0.0105), (H0, 0.0125), (H0 + 0.010, 0.0105), (H0 + 0.010, 0.0)], 12)
-obj("spear_head_snake", [(spear_head("snake"), "steel"), (collar, "trim")])
+obj("spear_head_snake", [(spear_head("snake"), "steel"), (merge(collar, head_mount()), "trim")])
 # 戟：直刺加一侧月牙刃，月牙外缘薄、内缘厚，背侧再出一个小钩
 moon = []
 for i in range(15):
@@ -480,7 +647,7 @@ hook = loft([[Vector((-0.012, 0.004, H0 + 0.050)), Vector((-0.012, -0.004, H0 + 
              [Vector((-0.045, 0.002, H0 + 0.082)), Vector((-0.045, -0.002, H0 + 0.082)), Vector((-0.045, -0.002, H0 + 0.090)), Vector((-0.045, 0.002, H0 + 0.090))],
              [Vector((-0.050, 0.0, H0 + 0.105))]], True, False)
 collar = lathe([(H0 - 0.006, 0.0), (H0 - 0.006, 0.0105), (H0, 0.0125), (H0 + 0.010, 0.0105), (H0 + 0.010, 0.0)], 12)
-obj("spear_head_ji", [(merge(spear_head("ji"), loft(moon), moon_bar, hook), "steel"), (collar, "trim")])
+obj("spear_head_ji", [(merge(spear_head("ji"), loft(moon), moon_bar, hook), "steel"), (merge(collar, head_mount()), "trim")])
 # 红缨：蓬松一圈，系在銎上
 obj("spear_tassel", [(tassel(TOP + 0.045, 0.17, 0.075, 48, width=0.0045), "tassel"),
                      (torus(Vector((0, 0, TOP + 0.045)), 0.0145, 0.0035, "z", 16, 6), "tassel")])
@@ -490,15 +657,17 @@ HALF = 0.66
 
 
 def bow_curve(kind, u):
-    """u 0..1 从弓弣到弓弰尖，返回 (x, z)：x 朝目标为正（弓腹朝前）。弓臂往后弯，弓弰（最后两成）是一段硬直的角，
-    往前翻：反曲弓翻得多，长弓翻得少"""
+    """u 0..1 从弓弣到弓弰尖，返回 (x, z)：x 朝目标为正。照古弓的样子：弓弣退向弦，弓臂先往前鼓，
+    再往回收，弓弰（最后一成半）是一段硬直的角，尖上往弦那侧勾一点。反曲弓鼓得更狠"""
     z = 0.07 + u * (HALF - 0.07)
-    depth = 0.24 if kind == "fanqu" else 0.19
-    if u <= 0.80:
-        return -depth * (u / 0.80) ** 1.6, z
-    k = (u - 0.80) / 0.20
-    forward = 0.075 if kind == "fanqu" else 0.02   # 弦始终在弓臂后面，弦高约 0.16 米
-    return -depth + forward * k, z
+    bulge = 0.075 if kind == "fanqu" else 0.050
+    pts = [(0.00, 0.0), (0.10, 0.004), (0.36, bulge), (0.60, bulge * 0.45), (0.85, -0.105), (1.00, -0.150)]
+    for (u0, x0), (u1, x1) in zip(pts, pts[1:]):
+        if u <= u1:
+            k = (u - u0) / (u1 - u0)
+            k = k * k * (3 - 2 * k)
+            return x0 + (x1 - x0) * k, z
+    return pts[-1][1], z
 
 
 def limb_section(x, z, w, t):
@@ -512,10 +681,10 @@ def bow(kind):
         main, horn = [], []
         for i in range(31):
             # 弓臂 24 段、弓弰 6 段，在 u=0.80 共用一圈，接得上
-            u = i / 24 * 0.80 if i <= 24 else 0.80 + (i - 24) / 6 * 0.20
+            u = i / 24 * 0.85 if i <= 24 else 0.85 + (i - 24) / 6 * 0.15
             x, z = bow_curve(kind, u)
             w = 0.034 * (1 - 0.45 * u)
-            t = 0.019 * (1 - 0.35 * u)
+            t = 0.030 * (1 - 0.50 * u)   # 照古弓：弓臂侧看厚实
             sec = limb_section(x, sgn * z, w, t)
             if i <= 24:
                 main.append(sec)
@@ -530,18 +699,19 @@ def bow(kind):
         for uc in (0.22, 0.55):
             xs, zs = bow_curve(kind, uc)
             w = 0.034 * (1 - 0.45 * uc) * 1.08
-            t = 0.019 * (1 - 0.35 * uc) * 1.12
+            t = 0.030 * (1 - 0.50 * uc) * 1.10
             a = [limb_section(*bow_curve(kind, uc - 0.035), w, t), limb_section(*bow_curve(kind, uc + 0.035), w, t)]
             bands.append(loft([[Vector((p.x, p.y, sgn * p.z)) for p in r] for r in a]))
             for e in (-0.04, 0.04):
                 g = [limb_section(*bow_curve(kind, uc + e - 0.004), w * 1.04, t * 1.06),
                      limb_section(*bow_curve(kind, uc + e + 0.004), w * 1.04, t * 1.06)]
                 gilt.append(loft([[Vector((p.x, p.y, sgn * p.z)) for p in r] for r in g]))
-        # 弦垫：弓弰根上贴着弓腹的一小块骨
-        xb, zb = bow_curve(kind, 0.81)
-        bridges.append(loft([limb_section(xb + 0.013, sgn * (zb - 0.012), 0.022, 0.010),
-                             limb_section(xb + 0.013, sgn * (zb + 0.012), 0.022, 0.010)]))
-    riser = loft([limb_section(0.0, -0.075, 0.036, 0.024), limb_section(0.0, 0.075, 0.036, 0.024)])
+        # 弦垫：弓弰根上、贴着弦那侧的一小块骨；弓弰尖上一颗骨珠
+        xb, zb = bow_curve(kind, 0.86)
+        bridges.append(loft([limb_section(xb - 0.011, sgn * (zb - 0.012), 0.022, 0.010),
+                             limb_section(xb - 0.011, sgn * (zb + 0.012), 0.022, 0.010)]))
+        bridges.append(sphere(Vector((tip[0], 0, sgn * tip[1])), 0.008, 0.008, 0.008, 10, 6))
+    riser = loft([limb_section(0.0, -0.075, 0.036, 0.034), limb_section(0.0, 0.075, 0.036, 0.034)])
     pieces = [(merge(riser, *limbs), "wood"), (merge(*siyahs), "cap"), (merge(*bridges), "cap"),
               (merge(*bands), "accent"), (merge(*gilt), "trim")]
     return pieces, tip
@@ -555,10 +725,10 @@ obj("bow_limbs_fanqu", fanqu)
 wrap = []
 for k in range(14):
     z = -0.058 + k * 0.009
-    wrap.append(loft([limb_section(0.0, z, 0.040, 0.028), limb_section(0.0, z + 0.006, 0.040, 0.028)]))
+    wrap.append(loft([limb_section(0.0, z, 0.040, 0.038), limb_section(0.0, z + 0.006, 0.040, 0.038)]))
 obj("bow_grip", [(merge(*wrap), "wrap"),
-                 (merge(loft([limb_section(0.0, -0.066, 0.042, 0.030), limb_section(0.0, -0.060, 0.042, 0.030)]),
-                        loft([limb_section(0.0, 0.066, 0.042, 0.030), limb_section(0.0, 0.072, 0.042, 0.030)])), "trim")])
+                 (merge(loft([limb_section(0.0, -0.066, 0.042, 0.040), limb_section(0.0, -0.060, 0.042, 0.040)]),
+                        loft([limb_section(0.0, 0.066, 0.042, 0.040), limb_section(0.0, 0.072, 0.042, 0.040)])), "trim")])
 # 弦：两头搭在弓弰尖上，直直一条
 for kind, (tx, tz) in (("chang", tip_c), ("fanqu", tip_f)):
     obj(f"bow_string_{kind}", (loft([ring(-tz, 0.0022, 0.0022, 5, tx), ring(tz, 0.0022, 0.0022, 5, tx)]), "string"))

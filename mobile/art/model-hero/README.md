@@ -12,7 +12,7 @@
 | 衣装 | 布衣、皮甲、链甲，五个槽可混搭；头饰跟着上衣的护甲类别走（斗笠、皮兜鍪、铁兜鍪） | `.blend` 里的 `Leather_*`、`Chain_*`、`Head_*` |
 | 甲面花纹 | 皮甲上衣是札甲片加编绳、领口肩顶素皮；链甲是斜放的锁子环 | `gen-out/model/scripts/detail_armor.py`，导出前跑 |
 | 发型 | 往后梳、扎发髻 | `Head_Hair_Bun` / `Tail` / `Band` / `Pin` |
-| 兵器 | 剑、长枪、弓，3D 零件按锻造结果拼，挂在手骨上 | `weapons.glb`、`gen-out/model/scripts/build_weapons.py` |
+| 兵器 | 刀、剑、长枪、弓，3D 零件按锻造结果拼，挂在手骨上；刀用 `dao_` 零件，剑用 `sword_` 零件 | `weapons.glb`、`gen-out/model/scripts/build_weapons.py` |
 | 动作 | 12 个（待机、走、跑、戒备、挥砍、受击、倒地、翻滚、前刺、撒放等） | `.blend` 里的 Action，`gen-out/model/scripts/add_actions.py` |
 | 头像 | 模型渲的侧面半身像 | `portrait.png` |
 | 装备格图标 | 上衣、护腕、护腿、靴子按布衣／皮甲／链甲各渲一张，游戏里按身上同一个颜色染（`appearance.gd` 的 `garment_tint`） | `icons/`，由 `tests/_gear_icons.gd` 生成 |

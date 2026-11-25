@@ -435,7 +435,7 @@ func _test_weapon_grips() -> bool:
 		_check(grip.distance_to(hand) < 8.0, "%s 握点跟着手走" % form)
 		_check(body._drawing == (form == "bow"), "%s 出手前只有弓拉弦" % form)
 		var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
-		var prefix: String = "sword" if form == "jian" else form
+		var prefix: String = ModelHero.kit_of(form) if form in ["sword", "jian"] else form
 		_check(not shown.is_empty() and shown.all(func(p): return p.begins_with(prefix + "_")),
 			"%s 手里拿的是 3D %s 的零件" % [form, prefix])
 		_check(body.hero._kit.get_parent() == body.hero._hands["l" if form == "bow" else "r"]
@@ -464,10 +464,16 @@ func _test_weapon_grips() -> bool:
 	sword.guard = "crescent"
 	sword.pommel = "ring"
 	sword.tassel = Color("#3a6b4c")
-	body.hero.hold("sword", sword)
+	body.hero.hold("jian", sword)
 	for part in ["sword_blade_qixing", "sword_inlay_qixing", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]:
 		_check(body.hero._kit_parts[part].visible, "锻出的剑按样子换零件：%s" % part)
 	_check(not body.hero._kit_parts["sword_blade_jian"].visible, "换了七星刃就不显示素刃")
+	# 刀用自己的那套零件（dao_），锻造的刃型、护手、首的名字和剑通用
+	body.hero.hold("sword", sword)
+	for part in ["dao_blade_qixing", "dao_guard_crescent", "dao_pommel_ring", "dao_tassel"]:
+		_check(body.hero._kit_parts[part].visible, "刀按锻出的样子换零件：%s" % part)
+	_check(not body.hero._kit_parts["sword_blade_qixing"].visible and not body.hero._kit_parts["sword_inlay_qixing"].visible,
+		"拿刀时不显示剑的零件")
 	body.free()
 	return true
 
