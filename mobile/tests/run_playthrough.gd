@@ -570,7 +570,7 @@ func _test_roster(game) -> bool:
 	_check(_press(game.roster_page, "确认删除") and _count_text(game.roster_page, "入山") == 1,
 		"第二下删掉一个角色")
 	_check(game.roster_page.count() == 1, "只剩一个角色")
-	_check(_press(game.roster_page, "返回") and game.state == &"title", "选角页可返回标题页")
+	_check(_press_named(game.roster_page, "返回") and game.state == &"title", "选角页可返回标题页")
 	return true
 
 func _press_prefix(node: Node, prefix: String) -> bool:

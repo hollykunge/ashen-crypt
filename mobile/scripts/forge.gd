@@ -274,6 +274,7 @@ func _add_material(grid: GridContainer, id: String) -> void:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(row)
 	var minus := _button("−", 36, _amount.bind(id, -1))
+	_plain_step(minus)
 	minus.custom_minimum_size.x = 33
 	minus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_child(minus)
@@ -282,12 +283,26 @@ func _add_material(grid: GridContainer, id: String) -> void:
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	var plus := _button("+", 36, _amount.bind(id, 1))
+	_plain_step(plus)
 	plus.custom_minimum_size.x = 33
 	plus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_child(plus)
 	stock_labels[id] = label
 	plus_buttons[id] = plus
 	minus_buttons[id] = minus
+
+# 加减料的 ± 太小，刷墨只剩一团糊影：不刷墨，只写一个大号墨字，能按时浓、不能按时淡
+func _plain_step(button: Button) -> void:
+	button.remove_meta(&"brush_fills")
+	var clear := StyleBoxEmpty.new()
+	for style in ["normal", "hover", "pressed", "disabled", "focus"]:
+		button.add_theme_stylebox_override(style, clear)
+	button.add_theme_font_size_override("font_size", 22)
+	for color_name in ["font_color", "font_focus_color"]:
+		button.add_theme_color_override(color_name, ui.INK)
+	button.add_theme_color_override("font_hover_color", ui.GOLD)
+	button.add_theme_color_override("font_pressed_color", ui.CRIMSON)
+	button.add_theme_color_override("font_disabled_color", Color(ui.MUTED, 0.35))
 
 func _amount(id: String, delta: int) -> void:
 	var quantity := int(draft.materials.get(id, 0)) + delta
@@ -620,7 +635,8 @@ func _message(message: String) -> void:
 
 func _surface(parent: Node, padding: int, outlined: bool = true) -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.93), Color(ui.BORDER, 0.60), int(outlined), padding))
+	# 一张宣纸签；不描框的（页头、提示条）纸淡一点
+	panel.add_theme_stylebox_override("panel", ui.paper_box(1.0 if outlined else 0.85, padding))
 	parent.add_child(panel)
 	return panel
 
@@ -669,27 +685,31 @@ func _button(title: String, height: int, callback: Callable) -> Button:
 	button.pressed.connect(callback)
 	return button
 
+# 次要按钮：和主按钮一样是一笔浓墨，墨稍淡一点
 func _style_secondary(button: Button) -> void:
-	button.add_theme_stylebox_override("normal", ui._box(Color.TRANSPARENT, Color(ui.BORDER, 0.66), 1, 5))
-	button.add_theme_stylebox_override("hover", ui._box(Color(ui.GOLD, 0.10), ui.GOLD, 1, 5))
-	button.add_theme_stylebox_override("pressed", ui._box(Color(ui.GOLD, 0.16), ui.GOLD, 1, 5))
-	button.add_theme_stylebox_override("disabled", ui._box(Color.TRANSPARENT, Color(ui.BORDER, 0.25), 1, 5))
-	button.add_theme_color_override("font_disabled_color", ui.MUTED.darkened(0.2))
+	ui.brush_button(button, [Color(ui.WASH, 0.82), ui.WASH.lightened(0.12), ui.WASH.darkened(0.25), Color(ui.WASH, 0.3)])
+	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(color_name, ui.NIGHT)
+	button.add_theme_color_override("font_disabled_color", Color(ui.NIGHT, 0.6))
 
 func _chip(title: String, callback: Callable) -> Button:
 	var button := _button(title, 28, callback)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	button.toggle_mode = true
+	button.remove_meta(&"brush_fills")  # 标签自己画：没选中只有字，选中刷一笔
 	for style in ["normal", "hover", "pressed", "hover_pressed"]:
 		var filled: bool = style in ["pressed", "hover_pressed"]
-		var shape: StyleBoxFlat = ui._box(ui.IRON if filled else Color.TRANSPARENT, Color.TRANSPARENT, 0, 10)
+		var shape: StyleBoxTexture = ui._brush(ui.WASH if filled else Color.TRANSPARENT, true)
+		shape.set_content_margin(SIDE_LEFT, 9)
+		shape.set_content_margin(SIDE_RIGHT, 9)
 		shape.set_content_margin(SIDE_TOP, 0)
 		shape.set_content_margin(SIDE_BOTTOM, 0)
-		shape.set_corner_radius_all(14)
 		button.add_theme_stylebox_override(style, shape)
+	# 没选中的只是字，选中的刷一笔墨、字转纸色
 	button.add_theme_color_override("font_color", ui.MUTED)
-	button.add_theme_color_override("font_pressed_color", ui.GOLD)
-	button.add_theme_color_override("font_hover_pressed_color", ui.GOLD)
+	button.add_theme_color_override("font_hover_color", ui.INK)
+	button.add_theme_color_override("font_pressed_color", ui.NIGHT)
+	button.add_theme_color_override("font_hover_pressed_color", ui.NIGHT)
 	return button
 
 func _primary(title: String, callback: Callable) -> Button:

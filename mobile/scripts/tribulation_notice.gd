@@ -12,7 +12,7 @@ const EquipmentSlot = preload("res://scripts/equipment_slot.gd")
 
 func configure(ui) -> void:
 	color = Color(ui.NIGHT, 0.78)
-	$Center/Panel.add_theme_stylebox_override("panel", ui._box(ui.IRON, ui.GOLD, 1, 14))
+	$Center/Panel.add_theme_stylebox_override("panel", ui.paper_box(1.0, 14))
 	%Title.add_theme_font_override("font", ui.HEADING_FONT)
 	%Layer.add_theme_color_override("font_color", ui.GOLD)
 	%Description.add_theme_color_override("font_color", ui.INK)

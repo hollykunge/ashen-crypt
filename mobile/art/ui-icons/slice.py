@@ -76,5 +76,55 @@ def main() -> None:
                 finish(key_white(Image.open(single)), name)
 
 
+# 按钮底图：照 raw/stroke-reference.png 出的黑墨一笔。raw/stroke-wide.png 长的给文字按钮，raw/stroke-square.png 短的给图标按钮。
+# 抠成白色加透明（游戏里按按钮配色染色），按 STROKES 给的高度缩小：九宫格的边在游戏里按贴图像素原样画，贴图要和按钮差不多大
+STROKES = {"stroke-wide": 48, "stroke-square": 56}
+
+
+def strokes() -> None:
+    for name, height in STROKES.items():
+        path = RAW / f"{name}.png"
+        if not path.exists():
+            continue
+        gray = ImageOps.grayscale(Image.open(path))
+        alpha = gray.point(lambda v: 0 if v >= WHITE else 255 if v <= INK else round(255 * (WHITE - v) / (WHITE - INK)))
+        box = alpha.getbbox()
+        alpha = alpha.crop(box)
+        scale = height / alpha.height
+        alpha = alpha.resize((max(1, round(alpha.width * scale)), height), Image.LANCZOS)
+        out = Image.new("RGBA", alpha.size, (255, 255, 255, 0))
+        out.putalpha(alpha)
+        out.save(HERE / f"{name}.png")
+        print(f"写出 {name}.png {out.size}")
+
+
+# 卡片底：raw/paper-card.png 是黑底上的一张毛边宣纸（游戏里九宫格拉伸），抠掉黑底；
+# raw/ink-blot.png 是白底上的一团淡墨晕（垫在头像后面），按亮度抠白底
+def paper() -> None:
+    path = RAW / "paper-card.png"
+    if path.exists():
+        image = Image.open(path).convert("RGB")
+        gray = ImageOps.grayscale(image)
+        alpha = gray.point(lambda v: 0 if v <= 18 else 255 if v >= 70 else round(255 * (v - 18) / 52))
+        out = image.convert("RGBA")
+        out.putalpha(alpha)
+        out = out.crop(alpha.getbbox())
+        scale = 200 / out.height
+        out = out.resize((round(out.width * scale), 200), Image.LANCZOS)
+        out.save(HERE / "paper-card.png")
+        print(f"写出 paper-card.png {out.size}")
+    path = RAW / "ink-blot.png"
+    if path.exists():
+        gray = ImageOps.grayscale(Image.open(path))
+        alpha = gray.point(lambda v: 0 if v >= 250 else round(255 * (250 - v) / 250))
+        out = Image.new("RGBA", gray.size, (38, 30, 24, 0))
+        out.putalpha(alpha)
+        out = out.crop(alpha.getbbox()).resize((256, 256), Image.LANCZOS)
+        out.save(HERE / "ink-blot.png")
+        print(f"写出 ink-blot.png {out.size}")
+
+
 if __name__ == "__main__":
     main()
+    strokes()
+    paper()

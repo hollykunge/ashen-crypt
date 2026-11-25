@@ -92,7 +92,7 @@ func _build_creator() -> void:
 
 	page_area = PanelContainer.new()
 	page_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page_area.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.96), ui.BORDER, 1, 9))
+	page_area.add_theme_stylebox_override("panel", ui.paper_box(1.0, 9))
 	creator.add_child(page_area)
 	var scroller := ScrollContainer.new()
 	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -168,7 +168,7 @@ func _build_portrait() -> void:
 	frame.clip_contents = true
 	creator.add_child(frame)
 	var backing := Panel.new()
-	backing.add_theme_stylebox_override("panel", ui._box(Color("#ecddbea8"), ui.BORDER, 1, 0))
+	backing.add_theme_stylebox_override("panel", ui.paper_box(0.9, 0))
 	ui._fill(backing)
 	frame.add_child(backing)
 
@@ -197,7 +197,7 @@ func _build_portrait() -> void:
 	frame.add_child(portrait_tag)
 
 	var summary := PanelContainer.new()
-	summary.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.94), ui.BORDER, 1, 8))
+	summary.add_theme_stylebox_override("panel", ui.paper_box(1.0, 8))
 	frame.add_child(summary)
 	summary.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	summary.offset_left = 8
@@ -318,8 +318,9 @@ func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bo
 	var row: HBoxContainer = ui._hbox(6)
 	parent.add_child(row)
 	if back:
-		var leave := _button("返回", 39, func() -> void: back_requested.emit())
-		leave.custom_minimum_size.x = 56.0
+		var leave: Button = ui._icon_button(&"back", "返回", false, Vector2(48, 48))
+		leave.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		leave.pressed.connect(func() -> void: back_requested.emit())
 		row.add_child(leave)
 	var stack: VBoxContainer = ui._vbox(0)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -332,8 +333,12 @@ func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bo
 	nameplate.add_theme_constant_override("outline_size", 6)
 	stack.add_child(nameplate)
 	if catalog:
-		row.add_child(_button("仙班名录", 39, _show_gallery))
-		row.add_child(ui._sound_button())
+		var gallery_button := _button("仙班名录", 39, _show_gallery)
+		gallery_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(gallery_button)
+		var sound: Button = ui._sound_button()
+		sound.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(sound)
 
 func _show_gallery() -> void:
 	creator.hide()
@@ -377,7 +382,7 @@ func _grid(parent: Node, columns: int) -> GridContainer:
 
 func _card(parent: Node) -> VBoxContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.94), ui.BORDER, 1, 10))
+	panel.add_theme_stylebox_override("panel", ui.paper_box(1.0, 10))
 	parent.add_child(panel)
 	var box: VBoxContainer = ui._vbox(4)
 	panel.add_child(box)

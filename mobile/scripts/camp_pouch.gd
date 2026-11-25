@@ -17,13 +17,18 @@ var stock := 0
 var health := 1.0
 var relief := false
 var _bump := 0.0
-var _plate := StyleBoxFlat.new()
+# 底子是一笔纸色的淡墨（和装备条一样，main.gd 的 wash_box）
+var _plate := StyleBoxTexture.new()
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_PASS
 	custom_minimum_size = Vector2(124.0, 54.0)
-	_plate.bg_color = PLATE
-	_plate.set_corner_radius_all(14)
+	_plate.texture = preload("res://art/ui-icons/stroke-wide.png")
+	_plate.texture_margin_left = 16
+	_plate.texture_margin_right = 26
+	_plate.texture_margin_top = 10
+	_plate.texture_margin_bottom = 10
+	_plate.modulate_color = Color("#f0e0bf", 0.78)
 
 func show_state(next_material: Dictionary, next_stock: int, current: int, total: int, shaded: bool) -> void:
 	drop = next_material

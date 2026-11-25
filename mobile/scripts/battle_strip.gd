@@ -22,13 +22,18 @@ var boss_ratio := -1.0
 # 层主正在蓄力（地上有红圈）时，血条描一圈闪烁的红边。
 var warning := false
 var _time := 0.0
-var _plate := StyleBoxFlat.new()
+# 底子是一笔纸色的淡墨（和装备条一样，main.gd 的 wash_box）
+var _plate := StyleBoxTexture.new()
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	custom_minimum_size = Vector2(150.0, 54.0)
-	_plate.bg_color = Color("#f0e0bfb0")
-	_plate.set_corner_radius_all(14)
+	_plate.texture = preload("res://art/ui-icons/stroke-wide.png")
+	_plate.texture_margin_left = 16
+	_plate.texture_margin_right = 26
+	_plate.texture_margin_top = 10
+	_plate.texture_margin_bottom = 10
+	_plate.modulate_color = Color("#f0e0bf", 0.78)
 
 func _process(delta: float) -> void:
 	if not is_visible_in_tree():
