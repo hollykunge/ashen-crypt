@@ -836,7 +836,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.show()
 	battle_shade.visible = not run.continuous
 	battle.show()
-	var symbols := {"sword": &"sword", "spear": &"cleave", "bow": &"arrow"}
+	var symbols := {"sword": &"sword", "jian": &"jian", "spear": &"cleave", "bow": &"arrow"}
 	_set_glyph(&"attack", symbols.get(form, &"sword"))
 	_set_glyph(&"skill", &"slash")
 	_set_glyph(&"tactic", &"sigil")
@@ -1203,8 +1203,7 @@ func _set_glyph(action: StringName, symbol: StringName) -> void:
 func _set_icon(button: Button, symbol: StringName) -> void:
 	var glyph: Gothic.Glyph = button.get_node("Glyph")
 	glyph.symbol = symbol
-	glyph.art = null # 墨线图标与手绘人物使用同一套简洁轮廓。
-	glyph.material = spell_grade if glyph.art != null else null
+	glyph.art = Gothic.Glyph.art_for(symbol) # 有出图的水墨图标就用图，没有画线条
 	glyph.queue_redraw()
 
 func _spell_texture(symbol: StringName) -> Texture2D:

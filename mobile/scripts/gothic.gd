@@ -139,12 +139,51 @@ class Glyph extends Control:
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # 出图图标缩得很小，没 mipmap 会发毛
 		resized.connect(queue_redraw)
+
+	# 出图的水墨图标（art/ui-icons/<名字>.png，切图见 art/ui-icons/PROMPTS.md）；有图就画图，没图画下面的线条。
+	# 有几个按钮的符号名和图名不一样：刀的普攻叫 sword、枪叫 cleave、弓叫 arrow
+	const ART_NAMES := {&"sword": "dao", &"cleave": "spear", &"arrow": "bow"}
+	static var _art_cache := {}
+
+	static func art_for(name: StringName) -> Texture2D:
+		if not _art_cache.has(name):
+			var path := "res://art/ui-icons/%s.png" % ART_NAMES.get(name, String(name))
+			_art_cache[name] = load(path) if ResourceLoader.exists(path) else null
+		return _art_cache[name]
+
+	static var _mask_shader: Shader
+
+	static var _masks := {}
+
+	static func _mask(color: Color) -> ShaderMaterial:
+		if _masks.has(color):
+			return _masks[color]
+		if _mask_shader == null:
+			_mask_shader = Shader.new()
+			_mask_shader.code = "shader_type canvas_item;\nuniform vec4 ink : source_color;\n" \
+				+ "void fragment() { COLOR = vec4(ink.rgb, texture(TEXTURE, UV).a * ink.a * COLOR.a); }"
+		var mat := ShaderMaterial.new()
+		mat.shader = _mask_shader
+		mat.set_shader_parameter("ink", color)
+		_masks[color] = mat
+		return mat
 
 	func _draw() -> void:
 		if art != null:
-			draw_texture_rect(art, Rect2(Vector2.ZERO, size), false)
+			# 浅色墨（红底按钮上）整张按墨色剪影画；深色墨照原图画（墨色加朱砂）
+			# 顶栏的小按钮（图标格 26 像素）图画得细，放大一些才看得清；超出图标格画到按钮里没关系
+			var room := size * (1.3 if minf(size.x, size.y) < 30.0 else 1.0)
+			var shown := art.get_size() * minf(room.x / art.get_width(), room.y / art.get_height())
+			var rect := Rect2((size - shown) * 0.5, shown)
+			var want: Material = _mask(ink) if ink.get_luminance() > 0.55 else null
+			if material != want:
+				material = want
+			draw_texture_rect(art, rect, false)
 			return
+		if material != null:
+			material = null
 		var fit := minf(size.x, size.y) / 30.0
 		draw_set_transform(size * 0.5 - Vector2(15, 15) * fit, 0.0, Vector2.ONE * fit)
 		match symbol:

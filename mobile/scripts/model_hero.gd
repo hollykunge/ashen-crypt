@@ -403,6 +403,7 @@ func _rest_origin(bone: String) -> Vector3:
 
 ## 动画每次套到骨架上以后，把要握拳那只手的手指改成握拳（相对静止姿势设定，重复调用结果一样）
 func apply_fists() -> void:
+	_level_head()
 	_apply_draw()
 	if grip_mode in ["plane", "upright"] and _kit.get_parent() != null:
 		_apply_plane()
@@ -526,6 +527,23 @@ func _global(bone: int) -> Transform3D:
 
 func _global_of(bone: String) -> Transform3D:
 	return _global(skeleton.find_bone(bone))
+
+
+## 头摆正、向前平视：动作里低头（待机、戒备、走跑都有点耷拉着头）看着像在看地。
+## 把头在模型空间里的朝向拉回静止姿势（平视正前方），按 HEAD_LEVEL 和动作原样混合；倒地动作照原样
+const HEAD_LEVEL := 0.85
+func _level_head() -> void:
+	if anim.current_animation.contains("Death"):
+		return
+	var b := skeleton.find_bone("Head")
+	if b < 0:
+		return
+	var parent := skeleton.get_bone_parent(b)
+	var parent_basis := skeleton.get_bone_global_pose(parent).basis.orthonormalized()
+	var want := skeleton.get_bone_global_rest(b).basis.orthonormalized()
+	var level := (parent_basis.inverse() * want).get_rotation_quaternion()
+	var now := skeleton.get_bone_pose_rotation(b)
+	skeleton.set_bone_pose_rotation(b, now.slerp(level, HEAD_LEVEL))
 
 
 func _bend(bone: String, axis: Vector3, degrees: float) -> void:

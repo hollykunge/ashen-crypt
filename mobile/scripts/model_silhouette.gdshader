@@ -1,11 +1,11 @@
-// 主角描边（屏幕空间）：在主角画布上沿人物轮廓描一圈粗墨线（近黑的深蓝，街机格斗那种粗描边），一次绘制。
+// 主角描边（屏幕空间）：在主角画布上沿人物轮廓描一圈细墨线（深棕，和模型卡通出图一致），一次绘制。
 // 取代原来每个部件一份外扩背面的描边（model_outline.gdshader），后者在战斗里每帧要多一百来次绘制。
 // 只描外轮廓；手臂压在身体前面这类内部的线靠卡通明暗分开。
 shader_type canvas_item;
 
-uniform vec4 ink : source_color = vec4(0.06, 0.05, 0.09, 1.0);
+uniform vec4 ink : source_color = vec4(0.227, 0.173, 0.133, 1.0);
 uniform float width = 2.0;   // 描边宽度基数，画布像素（主角画布按人物大小给）
-const float THICK = 1.9;     // 粗描边：在基数上再加粗
+const float THICK = 0.8;     // 在基数上的倍数；原来 1.9 的街机粗描边在手机上显得怪
 
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
