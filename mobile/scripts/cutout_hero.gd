@@ -154,7 +154,7 @@ func dress(look: Dictionary) -> void:
 ## 行装页：站着待机。
 func present_outfit() -> void:
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
-	hero.set_grip_mode({"spear": "against", "bow": "fist"}.get(form, "along"))
+	hero.set_grip_mode({"spear": "against", "bow": "plane"}.get(form, "along"))
 	hero.draw_reach = 0.0
 	_play("Idle_Loop")
 	_manual = false

@@ -76,7 +76,7 @@ var weapon_form := ""
 var grip_mode := "fist"
 ## plane 握法：兵器贴着侧面（相机看过去的那个平面）朝前上方伸出，抬多少度。
 ## 戒备动作里手是垂着的，照拳头的握轴拿，剑和枪会横着戳向镜头，侧视里只剩一小截还插进身体
-const PLANE_PITCH := {"spear": 12.0}
+const PLANE_PITCH := {"spear": 12.0, "bow": 55.0}   # 行装页：弓斜着朝前上方提在左手
 const PLANE_PITCH_DEFAULT := 20.0
 ## 拉弓：右手从弓弦拉到下巴右侧（模型空间：朝 +Z，左手 +X，相机在 -X）
 const DRAW_ANCHOR := Vector3(-0.07, -0.06, 0.06)   # 相对头骨
@@ -283,7 +283,8 @@ func _apply_plane() -> void:
 	var hand := _global_of("hand_" + side)
 	var pitch := deg_to_rad(PLANE_PITCH.get(weapon_form, PLANE_PITCH_DEFAULT))
 	var y := Vector3(0.0, sin(pitch), cos(pitch))
-	var z := Vector3.RIGHT
+	# 刃面朝相机；弓的弓腹（零件 +X）要朝前（+Z），所以弓的 z 反过来取 -X
+	var z := Vector3.LEFT if weapon_form == "bow" else Vector3.RIGHT
 	var want := Basis(y.cross(z), y, z)
 	var size := hand.basis.get_scale().x
 	var grip := _grip_transform(side)

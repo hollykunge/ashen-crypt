@@ -26,7 +26,7 @@
 
   - 动作来自 Universal Animation Library v3.0 免费版（quaternius.itch.io/universal-animation-library，`Universal Animation Library[Standard].zip`，用的是不带根运动的 `Unreal-Godot/UAL1_Standard.glb`），由 `scripts/add_actions.py` 重定向到 `Rig` 上。
   - 不能直接套用原关键帧：两边骨骼同名，但 Blender 导入后有些骨骼的静止朝向不一样（`spine_03` 差 11°，脖子差 6°，拇指和脚也有偏差），我们的腿也比动作库的人体模型长约 5 cm。所以是逐帧把每根骨骼相对静止姿势的转角搬过来，位置按我们自己的骨长算，骨盆位移按骨盆高度比例（1.035）缩放。
-  - 兵器是单独的 3D 零件（`scripts/build_weapons.py` → `mobile/art/model-hero/weapons.glb`）：剑三种刃（素、七星、波浪）、四种护手、四种柄首和穗子，长枪三种枪头（柳叶、蛇矛、戟）带红缨，弓两种（长弓、反曲）。零件按锻造结果挑，按用途上色。游戏里挂在手骨上，四指握拳攥住（`mobile/scripts/model_hero.gd` 的 `hold`）。
+  - 兵器是单独的 3D 零件（`scripts/build_weapons.py` → `mobile/art/model-hero/weapons.glb`）：剑三种刃（素、七星、波浪）、四种护手、四种柄首和穗子，长枪三种枪头（柳叶、蛇矛、戟）带红缨，弓两种（长弓、反曲）。零件按锻造结果挑，按用途上色。2026-11-25 重做成古朴华丽：剑身起脊、近格错金菱纹，剑格加厚嵌宝，柄缠菱形绳、两头铜箍，剑首起同心圈；枪头起脊、铜銎铜镦，杆上髹漆描金，红缨蓬松，戟加横梁连住月牙；弓是反曲角弓，弓弰骨白、弦垫、红漆带描金。一个零件可以有几种材质（每种一个表面，按用途命名），游戏逐个表面上色。游戏里挂在手骨上，四指握拳攥住（`mobile/scripts/model_hero.gd` 的 `hold`）。
   - 加动作：把名字加进 `add_actions.py` 的 `WANT` 列表，然后重跑，已有的同名动作会被替换。
 - **所有部件：** 都绑定在 `Rig` 上，用 Armature 修改器。
 
