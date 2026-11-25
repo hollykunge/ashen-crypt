@@ -48,6 +48,10 @@
 - `Leather_Pauldron_L`：游侠肩甲换成红皮材质。`_R` 是它的镜像复制，同时把 `_l` 和 `_r` 的顶点组对调了。
 - `Leather_ThighGuard`（新建）：从裤子表面切出大腿外侧和前侧的面，沿法线往外推 1.6 cm，再用 Solidify 加 8 mm 厚度。
 
+## 札甲片和锁子环（`scripts/detail_armor.py`，2026-11-25）
+
+`build_leather.py` 的砖块纹贴在按包围盒拉伸、斜着投影的坐标上，甲片绕到侧面就变形、断成乱纹，铆钉是随机点；`build_chain.py` 的环是三维格子里的球壳，被身体表面切成大小不一的点和圈。`detail_armor.py` 把上衣、袖子、裤子的表面先摊成二维（绕身体或四肢的角度 × 沿轴的长度，单位米），再画规整的花纹：皮甲是一排排下端圆角的札甲片，上下排错开半片，每片一道浅褐编绳；领口和肩顶表面转平，改成素皮。链甲是两套错开的斜放椭圆环套在一起。导出和出陈列时都排在前面跑，只改内存；要存进 .blend，请用 Blender 5.3 加 `-- save` 跑（4.5 打开这个文件会丢东西）。
+
 ## 链甲套装是怎么做的（`scripts/build_chain.py`）
 
 做法和皮甲一样，都是从现有部件复制再换材质。脚本可以重复跑，会先删掉旧的 `Chain_*` 再重建。游戏里的「链甲」就是这一套。
@@ -94,7 +98,8 @@ blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/spli
 
 ```powershell
 # 烘焙每个材质的底色贴图（皮甲那些节点材质 glTF 带不过去），导出骨架、全部部件和动作
-blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/hero.glb 1024
+# 先跑 detail_armor.py：皮甲上衣的札甲片、链甲的锁子环在这里画（只改内存，不存 .blend）
+blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/detail_armor.py -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/hero.glb 1024
 # 主角头像（侧面半身像，230×300，透明底）
 blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/render_portrait.py -- mobile/art/model-hero/portrait.png
 ```
@@ -105,6 +110,12 @@ godot --path mobile --script res://tests/_gear_icons.gd
 ```
 
 导出只在内存里改材质，不会改动 .blend。Godot 导入 glTF 时会把动作名结尾的 `_Loop` 去掉，`model_hero.gd` 的 `anim_name()` 会处理这个。
+
+陈列（三套衣装、每一件装备、每一种兵器摆成一排，看全貌用）：
+
+```powershell
+blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/detail_armor.py -P gen-out/model/scripts/showcase.py -- gen-out/model/showcase.blend
+```
 
 `build_scene.py` 和 `build_leather.py` 是从 Quaternius 原始文件一步步搭场景的脚本，里面写死了路径 `D:\quaternius\...`。如果只是在这个 .blend 上继续改，用不到它们。
 

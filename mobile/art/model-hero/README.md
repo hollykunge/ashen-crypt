@@ -10,6 +10,7 @@
 | 模型源文件 | Quaternius 共用骨架（CC0），65 根骨骼 | `gen-out/model/ashen_char_3outfits.blend` |
 | 画风 | 三阶卡通着色 + 深棕描边；战场再叠暗黑调色 | `scripts/model_toon.gdshader`、`scripts/model_outline.gdshader`、`scripts/arena.gd` 的 `GRADE` |
 | 衣装 | 布衣、皮甲、链甲，五个槽可混搭；头饰跟着上衣的护甲类别走（斗笠、皮兜鍪、铁兜鍪） | `.blend` 里的 `Leather_*`、`Chain_*`、`Head_*` |
+| 甲面花纹 | 皮甲上衣是札甲片加编绳、领口肩顶素皮；链甲是斜放的锁子环 | `gen-out/model/scripts/detail_armor.py`，导出前跑 |
 | 发型 | 往后梳、扎发髻 | `Head_Hair_Bun` / `Tail` / `Band` / `Pin` |
 | 兵器 | 剑、长枪、弓，3D 零件按锻造结果拼，挂在手骨上 | `weapons.glb`、`gen-out/model/scripts/build_weapons.py` |
 | 动作 | 12 个（待机、走、跑、戒备、挥砍、受击、倒地、翻滚、前刺、撒放等） | `.blend` 里的 Action，`gen-out/model/scripts/add_actions.py` |
