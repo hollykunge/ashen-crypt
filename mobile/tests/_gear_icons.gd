@@ -68,6 +68,8 @@ func _run() -> void:
 				wanted += ModelHero.SLOTS[part_slot][variant]
 			for part: String in hero._meshes:
 				hero._meshes[part].visible = part in wanted
+				if part in wanted:
+					hero.shape(part)
 			for i in 3:
 				await RenderingServer.frame_post_draw
 			var image := viewport.get_texture().get_image()

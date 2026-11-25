@@ -7,6 +7,7 @@ const SCENE := preload("res://art/model-hero/hero.glb")
 const WEAPONS := preload("res://art/model-hero/weapons.glb")
 const TOON := preload("res://scripts/model_toon.gdshader")
 const OUTLINE := preload("res://scripts/model_outline.gdshader")
+const BodyShape := preload("res://scripts/body_shape.gd")
 
 ## 发髻（发包、发尾、发带、簪子，gen-out/model/scripts/build_topknot.py；头发本身是往后梳、贴头皮的发壳）：
 ## 戴头饰时藏起来（头饰盖住头顶），戴兜帽时连头发一起藏
@@ -118,6 +119,9 @@ var fists := {"r": false, "l": false}
 const STRING_COLOR := Color("#d4c4a5")
 var weapon_form := ""
 var grip_mode := "fist"
+## 垂手持剑（along）时兵器在手骨本地坐标里再转多少度（欧拉角，度）。行装页正面站着时，
+## 顺着手垂下来的刀会斜着横过两腿，往外撇一点让刀身落在腿外侧
+var along_tilt := Vector3.ZERO
 ## plane 握法：兵器贴着侧面（相机看过去的那个平面）朝前上方伸出，抬多少度。
 ## 戒备动作里手是垂着的，照拳头的握轴拿，剑和枪会横着戳向镜头，侧视里只剩一小截还插进身体
 const PLANE_PITCH := {"spear": 12.0, "bow": 55.0}   # 行装页：弓斜着朝前上方提在左手
@@ -161,7 +165,7 @@ func _init(gender := "male") -> void:
 	topknot = [] if female else TOPKNOT
 	var model: Node = (load(FEMALE_SCENE) as PackedScene).instantiate() if female else SCENE.instantiate()
 	add_child(model)
-	for node in model.find_children("*", "MeshInstance3D", true, false):
+	for node: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		_meshes[String(node.name)] = node
 		_toonify(node)
 	anim = model.find_child("AnimationPlayer", true, false)
@@ -233,6 +237,17 @@ func apply_outfit() -> void:
 			wanted.erase(part)
 	for part in _meshes:
 		_meshes[part].visible = part in wanted
+		if part in wanted:
+			shape(part)
+
+
+## 体型（body_shape.gd）：部件第一次露出来时才推形，没穿的衣服不白算
+func shape(part: String) -> void:
+	var node: MeshInstance3D = _meshes[part]
+	if node.has_meta("shaped"):
+		return
+	node.set_meta("shaped", true)
+	node.mesh = BodyShape.shaped("female" if female else "male", part, node.mesh)
 
 
 func play(action: String, blend := 0.15) -> void:
@@ -306,7 +321,10 @@ func _grip_transform(side: String) -> Transform3D:
 		x = (y - along * y.dot(along)).normalized()
 		y = along
 	var z := x.cross(y)
-	return Transform3D(Basis(x, y, z), hole)
+	var basis := Basis(x, y, z)
+	if grip_mode == "along" and not along_tilt.is_zero_approx():
+		basis = Basis.from_euler(along_tilt * PI / 180.0) * basis
+	return Transform3D(basis, hole)
 
 
 ## 一根手指握拳以后四个关节（指根、二节、三节、指尖）在手骨本地坐标里的位置：

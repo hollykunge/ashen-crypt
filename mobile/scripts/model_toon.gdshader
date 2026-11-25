@@ -4,9 +4,9 @@ render_mode specular_disabled;
 
 uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap;
 uniform vec4 tint : source_color = vec4(1.0);
-// 头发、眉毛：贴图是灰白的，在这里换成深棕（与 style_lib 的 HAIR 一致）
+// 头发、眉毛、胡子：贴图是灰白的，在这里换成乌黑（略带一点青，暗部不死黑）
 uniform float hair = 0.0;
-uniform vec4 hair_color : source_color = vec4(0.18, 0.125, 0.094, 1.0);
+uniform vec4 hair_color : source_color = vec4(0.055, 0.052, 0.062, 1.0);
 // 暗部偏冷青（和战场调色的青蓝阴影一致），别发灰
 uniform vec4 shade_color : source_color = vec4(0.50, 0.58, 0.74, 1.0);
 // 轮廓光：受光那侧边缘一道暖光

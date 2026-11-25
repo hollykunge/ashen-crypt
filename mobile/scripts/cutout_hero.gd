@@ -42,6 +42,14 @@ const ATTACK_END := 37.0 / 24.0
 const GAIT := {"Walk_Loop": 1.05, "Sprint_Loop": 2.2}
 ## 米 → 分格像素
 const PX_PER_M := SPRITE_HEIGHT / MODEL_HEIGHT
+## 行装页（选角试穿、换装备）让人物转成三分之一侧脸，看得清脸和衣服；战场上转回正侧面（0）。
+## 角度是人物绕竖轴转多少度，-90 是正对镜头。正对着太呆板（站姿两腿叉开、手垂着），三十来度最好看
+const PRESENT_YAW := -35.0
+## 行装页垂手持刀剑时刀身往外撇（model_hero.gd 的 along_tilt），落在腿外侧，不斜着横过两腿
+const PRESENT_TILT := Vector3(-22.0, 0.0, 0.0)
+## 行装页另加的补光、轮廓光和环境光，脸和深色裤子不发闷；战场不加，保持原来的样子
+const AMBIENT := 0.55
+const PRESENT_AMBIENT := 0.8
 
 var viewport := SubViewport.new()
 var hero: ModelHero
@@ -63,6 +71,9 @@ var _skeleton_xform := Transform3D.IDENTITY  # 骨架 → 角色根节点
 var _moving := false
 var _drawing := false  # 弓：拉满还没撒放
 var _gender := ""
+var _yaw := 0.0
+var _env: Environment
+var _display_lights: Array[DirectionalLight3D] = []
 
 
 func _init() -> void:
@@ -78,13 +89,23 @@ func _init() -> void:
 	env.environment.background_mode = Environment.BG_CLEAR_COLOR
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color("#8a7d72")
-	env.environment.ambient_light_energy = 0.55
+	env.environment.ambient_light_energy = AMBIENT
 	viewport.add_child(env)
+	_env = env.environment
 	var key := DirectionalLight3D.new()
 	key.light_energy = 1.25
 	key.light_color = Color("#fff1dd")
 	viewport.add_child(key)
 	key.transform = Transform3D.IDENTITY.looking_at(Vector3(3.0, -4.0, -2.5), Vector3.UP)
+	# 行装页用：从另一边打一点冷色补光，从背后打亮肩头的轮廓光
+	for spec in [[0.45, Color("#d8e0ff"), Vector3(2.0, -1.0, 3.0)], [1.0, Color("#ffe2b0"), Vector3(-2.0, -1.0, -1.5)]]:
+		var light := DirectionalLight3D.new()
+		light.light_energy = spec[0]
+		light.light_color = spec[1]
+		light.visible = false
+		viewport.add_child(light)
+		light.transform = Transform3D.IDENTITY.looking_at(spec[2], Vector3.UP)
+		_display_lights.append(light)
 
 	_make_hero("male")
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -116,6 +137,7 @@ func _make_hero(gender: String) -> void:
 	_gender = gender
 	hero = ModelHero.new(gender)
 	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
+	hero.rotation.y = deg_to_rad(_yaw)
 	viewport.add_child(hero)
 	_skeleton = hero.find_child("Skeleton3D", true, false)
 	_skeleton_xform = Transform3D.IDENTITY
@@ -177,19 +199,31 @@ static func swing_cock(frame: float) -> float:
 	return SWING_COCK * smoothstep(0.0, 5.0, frame) * (1.0 - smoothstep(7.0, 10.5, frame))
 
 
-## 行装页：站着待机。
+## 行装页：转过大半个正面，站着待机。
 func present_outfit() -> void:
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
+	hero.along_tilt = PRESENT_TILT
 	hero.set_grip_mode({"spear": "against", "bow": "plane"}.get(form, "along"))
 	hero.draw_reach = 0.0
+	_turn(PRESENT_YAW)
 	_play("Idle_Loop")
 	_manual = false
+
+
+func _turn(degrees: float) -> void:
+	_yaw = degrees
+	hero.rotation.y = deg_to_rad(degrees)
+	var presenting := degrees != 0.0
+	for light in _display_lights:
+		light.visible = presenting
+	_env.ambient_light_energy = PRESENT_AMBIENT if presenting else AMBIENT
 
 
 ## 按战斗状态选动作并定时间：走跑按移动距离推步态，出招让「打中」对准结算的那一下（cues）。
 func drive(motion: StringName, phase: float, walked: float, running: bool, cues: Array) -> void:
 	var distance := walked / maxf(_height, 1.0)
 	_manual = true
+	_turn(0.0)
 	_moving = motion.is_empty() and walked > 0.0
 	# 出招按拳头握；站着戒备、走跑时剑和枪贴着侧面朝前上方（弓照常握在左手）
 	var striking := motion in [&"attack", &"cleave"]
