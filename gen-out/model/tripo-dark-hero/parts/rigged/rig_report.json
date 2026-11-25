@@ -1,0 +1,148 @@
+{
+ "skin_fit_residual_mm": {
+  "mean": 0.0,
+  "max": 0.0
+ },
+ "parts": {
+  "peasant3__belt": {
+   "verts": 1330,
+   "rule": "no_arms",
+   "max_influences": 5
+  },
+  "peasant3__body_arm_L": {
+   "verts": 721,
+   "rule": "all",
+   "max_influences": 4
+  },
+  "peasant3__body_arm_R": {
+   "verts": 913,
+   "rule": "all",
+   "max_influences": 4
+  },
+  "peasant3__body_head": {
+   "verts": 331,
+   "rule": "no_arms",
+   "max_influences": 4
+  },
+  "peasant3__boot_L": {
+   "verts": 699,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "peasant3__boot_R": {
+   "verts": 659,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "peasant3__bracer_L": {
+   "verts": 168,
+   "rule": "all",
+   "max_influences": 4
+  },
+  "peasant3__bracer_R": {
+   "verts": 182,
+   "rule": "all",
+   "max_influences": 4
+  },
+  "peasant3__hair_topknot": {
+   "verts": 115,
+   "rule": "rigid_head",
+   "max_influences": 1
+  },
+  "peasant3__pants": {
+   "verts": 1439,
+   "rule": "no_arms",
+   "max_influences": 6
+  },
+  "peasant3__top": {
+   "verts": 3660,
+   "rule": "no_forearm",
+   "max_influences": 5
+  },
+  "leather2__arm_L": {
+   "verts": 653,
+   "rule": "all",
+   "max_influences": 5
+  },
+  "leather2__arm_R": {
+   "verts": 817,
+   "rule": "all",
+   "max_influences": 5
+  },
+  "leather2__belt": {
+   "verts": 984,
+   "rule": "no_arms",
+   "max_influences": 5
+  },
+  "leather2__boot_L": {
+   "verts": 349,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "leather2__boot_R": {
+   "verts": 369,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "leather2__helmet": {
+   "verts": 457,
+   "rule": "rigid_head",
+   "max_influences": 1
+  },
+  "leather2__pants": {
+   "verts": 1672,
+   "rule": "no_arms",
+   "max_influences": 5
+  },
+  "leather2__top": {
+   "verts": 4571,
+   "rule": "no_forearm",
+   "max_influences": 6
+  },
+  "chain2__arm_L": {
+   "verts": 410,
+   "rule": "all",
+   "max_influences": 5
+  },
+  "chain2__arm_R": {
+   "verts": 410,
+   "rule": "all",
+   "max_influences": 5
+  },
+  "chain2__belt": {
+   "verts": 561,
+   "rule": "no_arms",
+   "max_influences": 5
+  },
+  "chain2__boot_L": {
+   "verts": 273,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "chain2__boot_R": {
+   "verts": 284,
+   "rule": "no_arms",
+   "max_influences": 3
+  },
+  "chain2__helmet": {
+   "verts": 1418,
+   "rule": "rigid_head",
+   "max_influences": 1
+  },
+  "chain2__pants": {
+   "verts": 1164,
+   "rule": "no_arms",
+   "max_influences": 5
+  },
+  "chain2__top": {
+   "verts": 5469,
+   "rule": "no_forearm",
+   "max_influences": 5
+  },
+  "body__base_body": {
+   "verts": 5448,
+   "rule": "no_forearm",
+   "max_influences": 5
+  }
+ }
+}

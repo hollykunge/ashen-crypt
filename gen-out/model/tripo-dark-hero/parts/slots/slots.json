@@ -1,0 +1,34 @@
+{
+ "hem_faces": 2991,
+ "pants_faces": 1920,
+ "arm_R": {
+  "bracer_faces": 261,
+  "rim_faces": 168,
+  "skin_faces": 1262,
+  "wrist_fill": "bridge",
+  "fill_faces": 33,
+  "cut_edges": 33
+ },
+ "arm_L": {
+  "bracer_faces": 228,
+  "rim_faces": 161,
+  "skin_faces": 935,
+  "wrist_fill": "bridge",
+  "fill_faces": 32,
+  "cut_edges": 32
+ },
+ "tris": {
+  "bracer_R": 261,
+  "body_arm_R": 1295,
+  "bracer_L": 228,
+  "body_arm_L": 967,
+  "top": 5260,
+  "pants": 1920,
+  "belt": 1731,
+  "boot_R": 995,
+  "boot_L": 1073,
+  "body_head": 502,
+  "hair_topknot": 136
+ },
+ "tris_total": 14368
+}

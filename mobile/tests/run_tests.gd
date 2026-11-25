@@ -407,7 +407,7 @@ func _test_appearance() -> bool:
 	_check(hero.outfit.torso == "peasant" and hero.outfit.shoulder == "none", "没穿护甲是布衣、不带肩甲")
 	var armor: Dictionary = entries.armor.duplicate(true)
 	armor.armor_type = "leather"
-	_check(not hero.female and hero._meshes.has("Male_Peasant_Body"), "男角色用男主角模型")
+	_check(not hero.female and hero.tripo and hero._meshes["peasant3__top"].visible, "男角色用 Tripo 分槽模型，没穿护甲是短打")
 	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
 	hero = figure.actor.hero
 	_check(hero.female and hero._meshes.has("F_Peasant_Body") and hero.anim.has_animation(hero.anim_name("Sword_Attack")),
@@ -529,23 +529,50 @@ func _test_cutout_hero() -> bool:
 	_check(body.hero.outfit.torso == "leather" and body.hero.outfit.feet == "chain" and body.hero.outfit.arms == "peasant",
 		"皮甲上衣、链甲靴子、没戴护腕是布衣袖")
 	var meshes: Dictionary = body.hero._meshes
-	_check(body.hero.outfit.headgear == "leather" and meshes["Head_Helm_Leather"].visible
-		and not meshes["Head_Hair_Bun"].visible and meshes["Head_Hair_Main"].visible,
-		"皮甲上衣配皮兜鍪，发髻收在盔里，鬓角后脑的头发还在")
+	_check(body.hero.tripo and meshes["leather2__top"].visible and meshes["chain2__boot_L"].visible
+		and meshes["chain2__boot_R"].visible and not meshes["leather2__boot_L"].visible and not meshes["peasant3__top"].visible,
+		"男主角是 Tripo 分槽模型：皮甲上衣配链甲靴子")
+	_check(body.hero.outfit.headgear == "leather" and meshes["leather2__helmet"].visible
+		and not meshes["peasant3__hair_topknot"].visible and meshes["peasant3__body_head"].visible
+		and meshes["body__base_body"].visible, "皮甲上衣配皮兜鍪，发髻收在盔里；头和打底身体常在")
+	_check(meshes["peasant3__body_arm_L"].visible and meshes["peasant3__bracer_R"].visible
+		and not meshes["leather2__arm_L"].visible, "没戴护腕是短打的光胳膊加护腕")
 	for case in [[{}, "hat"], [{"armor": "cloth"}, "hat"], [{"armor": "chain"}, "iron"]]:
 		body.dress(Appearance.build({"armor": {"armor_type": case[0].get("armor", "cloth")}} if not case[0].is_empty() else {},
 			{}, "sword"))
 		_check(body.hero.outfit.headgear == case[1], "上衣 %s 配头饰 %s" % [case[0].get("armor", "无"), case[1]])
+	_check(meshes["chain2__helmet"].visible and meshes["chain2__top"].visible and not meshes["peasant3__hair_topknot"].visible,
+		"链甲上衣配铁兜鍪")
+	body.hero.set_slot("arms", "chain")
+	_check(meshes["chain2__arm_R"].visible and not meshes["peasant3__body_arm_R"].visible,
+		"链甲上衣配链甲护臂：上臂在上衣里，不补光胳膊")
+	body.hero.set_slot("torso", "peasant")
+	_check(meshes["chain2__arm_R"].visible and meshes["peasant3__body_arm_R"].visible and not meshes["peasant3__bracer_R"].visible,
+		"短打上衣配链甲护臂：补上短打的光胳膊，护腕换成链甲的")
 	body.hero.set_slot("headgear", "none")
-	_check(meshes["Head_Hair_Bun"].visible and meshes["Head_Pin"].visible, "不戴头饰时露出发髻和簪子")
-	body.hero.set_slot("hood", "ranger")
-	_check(not meshes["Head_Hair_Bun"].visible and not meshes["Head_Hair_Main"].visible,
+	_check(meshes["peasant3__hair_topknot"].visible and not meshes["chain2__helmet"].visible, "不戴头饰时露出发髻")
+	body.hero.set_tint("arms", Color.RED)
+	var skin_tint = body.hero._materials["peasant3__body_arm_R"][0].get_shader_parameter("tint")  # 没染过是空值
+	_check((skin_tint == null or skin_tint != Color.RED)
+		and body.hero._materials["chain2__arm_R"][0].get_shader_parameter("tint") == Color.RED,
+		"护臂染色不染光胳膊的皮肤")
+	# 原来的男主角模型（图标渲染、原型还在用）：发髻、兜帽、头饰的遮挡关系
+	var classic := CutoutHero.ModelHero.new()
+	var cm: Dictionary = classic._meshes
+	classic.set_slot("headgear", "none")
+	_check(cm["Head_Hair_Bun"].visible and cm["Head_Pin"].visible, "不戴头饰时露出发髻和簪子")
+	classic.set_slot("headgear", "leather")
+	_check(cm["Head_Helm_Leather"].visible and not cm["Head_Hair_Bun"].visible and cm["Head_Hair_Main"].visible,
+		"皮兜鍪盖住发髻，鬓角后脑的头发还在")
+	classic.set_slot("hood", "ranger")
+	_check(not cm["Head_Hair_Bun"].visible and not cm["Head_Hair_Main"].visible,
 		"戴兜帽时头发和发髻一起藏起来")
-	body.hero.set_slot("headgear", "iron")
-	_check(not meshes["Head_Helm_Iron"].visible, "戴兜帽时头饰也藏起来")
-	body.hero.set_slot("hood", "none")
-	var boot: MeshInstance3D = body.hero._meshes["Leather_Boots"]
+	classic.set_slot("headgear", "iron")
+	_check(not cm["Head_Helm_Iron"].visible, "戴兜帽时头饰也藏起来")
+	classic.set_slot("hood", "none")
+	var boot: MeshInstance3D = cm["Leather_Boots"]
 	_check(boot.mesh.get_surface_count() == 3, "皮甲靴是前面系带的长靴（靴身、鞋带、铜扣眼三层）")
+	classic.free()
 	var stride: float = CutoutHero.GAIT.Walk_Loop * body._height
 	body.drive(&"", 0.0, stride * 0.25, false, [])
 	var quarter: float = body.hero.anim.current_animation_position

@@ -1,0 +1,30 @@
+{
+ "leg_0": {
+  "side": "L",
+  "boot_faces": 525,
+  "pants_faces": 1255,
+  "boot_top_z": -0.338
+ },
+ "leg_3": {
+  "side": "R",
+  "boot_faces": 591,
+  "pants_faces": 993,
+  "boot_top_z": -0.331
+ },
+ "head_8": {
+  "face_faces": 151,
+  "helmet_faces": 643
+ },
+ "tris": {
+  "top": 6559,
+  "belt": 1203,
+  "arm_R": 1111,
+  "arm_L": 901,
+  "boot_L": 525,
+  "pants": 2248,
+  "boot_R": 591,
+  "head": 151,
+  "helmet": 643
+ },
+ "tris_total": 13932
+}

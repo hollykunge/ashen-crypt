@@ -25,6 +25,15 @@
 
 模型怎么搭、怎么导出，见 [gen-out/model/README.md](../../../gen-out/model/README.md)。
 
+## 男主角改用 Tripo 分槽模型（2026-11-26）
+
+战场和行装页的**男主角**改用 `hero_tripo.glb`。它把三套 Tripo 生成的整身模型拆成部件：短打 peasant-3、皮甲 leather-2、链甲 chain-2。部件和一副打底身体一起蒙在短打那副骨架上，骨骼名和 12 个动作都与 `hero.glb` 相同，按槽混搭。
+
+- **怎么选模型**：`cutout_hero.gd` 的 `MODEL_OF := {"male": "tripo"}`。部件对照表是 `model_hero.gd` 的 `TRIPO_SLOTS`。
+- **不推形**：Tripo 模型不套 `body_shape.gd`，那套形变场是按 `hero.glb` 的身材量的。
+- **不变的**：女主角、头像 `portrait.png`、装备格和兵器格图标仍用 `hero.glb` / `female.glb`。所以男主角的头像、图标和战场上的样子不一致，要统一就得用 Tripo 模型重渲。
+- **来源和做法**：拆分、对齐、打底身体、绑骨都见 [gen-out/model/tripo-dark-hero/parts/README.md](../../../gen-out/model/tripo-dark-hero/parts/README.md)。
+
 ## 以后可以做的
 
 - 修问题：穿模、动作别扭、某个搭配看着不对。
