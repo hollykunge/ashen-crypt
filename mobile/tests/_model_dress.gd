@@ -19,6 +19,13 @@ const CASES := [
 	[CLOTH, "bow", &"", 0.0, 0.0, false],
 	[LEATHER, "bow", &"attack", 0.30, 0.0, false],
 	[CHAIN, "jian", &"attack", 0.48, 0.0, false],
+	# 拉弓：搭弦、拉到一半、拉满、撒放后
+	[CLOTH, "bow", &"attack", 0.05, 0.0, false],
+	[CLOTH, "bow", &"attack", 0.25, 0.0, false],
+	[CLOTH, "bow", &"attack", 0.46, 0.0, false],
+	[CLOTH, "bow", &"attack", 0.62, 0.0, false],
+	[CLOTH, "sword", &"", 0.0, 0.0, false],
+	[CLOTH, "spear", &"", 0.0, 70.0, true],
 ]
 var out := "user://dress"
 var hero

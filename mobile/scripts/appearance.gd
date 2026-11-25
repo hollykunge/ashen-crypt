@@ -54,7 +54,9 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 		"halo": 0, "halo_color": NEUTRAL,
 		"marks": [],
 		# 上衣、护腕、护腿、靴子各是哪一类（布衣、皮甲、链甲），皮影主角按它换整套部件图
-		"dyes": {}, "armor_types": {}
+		"dyes": {}, "armor_types": {},
+		# 护甲四槽在模型上乘的颜色（garment_tint），没穿的槽不写，模型按原色
+		"tints": {}
 	}
 	var carried := 0.0
 	var polarity := 0.0
@@ -66,6 +68,7 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 				look.dyes[slot] = Pigments.GARMENT_DYES[dye_id]
 			var style: String = entry.get("armor_type", "cloth")
 			look.armor_types[slot] = style if style in ["leather", "chain"] else "cloth"
+			look.tints[slot] = garment_tint(slot, entry)
 		var element := element_of(entry)
 		if element.is_empty():
 			continue
@@ -110,6 +113,20 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 	var weapon: Dictionary = entries.get("weapon", {})
 	look.design = WeaponDesign.pick(weapon, weapon_form, amount_of(weapon))
 	return look
+
+# 护甲四槽的那件衣服在模型上乘的颜色：染过色用染料色；没染按主行淡淡偏一点，炉温越高越偏。
+# 主角模型（cutout_hero.gd）和装备格图标（equipment_slot.gd）都用它，图标才和身上那件同色。
+const GARMENT_SHIFT := 0.32
+
+static func garment_tint(slot: String, entry: Dictionary) -> Color:
+	var dye_id: String = entry.get("dye", "本色")
+	if dye_id != "本色" and Pigments.GARMENT_DYES.has(dye_id):
+		return Pigments.GARMENT_DYES[dye_id]
+	var element := element_of(entry)
+	if element.is_empty():
+		return Color.WHITE
+	var color: Color = (ROBE_TINTS if slot in ["armor", "greaves"] else EDGE_TINTS)[element]
+	return Color.WHITE.lerp(color, amount_of(entry) * GARMENT_SHIFT)
 
 # 没有装备时的素身外观，创角直后与读档失败都走这里。
 static func bare(weapon_form: String = "sword") -> Dictionary:

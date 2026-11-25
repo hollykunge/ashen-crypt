@@ -25,7 +25,7 @@ const CAMP = preload("res://art/ink/mountain-road.png")
 const FORGE_BG = preload("res://art/ink/mountain-road.png")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
 const SPELL_GRADE = preload("res://art/gothic_grade.gdshader")
-const FONT = preload("res://art/fonts/game.otf")
+const FONT = preload("res://art/fonts/body.ttf")
 const HEADING_FONT = preload("res://art/fonts/heading.tres")
 
 const NIGHT := Color("#f0e0bf")
@@ -237,19 +237,23 @@ func _build_battle() -> void:
 	# 顶栏左边不写字：挂机时是头像和一只材料袋，连战时是日暮月三波。层数、地名在进层那一下用正中大字报。
 	var camp_row := _hbox(8)
 	stage_info.add_child(camp_row)
+	# 头像不刷墨块，垫一团淡墨晕（和列仙图录一样）
 	hero_chip = _button("", false, 56)
-	hero_chip.custom_minimum_size = Vector2(46, 56)
-	hero_chip.clip_contents = true
+	hero_chip.remove_meta(&"brush_fills")
+	for style in ["normal", "hover", "pressed", "disabled", "focus"]:
+		hero_chip.add_theme_stylebox_override(style, StyleBoxEmpty.new())
+	hero_chip.custom_minimum_size = Vector2(56, 56)
 	_describe(hero_chip, "角色信息")
 	hero_chip.pressed.connect(_open_hero_sheet)
+	var blot := _image(BLOT)
+	blot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blot.modulate = Color(1, 1, 1, 0.75)
+	hero_chip.add_child(blot)
+	_fill(blot)
 	hero_face = _image(SideArt.PORTRAIT)
-	hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_chip.add_child(hero_face)
 	_fill(hero_face)
-	hero_face.offset_left = 2.0
-	hero_face.offset_top = 2.0
-	hero_face.offset_right = -2.0
-	hero_face.offset_bottom = -2.0
 	camp_row.add_child(hero_chip)
 	pouch = CampPouch.new()
 	pouch.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -440,7 +444,7 @@ func _update_retinue() -> void:
 
 func _hud_card(parent: Node, padding: int, opacity := 0.94) -> VBoxContainer:
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _box(Color(NIGHT, opacity), Color(BORDER, 0.80), 1, padding))
+	card.add_theme_stylebox_override("panel", wash_box(opacity, padding))
 	parent.add_child(card)
 	var content := _vbox(4)
 	card.add_child(content)
@@ -777,7 +781,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	var person := profile.character()
 	var weapon := profile.item(profile.equipped("weapon"))
 	var element := Gear.WuXing.stem_element(person.day_stem)
-	battle_portrait.texture = SideArt.PORTRAIT
+	battle_portrait.texture = SideArt.portrait(person.get("gender", ""))
 	hero_face.texture = battle_portrait.texture
 	hero_face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)
 	field.hero_element = element
@@ -817,7 +821,8 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 		_announce("第 %d 层" % profile.layer(), String(profile.place().get("name", "")))
 	_update_retinue()
 	stop_route_button.visible = challenge and run.continuous
-	gear_card.visible = not challenge
+	# 战场上不摆装备条：看装备、换装备走左下角的「行装」。格子照样建着、照样更新（测试和行装页的读数要用）
+	gear_card.visible = false
 	stick.visible = challenge
 	if not challenge and announced_layer != profile.layer():
 		announced_layer = profile.layer()
@@ -836,7 +841,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.show()
 	battle_shade.visible = not run.continuous
 	battle.show()
-	var symbols := {"sword": &"sword", "spear": &"cleave", "bow": &"arrow"}
+	var symbols := {"sword": &"sword", "jian": &"jian", "spear": &"cleave", "bow": &"arrow"}
 	_set_glyph(&"attack", symbols.get(form, &"sword"))
 	_set_glyph(&"skill", &"slash")
 	_set_glyph(&"tactic", &"sigil")
@@ -1170,10 +1175,12 @@ func _sound_button() -> Button:
 func _icon_button(symbol: StringName, title: String, accent: bool, minimum: Vector2) -> Button:
 	var tile := _button("", accent, minimum.y)
 	tile.custom_minimum_size = minimum
+	tile.set_meta(&"brush_square", true)
+	_restyle(tile, accent)
 	_describe(tile, title)
 	var glyph := Gothic.Glyph.new()
 	glyph.name = "Glyph"
-	glyph.ink = NIGHT if accent else INK
+	glyph.ink = NIGHT  # 墨底上画纸色图标
 	tile.add_child(glyph)
 	glyph.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	glyph.offset_left = -13.0
@@ -1203,8 +1210,7 @@ func _set_glyph(action: StringName, symbol: StringName) -> void:
 func _set_icon(button: Button, symbol: StringName) -> void:
 	var glyph: Gothic.Glyph = button.get_node("Glyph")
 	glyph.symbol = symbol
-	glyph.art = null # 墨线图标与手绘人物使用同一套简洁轮廓。
-	glyph.material = spell_grade if glyph.art != null else null
+	glyph.art = Gothic.Glyph.art_for(symbol) # 有出图的水墨图标就用图，没有画线条
 	glyph.queue_redraw()
 
 func _spell_texture(symbol: StringName) -> Texture2D:
@@ -1237,23 +1243,93 @@ func _button(text: String, accent: bool, height: float) -> Button:
 	_restyle(button, accent)
 	return button
 
+# 按钮底子是毛笔一笔刷出来的浓墨（art/ui-icons/stroke-*.png，照 raw/stroke-reference.png 出图，切图见 slice.py），
+# 字和图标是纸色。文字按钮用长的一笔，图标按钮（meta brush_square）用短的一笔。普通按钮墨黑，主按钮朱红
+const STROKE_WIDE = preload("res://art/ui-icons/stroke-wide.png")
+const STROKE_SQUARE = preload("res://art/ui-icons/stroke-square.png")
+const WASH := Color("#2a2119")
+
 func _restyle(button: Button, accent: bool) -> void:
-	var fill := CRIMSON if accent else IRON
-	var ink := NIGHT if accent else INK
-	var edge := Color("#6c4331") if accent else BORDER
-	var normal := _box(fill, edge, 1, 6)
-	var hover := _box(fill.lightened(0.08), edge, 1, 6)
-	var pressed := _box(fill.darkened(0.15), edge, 1, 6)
-	if accent:
-		for style in [normal, hover, pressed]:
-			style.border_width_bottom = 2
-	button.add_theme_stylebox_override("normal", normal)
-	button.add_theme_stylebox_override("hover", hover)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("disabled", _box(Color("#d8c8ab"), Color("#b29a79"), 1, 6))
-	for color_name in ["font_color", "font_hover_color", "font_pressed_color"]:
-		button.add_theme_color_override(color_name, ink)
-	button.add_theme_color_override("font_disabled_color", MUTED)
+	var fill := CRIMSON if accent else WASH
+	brush_button(button, [fill, fill.lightened(0.12), fill.darkened(0.25), Color(WASH, 0.35)])
+	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(color_name, NIGHT)
+	button.add_theme_color_override("font_disabled_color", Color(NIGHT, 0.6))
+
+## 给按钮刷墨：fills 是常态、悬停、按下、禁用四种墨色。按钮宽度一变就重挑笔触：
+## 窄于 BRUSH_NARROW 的用短的一笔（长的一笔硬压进窄按钮，笔丝会挤成竖纹）
+const BRUSH_NARROW := 110.0
+
+func brush_button(button: Button, fills: Array) -> void:
+	button.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # 笔触贴图压窄时不起毛
+	button.set_meta(&"brush_fills", fills)
+	button.remove_meta(&"brush_shape")  # 换了墨色要重刷
+	_fit_brush(button)
+	if not button.has_meta(&"brush_watch"):
+		button.set_meta(&"brush_watch", true)
+		button.resized.connect(_fit_brush.bind(button))
+
+func _fit_brush(button: Button) -> void:
+	if not button.has_meta(&"brush_fills"):
+		return
+	var fills: Array = button.get_meta(&"brush_fills")
+	var square: bool = button.get_meta(&"brush_square", false) or button.text.length() == 1 		or (button.size.x > 0.0 and button.size.x < BRUSH_NARROW)
+	if button.get_meta(&"brush_shape", -1) == int(square):
+		return
+	button.set_meta(&"brush_shape", int(square))
+	for i in 4:
+		button.add_theme_stylebox_override(["normal", "hover", "pressed", "disabled"][i], _brush(fills[i], square))
+
+func _brush(fill: Color, square: bool) -> StyleBoxTexture:
+	var box := StyleBoxTexture.new()
+	box.texture = STROKE_SQUARE if square else STROKE_WIDE
+	box.modulate_color = fill
+	# 九宫格：两头的毛边、飞白和上下毛边原样画，只拉中间（贴图切得小，边才不会把小按钮占满）
+	if square:
+		box.texture_margin_left = 10
+		box.texture_margin_right = 14
+		box.texture_margin_top = 10
+		box.texture_margin_bottom = 10
+	else:
+		box.texture_margin_left = 16
+		box.texture_margin_right = 26
+		box.texture_margin_top = 10
+		box.texture_margin_bottom = 10
+	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	# 字别压到两头的毛边和收笔的飞白上
+	box.set_content_margin(SIDE_TOP, 6)
+	box.set_content_margin(SIDE_BOTTOM, 6)
+	box.set_content_margin(SIDE_LEFT, 12 if square else 14)
+	box.set_content_margin(SIDE_RIGHT, 14 if square else 20)
+	return box
+
+# 面板底子：一张毛边宣纸签（art/ui-icons/paper-card.png，Codex 出图，九宫格拉伸），四边毛边和里面一圈墨框原样画。
+# opacity 越小纸越淡（次要的、空的格子）；padding 是字离墨框的距离，再小也不压到墨框上
+const PAPER = preload("res://art/ui-icons/paper-card.png")
+
+const BLOT = preload("res://art/ui-icons/ink-blot.png")
+
+## 战场上的小块（装备条、血条块）：不铺整张纸，只刷一笔纸色的淡墨，压在天空上不显重
+func wash_box(opacity := 0.9, padding := 6) -> StyleBoxTexture:
+	var wash := _brush(Color(NIGHT, 0.82 * opacity), false)
+	wash.content_margin_left = padding + 14
+	wash.content_margin_right = padding + 20
+	wash.content_margin_top = padding + 2
+	wash.content_margin_bottom = padding + 2
+	return wash
+
+func paper_box(opacity := 1.0, padding := 14) -> StyleBoxTexture:
+	var paper := StyleBoxTexture.new()
+	paper.texture = PAPER
+	paper.set_texture_margin_all(24)
+	paper.modulate_color = Color(1, 1, 1, opacity)
+	var inset := maxi(padding, 8) + 10
+	paper.content_margin_left = inset + 2
+	paper.content_margin_right = inset
+	paper.content_margin_top = inset
+	paper.content_margin_bottom = inset
+	return paper
 
 func _box(fill: Color, edge: Color, thickness: int, padding: int = 0) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()

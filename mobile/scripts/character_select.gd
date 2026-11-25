@@ -21,22 +21,23 @@ var armed_delete := -1
 func build(main) -> void:
 	ui = main
 	add_theme_constant_override("separation", 10)
-	var row: HBoxContainer = ui._hbox(6)
+	var row: HBoxContainer = ui._hbox(10)
 	add_child(row)
-	var back: Button = ui._button("返回", false, 39)
-	back.add_theme_font_size_override("font_size", 13)
-	back.custom_minimum_size.x = 64.0
+	var back: Button = ui._icon_button(&"back", "返回", false, Vector2(48, 48))
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void: back_requested.emit())
 	row.add_child(back)
 	var stack: VBoxContainer = ui._vbox(0)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(stack)
-	stack.add_child(ui._label("选择角色 · 最多 %d 位" % Gear.MAX_CHARACTERS, 12, ui.GOLD))
+	stack.add_child(ui._label("择一人入山 · 最多 %d 位" % Gear.MAX_CHARACTERS, 12, ui.GOLD))
 	var nameplate: Label = ui._label("列仙图录", 34, ui.INK)
 	nameplate.add_theme_constant_override("outline_size", 6)
 	nameplate.add_theme_color_override("font_outline_color", ui.NIGHT)
 	stack.add_child(nameplate)
-	row.add_child(ui._sound_button())
+	var sound: Button = ui._sound_button()
+	sound.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(sound)
 
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -74,12 +75,16 @@ func show_error(text: String) -> void:
 	notice.text = text
 	notice.visible = not text.is_empty()
 
-func _frame() -> HBoxContainer:
+# 每一格是一张毛边宣纸签（main.gd 的 paper_box）；空位的纸淡一些
+const BLOT = preload("res://art/ui-icons/ink-blot.png")
+
+func _frame(faint := false) -> HBoxContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.94), ui.BORDER, 1, 10))
-	panel.custom_minimum_size.y = 128.0
+	var paper: StyleBoxTexture = ui.paper_box(0.62 if faint else 1.0, 8)
+	panel.add_theme_stylebox_override("panel", paper)
+	panel.custom_minimum_size.y = 136.0 if not faint else 104.0
 	list.add_child(panel)
-	var row: HBoxContainer = ui._hbox(12)
+	var row: HBoxContainer = ui._hbox(10)
 	panel.add_child(row)
 	return row
 
@@ -89,50 +94,70 @@ func _person_card(slot: int, profile) -> void:
 	var female: bool = person.get("gender") == "female"
 	var stem := String(person.get("day_stem", "geng"))
 	var element := WuXing.stem_element(stem)
-	var face: TextureRect = ui._image(SideArt.PORTRAIT)
-	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	face.custom_minimum_size = Vector2(80, 106)
-	face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)
-	row.add_child(face)
+	# 头像垫一团淡墨晕，像月下立着的人
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(84, 104)
+	row.add_child(holder)
+	var blot := TextureRect.new()
+	blot.texture = BLOT
+	blot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	blot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blot.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.55)
+	blot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(blot)
+	blot.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	holder.add_child(face)
+	face.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var facts: VBoxContainer = ui._vbox(2)
+	var facts: VBoxContainer = ui._vbox(3)
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(facts)
-	facts.add_child(ui._label(profile.display_name(), 22, ui.INK))
-	facts.add_child(_line("%s · %s · %s" % ["女" if female else "男", Gear.fate_caption(stem),
+	var title: HBoxContainer = ui._hbox(8)
+	facts.add_child(title)
+	title.add_child(ui._label(profile.display_name(), 22, ui.INK))
+	var seal := Seal.new()
+	seal.text = Gear.stem_name(stem)
+	seal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	title.add_child(seal)
+	# 卡片窄，信息拆成几行短句，不折行（太长就截断）
+	facts.add_child(_fact("%s · %s · %s" % ["女" if female else "男", Gear.fate_caption(stem),
 		String(profile.origin().get("name", ""))], ui.GOLD))
-	facts.add_child(_line("%s · 第 %d 层 · %s" % [profile.realm().name, profile.layer(),
-		String(profile.place().get("name", ""))], ui.MUTED))
+	facts.add_child(_fact("%s · 第 %d 层" % [profile.realm().name, profile.layer()], ui.MUTED))
 	var seen: float = profile.last_seen()
-	facts.add_child(_line("灵砂 %d%s" % [profile.silver(), " · " + _ago(seen) if seen > 0.0 else ""], ui.MUTED))
+	facts.add_child(_fact("%s%s" % [String(profile.place().get("name", "")), " · " + _ago(seen) if seen > 0.0 else ""], ui.MUTED))
+	facts.add_child(_fact("灵砂 %d" % profile.silver(), ui.MUTED))
 
-	var actions: VBoxContainer = ui._vbox(6)
+	var actions: VBoxContainer = ui._vbox(4)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(actions)
 	var play: Button = ui._button("入山", true, 46)
 	play.custom_minimum_size.x = 76.0
-	play.add_theme_font_size_override("font_size", 17)
+	play.add_theme_font_size_override("font_size", 18)
 	play.pressed.connect(_play.bind(slot))
 	actions.add_child(play)
 	actions.add_child(_delete_button(slot))
 
 func _empty_card(slot: int) -> void:
-	var row := _frame()
+	var row := _frame(true)
 	var facts: VBoxContainer = ui._vbox(3)
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(facts)
-	facts.add_child(ui._label("空位 · 第 %d 格" % (slot + 1), 18, ui.MUTED))
-	facts.add_child(_line("选性别、日干、月令、时辰与出身，立下一位新角色。", ui.MUTED))
-	var create: Button = ui._button("创建角色", false, 46)
-	create.custom_minimum_size.x = 96.0
+	facts.add_child(ui._label("虚位以待 · 第 %d 格" % (slot + 1), 17, ui.MUTED))
+	facts.add_child(_line("择性别、日干、月令、时辰与出身，立一位新人。", Color(ui.MUTED, 0.85)))
+	var create: Button = ui._button("创建角色", false, 44)
+	create.custom_minimum_size.x = 100.0
+	create.add_theme_font_size_override("font_size", 16)
 	create.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	create.pressed.connect(_create.bind(slot))
 	row.add_child(create)
 
 func _broken_card(slot: int, error: String) -> void:
-	var row := _frame()
+	var row := _frame(true)
 	var facts: VBoxContainer = ui._vbox(3)
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -144,15 +169,43 @@ func _broken_card(slot: int, error: String) -> void:
 	row.add_child(actions)
 	actions.add_child(_delete_button(slot))
 
+## 名字旁的一方朱砂印，印文是日干
+class Seal extends Control:
+	var text := ""
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(24, 24)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var red := Color("#a33a2c")
+		draw_rect(Rect2(Vector2.ZERO, size), red, true)
+		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color("#f0e0bf"), false, 1.0)
+		var font := get_theme_default_font()
+		var pixels := int(size.y * 0.66)
+		var base := size.y * 0.5 + (font.get_ascent(pixels) - font.get_descent(pixels)) * 0.5
+		draw_string(font, Vector2(0, base), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, pixels, Color("#f0e0bf"))
+
 func _delete_button(slot: int) -> Button:
 	var armed := armed_delete == slot
-	var remove: Button = ui._button("确认删除" if armed else "删除", false, 36)
+	# 删人是次要的事：不刷墨，只是一行淡字；按了一下变成红字「确认删除」
+	var remove := Button.new()
+	remove.text = "确认删除" if armed else "删除"
+	remove.flat = true
+	remove.focus_mode = Control.FOCUS_NONE
+	remove.custom_minimum_size = Vector2(76, 30)
 	remove.add_theme_font_size_override("font_size", 13)
-	remove.custom_minimum_size.x = 76.0
-	if armed:
-		remove.add_theme_color_override("font_color", Color("#a13f32"))
+	var ink: Color = Color("#a13f32") if armed else ui.MUTED
+	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		remove.add_theme_color_override(color_name, ink)
 	remove.pressed.connect(_delete.bind(slot))
 	return remove
+
+func _fact(text: String, color: Color) -> Label:
+	var label: Label = ui._label(text, 12, color)
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.custom_minimum_size.x = 40.0
+	return label
 
 func _line(text: String, color: Color) -> Label:
 	var label: Label = ui._label(text, 13, color)

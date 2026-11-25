@@ -42,6 +42,14 @@ const ATTACK_END := 37.0 / 24.0
 const GAIT := {"Walk_Loop": 1.05, "Sprint_Loop": 2.2}
 ## 米 → 分格像素
 const PX_PER_M := SPRITE_HEIGHT / MODEL_HEIGHT
+## 行装页（选角试穿、换装备）让人物转成三分之一侧脸，看得清脸和衣服；战场上转回正侧面（0）。
+## 角度是人物绕竖轴转多少度，-90 是正对镜头。正对着太呆板（站姿两腿叉开、手垂着），三十来度最好看
+const PRESENT_YAW := -35.0
+## 行装页垂手持刀剑时刀身往外撇（model_hero.gd 的 along_tilt），落在腿外侧，不斜着横过两腿
+const PRESENT_TILT := Vector3(-22.0, 0.0, 0.0)
+## 行装页另加的补光、轮廓光和环境光，脸和深色裤子不发闷；战场不加，保持原来的样子
+const AMBIENT := 0.55
+const PRESENT_AMBIENT := 0.8
 
 var viewport := SubViewport.new()
 var hero: ModelHero
@@ -62,6 +70,10 @@ var _skeleton: Skeleton3D
 var _skeleton_xform := Transform3D.IDENTITY  # 骨架 → 角色根节点
 var _moving := false
 var _drawing := false  # 弓：拉满还没撒放
+var _gender := ""
+var _yaw := 0.0
+var _env: Environment
+var _display_lights: Array[DirectionalLight3D] = []
 
 
 func _init() -> void:
@@ -77,17 +89,25 @@ func _init() -> void:
 	env.environment.background_mode = Environment.BG_CLEAR_COLOR
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color("#8a7d72")
-	env.environment.ambient_light_energy = 0.55
+	env.environment.ambient_light_energy = AMBIENT
 	viewport.add_child(env)
+	_env = env.environment
 	var key := DirectionalLight3D.new()
 	key.light_energy = 1.25
 	key.light_color = Color("#fff1dd")
 	viewport.add_child(key)
 	key.transform = Transform3D.IDENTITY.looking_at(Vector3(3.0, -4.0, -2.5), Vector3.UP)
+	# 行装页用：从另一边打一点冷色补光，从背后打亮肩头的轮廓光
+	for spec in [[0.45, Color("#d8e0ff"), Vector3(2.0, -1.0, 3.0)], [1.0, Color("#ffe2b0"), Vector3(-2.0, -1.0, -1.5)]]:
+		var light := DirectionalLight3D.new()
+		light.light_energy = spec[0]
+		light.light_color = spec[1]
+		light.visible = false
+		viewport.add_child(light)
+		light.transform = Transform3D.IDENTITY.looking_at(spec[2], Vector3.UP)
+		_display_lights.append(light)
 
-	hero = ModelHero.new()
-	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
-	viewport.add_child(hero)
+	_make_hero("male")
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
 	camera.size = BOX.y * MODEL_HEIGHT
@@ -108,25 +128,46 @@ func _init() -> void:
 	_outlined.add_child(_outline_rect)
 	_texture = _outlined.get_texture()
 
+
+## 男女主角是两个模型（model_hero.gd 按 gender 装），换性别时整个换掉，动作接着放
+func _make_hero(gender: String) -> void:
+	if hero != null:
+		hero.queue_free()
+		viewport.remove_child(hero)
+	_gender = gender
+	hero = ModelHero.new(gender)
+	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
+	hero.rotation.y = deg_to_rad(_yaw)
+	viewport.add_child(hero)
 	_skeleton = hero.find_child("Skeleton3D", true, false)
+	_skeleton_xform = Transform3D.IDENTITY
 	var node: Node = _skeleton
 	while node != hero:
 		_skeleton_xform = (node as Node3D).transform * _skeleton_xform
 		node = node.get_parent()
+	if is_node_ready():
+		_start_anim()
 
 
 func _ready() -> void:
+	_start_anim()
+	if not _look.is_empty():
+		dress(_look)
+
+
+func _start_anim() -> void:
 	hero.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	var first := _action if not _action.is_empty() else "Sword_Idle"
 	_action = ""
 	_play(first)
-	if not _look.is_empty():
-		dress(_look)
 
 
 ## 按装备换各槽款式，按染色给各槽上色。
 func dress(look: Dictionary) -> void:
 	_look = look
+	var gender: String = "female" if look.get("gender", "") == "female" else "male"
+	if gender != _gender:
+		_make_hero(gender)
 	form = look.get("form", "sword")
 	if not MOVES.has(form):
 		form = "sword"
@@ -142,35 +183,61 @@ func dress(look: Dictionary) -> void:
 	# 头饰跟着上衣的护甲类别：布衣或没穿护甲戴斗笠，皮甲戴皮兜鍪，链甲戴铁兜鍪
 	hero.outfit.headgear = HEADGEAR.get(types.get("armor", "cloth"), "hat")
 	hero.apply_outfit()
-	var dyes: Dictionary = look.get("dyes", {})
-	_tint("armor", look.get("robe", Color.WHITE), look.get("robe_amount", 0.0), dyes)
-	_tint("gloves", look.get("hands", Color.WHITE), look.get("hands_amount", 0.0), dyes)
-	_tint("greaves", look.get("greaves", Color.WHITE), look.get("greaves_amount", 0.0), dyes)
-	_tint("boots", look.get("boots", Color.WHITE), look.get("boots_amount", 0.0), dyes)
+	# 颜色由 appearance.gd 的 garment_tint 算好，装备格图标用同一个颜色
+	var tints: Dictionary = look.get("tints", {})
+	for slot in SLOT_OF:
+		var tint: Color = tints.get(slot, Color.WHITE)
+		hero.set_tint(SLOT_OF[slot], tint)
+		if slot == "armor":
+			hero.set_tint("shoulder", tint)
 
 
-func _tint(slot: String, color: Color, amount: float, dyes: Dictionary) -> void:
-	var tint: Color = dyes.get(slot, Color.WHITE.lerp(color, amount * 0.32))
-	hero.set_tint(SLOT_OF[slot], tint)
-	if slot == "armor":
-		hero.set_tint("shoulder", tint)
+## 挥砍（Sword_Attack，24fps）时刀往刀背那边翻多少度：起手 5 帧里翻过去、刀背过肩，
+## 第 7 帧起往回翻，10.5 帧（打中前半帧）翻正，刃口朝前劈下去
+const SWING_COCK := -110.0
+static func swing_cock(frame: float) -> float:
+	return SWING_COCK * smoothstep(0.0, 5.0, frame) * (1.0 - smoothstep(7.0, 10.5, frame))
 
 
-## 行装页：站着待机。
+## 行装页：转过大半个正面，站着待机。
 func present_outfit() -> void:
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
-	hero.set_grip_mode({"spear": "against", "bow": "fist"}.get(form, "along"))
+	hero.along_tilt = PRESENT_TILT
+	hero.set_grip_mode({"spear": "against", "bow": "plane"}.get(form, "along"))
+	hero.draw_reach = 0.0
+	_turn(PRESENT_YAW)
 	_play("Idle_Loop")
 	_manual = false
+
+
+func _turn(degrees: float) -> void:
+	_yaw = degrees
+	hero.rotation.y = deg_to_rad(degrees)
+	var presenting := degrees != 0.0
+	for light in _display_lights:
+		light.visible = presenting
+	_env.ambient_light_energy = PRESENT_AMBIENT if presenting else AMBIENT
 
 
 ## 按战斗状态选动作并定时间：走跑按移动距离推步态，出招让「打中」对准结算的那一下（cues）。
 func drive(motion: StringName, phase: float, walked: float, running: bool, cues: Array) -> void:
 	var distance := walked / maxf(_height, 1.0)
 	_manual = true
+	_turn(0.0)
 	_moving = motion.is_empty() and walked > 0.0
-	hero.set_grip_mode("along" if form == "spear" and motion in [&"attack", &"cleave"] else "fist")
+	# 出招按拳头握；站着戒备、走跑时剑和枪贴着侧面朝前上方（弓照常握在左手）
+	var striking := motion in [&"attack", &"cleave"]
+	if form == "spear" and striking:
+		hero.set_grip_mode("thrust")
+	elif form == "bow":  # 弓一直竖着拿，弓腹朝前
+		hero.set_grip_mode("upright")
+	elif motion.is_empty():
+		hero.set_grip_mode("plane")
+	else:
+		hero.set_grip_mode("fist")
 	_drawing = false
+	hero.draw_reach = 0.0
+	hero.swing_cock = 0.0
 	match motion:
 		&"attack", &"cleave":
 			var move: Dictionary = MOVES[form]
@@ -180,6 +247,10 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 			if motion == &"attack" and not cues.is_empty():
 				seconds = attack_time(phase, cues, hit, end).y
 			_drawing = form == "bow" and seconds < hit
+			if form == "bow":
+				_draw_bow(seconds, hit, end)
+			elif form in ["sword", "jian"]:
+				hero.swing_cock = swing_cock(seconds * 24.0)
 			_pose_at(move.attack, seconds)
 		&"skill", &"tactic":
 			_pose_at(CAST, phase * _length(CAST))
@@ -196,6 +267,18 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 			else:
 				_manual = false
 				_play("Sword_Idle")
+
+
+## 弓：撒放之前右手搭弦、往后拉满（弦跟着手），撒放以后弦弹直，右手在下巴边停一下再交回给动作
+func _draw_bow(seconds: float, hit: float, end: float) -> void:
+	if seconds < hit:
+		hero.draw_reach = 1.0
+		hero.draw_pull = smoothstep(0.0, hit * 0.85, seconds)
+		hero.draw_string = true
+	else:
+		hero.draw_reach = 1.0 - smoothstep(hit, end, seconds)
+		hero.draw_pull = 1.0
+		hero.draw_string = false
 
 
 func _process(delta: float) -> void:

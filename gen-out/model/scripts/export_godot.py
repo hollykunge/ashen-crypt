@@ -37,7 +37,8 @@ for o in parts:
         if m is None:
             continue
         key = (o.name, i)
-        size = SIZE if len(o.data.vertices) > 1500 else SIZE // 2
+        # 小部件烘一半大小；链甲的环只有 1.2 厘米，烘小了会出竖条纹，一律烘满
+        size = SIZE if len(o.data.vertices) > 1500 or o.name.startswith("Chain_") else SIZE // 2
         img = bpy.data.images.new(f"bake_{o.name}_{i}", size, size, alpha=False)
         # bake only the faces of this slot: give the other slots' materials no image target
         mm = m.copy()

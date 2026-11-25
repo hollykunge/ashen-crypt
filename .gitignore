@@ -17,3 +17,6 @@ art-source/
 
 # 演示视频、录屏输出（单个几十到上百 MB），不进仓库
 out/
+
+# Blender 陈列（gen-out/model/scripts/showcase.py 生成）
+gen-out/model/showcase.blend*

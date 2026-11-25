@@ -44,7 +44,7 @@ func _play(game) -> bool:
 	_press(game, "性别")
 	_check(_press(game, "女"), "性别页可更换角色")
 	_press(game, "日干")
-	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.SideArt.PORTRAIT
+	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.SideArt.PORTRAIT_FEMALE
 		and game.selection.portrait.modulate == game.Roster.ELEMENT_TINTS.mu.lerp(Color.WHITE, 0.67),
 		"甲木女性显示对应立绘和五行色")
 	var pane: Rect2 = game.selection.page_area.get_global_rect()
@@ -570,7 +570,7 @@ func _test_roster(game) -> bool:
 	_check(_press(game.roster_page, "确认删除") and _count_text(game.roster_page, "入山") == 1,
 		"第二下删掉一个角色")
 	_check(game.roster_page.count() == 1, "只剩一个角色")
-	_check(_press(game.roster_page, "返回") and game.state == &"title", "选角页可返回标题页")
+	_check(_press_named(game.roster_page, "返回") and game.state == &"title", "选角页可返回标题页")
 	return true
 
 func _press_prefix(node: Node, prefix: String) -> bool:

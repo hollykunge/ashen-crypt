@@ -78,8 +78,6 @@ func _line(parent: Node, title: String, pixels: int, ink: Color) -> Label:
 func _build_outfit() -> void:
 	var panel: PanelContainer = worn.get_parent()
 	panel.size_flags_horizontal = SIZE_FILL
-	var plate := panel.get_theme_stylebox("panel") as StyleBoxFlat
-	plate.bg_color = ui.NIGHT
 	var header: HBoxContainer = ui._hbox(8)
 	worn.add_child(header)
 	worn_count = _line(header, "", 15, ui.INK)

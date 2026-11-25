@@ -1,10 +1,8 @@
-# 余烬地牢 · Ashen Crypt
+# 吾行 · Ashen Crypt
 
-**手绘预览：** Godot 标题页「手绘试演 · 动作与换装」，Windows 可运行 `preview-ink.ps1`。刀客改用完整手绘帧，布衣站姿、备战、斩击直接提取自已确认的原图；走跑和过渡帧另行补绘。支持三套衣装、混搭、动作定格和实际行装页试穿。枪弓仍为上一版拆件，试演已标注待重绘。素材与复现见 [原图刀客](mobile/art/reference-hero/README.md) 和 [界面与场景预览](mobile/art/ink/README.md)。
+**主角美术已定稿：** 主角是 3D 角色模型，游戏里实时渲染成侧面，布衣、皮甲、链甲按槽混搭，剑、长枪、弓是 3D 零件握在手里。以后只在这套上修和加，不再换路线，规矩见 [主角美术定稿](mobile/art/model-hero/README.md)。调试版标题页有「试演 · 动作与换装」，Windows 也可运行 `preview-ink.ps1`，见 [界面与场景预览](mobile/art/ink/README.md)。
 
-斩击刀刃现改为独立贴图，以固定长度跟随握柄，解决命中、随挥与收刀帧的刀长变化。试演新增「慢斩」，可用 0.3 倍动作速度检查，开发截图脚本支持四套衣装同姿势并排对照。
-
-《余烬地牢》是一款中国神仙题材的 2D 动作游戏。玩家在列仙图录中选择二郎神、九天玄女、后羿、青鸟仙子、雷部天师或电母，领取土地公的敕令，守住昆仑山门。五道敕令沿用五波战斗，最后一关需要降伏镇山兽。Godot 版可以用掉落的材料在兜率炉坊打造武器、护腕、靴子、上衣和护腿。
+《吾行》是一款中国神仙题材的 2D 动作游戏。玩家在列仙图录中选择二郎神、九天玄女、后羿、青鸟仙子、雷部天师或电母，领取土地公的敕令，守住昆仑山门。五道敕令沿用五波战斗，最后一关需要降伏镇山兽。Godot 版可以用掉落的材料在兜率炉坊打造武器、护腕、靴子、上衣和护腿。
 
 
 ## 设计文档
@@ -55,7 +53,7 @@
 
 两点说明：
 
-- **项目名仍是《余烬地牢》**（`index.html` 的 `<title>` 未改），所以文档标题沿用，没有跟着题材改名。
+- **项目名仍是《吾行》**（`index.html` 的 `<title>` 未改），所以文档标题沿用，没有跟着题材改名。
 - 原型目前是**五道敕令**的五波战斗；设计文档里的 **60 层 = 5 境界 + 待诏期**结构取代它，一道敕令即一层。
 - 出身文档里的货币按代码统一写作**灵砂**。若要让「银两」作为凡俗货币与灵砂并存（富商持银两、修行者用灵砂），那是另一套经济设计。
 
@@ -77,11 +75,13 @@
 
 **暗黑调色**常开（[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 的 `gothic()`）：去掉大半饱和、拉对比、阴影偏冷灰青、亮部偏旧骨黄，只有真正的朱红（血、布穗、火）和亮处保留颜色，四角压暗。力度由 `arena.gd` 的 `GRADE`、`VIGNETTE` 控制。
 
+**人物**借街机格斗的画法（2026-11-25）：主角是两阶硬明暗、暗部偏冷，受光边一道暖色轮廓光（[model_toon.gdshader](mobile/scripts/model_toon.gdshader)），外轮廓一圈近黑粗描边（[model_silhouette.gdshader](mobile/scripts/model_silhouette.gdshader) 的 `THICK`）；竖屏战斗镜头推近，人物更大（`arena.gd` 的 `PORTRAIT_BATTLE_ZOOM`）。场景配色照旧。
+
 长卷之外还有两层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
 
-玩家角色和随侍共用[角色画布](mobile/scripts/cutout_hero.gd)。刀客使用[完整手绘帧](mobile/art/reference-hero/README.md)，创角和战斗头像直接取自已确认的刀客原图。行装试穿与战斗共用衣装、人物贴图和脚底锚点，布衣保留原图颜色，皮甲与链甲有独立衣装帧。枪弓仍采用[拆件骨骼](mobile/prototype/cutout/swordsman/rig.json)，其原调参说明见[皮影小样](mobile/prototype/cutout/README.md)。
+玩家角色和随侍共用[角色画布](mobile/scripts/cutout_hero.gd)：它在离屏画布里从侧面渲染[主角模型](mobile/scripts/model_hero.gd)，再画进战场。行装试穿与战斗用的是同一个模型、同一套衣装和脚底锚点，头像也是模型渲的侧面半身像。定稿范围见[主角美术定稿](mobile/art/model-hero/README.md)。
 
-剑一轮两斩，完整手绘帧对齐每次命中时刻；长枪穿刺一路，弓发射远程箭矢，枪弓仍使用拆件的持械姿势。旧存档的长刃和双刀归剑，重锤归长枪，法杖和短杖归弓。战斗仍由 [combat.gd](mobile/scripts/combat.gd) 结算。
+剑一轮两斩，挥砍动作对齐每次命中时刻；长枪右手前刺，弓在左手发射远程箭矢。旧存档的长刃和双刀归剑，重锤归长枪，法杖和短杖归弓。战斗仍由 [combat.gd](mobile/scripts/combat.gd) 结算。
 
 炉坊按装备的五行与阴阳挑选武器零件和饰色。武器和装备图标由 [weapon_design.gd](mobile/scripts/weapon_design.gd) 和 [gear_design.gd](mobile/scripts/gear_design.gd) 定款，颜色取自 [pigments.gd](mobile/scripts/pigments.gd)。原画在 `mobile/art/side/source/parts/`，由 [pack_parts.py](mobile/art/side/pack_parts.py) 打包。
 
@@ -99,6 +99,7 @@
 godot --headless --path mobile --script res://tests/run_tests.gd        # 规则与表现的单元断言
 godot --headless --path mobile --script res://tests/run_playthrough.gd  # 创角到渡劫的实玩流程
 godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
+godot --path mobile --script res://tests/_gear_icons.gd                 # 用主角模型重渲装备格图标
 godot --path mobile --script res://tests/_dress.gd -- shot.png huo spear pose 30 attack 0.45
 godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
 python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标

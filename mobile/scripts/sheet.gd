@@ -21,7 +21,7 @@ func build(main) -> void:
 	add_child(center)
 	ui._fill(center)
 	card = PanelContainer.new()
-	card.add_theme_stylebox_override("panel", ui._box(Color(ui.NIGHT, 0.97), ui.BORDER, 1, 14))
+	card.add_theme_stylebox_override("panel", ui.paper_box(1.0, 14))
 	card.custom_minimum_size.x = 330.0
 	center.add_child(card)
 	body = ui._vbox(8)

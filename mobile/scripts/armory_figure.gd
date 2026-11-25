@@ -26,7 +26,7 @@ func _init() -> void:
 func display(config: Dictionary, person: Dictionary, form: String, preview := false) -> void:
 	actor.dress(Appearance.build(config.get("entries", {}), config.get("patterns", {}), form, person.get("gender", "")))
 	actor.present_outfit()
-	stature = 0.9 if person.get("gender") == "female" else 1.0
+	stature = 1.0  # 女主角模型本身矮一点（1.77 米对 1.80 米），不再另外缩
 	trying_label.visible = preview
 	var stem: String = person.get("day_stem", "")
 	tint = Color.WHITE if stem.is_empty() else Roster.ELEMENT_TINTS[WuXing.stem_element(stem)].lerp(Color.WHITE, 0.8)

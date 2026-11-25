@@ -40,7 +40,7 @@ func _rebuild(main) -> void:
 
 	var top: HBoxContainer = ui._hbox(12)
 	body.add_child(top)
-	var face: TextureRect = ui._image(SideArt.PORTRAIT)
+	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.custom_minimum_size = Vector2(66, 86)
 	face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)

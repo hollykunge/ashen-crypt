@@ -26,7 +26,11 @@
 
   - 动作来自 Universal Animation Library v3.0 免费版（quaternius.itch.io/universal-animation-library，`Universal Animation Library[Standard].zip`，用的是不带根运动的 `Unreal-Godot/UAL1_Standard.glb`），由 `scripts/add_actions.py` 重定向到 `Rig` 上。
   - 不能直接套用原关键帧：两边骨骼同名，但 Blender 导入后有些骨骼的静止朝向不一样（`spine_03` 差 11°，脖子差 6°，拇指和脚也有偏差），我们的腿也比动作库的人体模型长约 5 cm。所以是逐帧把每根骨骼相对静止姿势的转角搬过来，位置按我们自己的骨长算，骨盆位移按骨盆高度比例（1.035）缩放。
-  - 兵器是单独的 3D 零件（`scripts/build_weapons.py` → `mobile/art/model-hero/weapons.glb`）：剑三种刃（素、七星、波浪）、四种护手、四种柄首和穗子，长枪三种枪头（柳叶、蛇矛、戟）带红缨，弓两种（长弓、反曲）。零件按锻造结果挑，按用途上色。游戏里挂在手骨上，四指握拳攥住（`mobile/scripts/model_hero.gd` 的 `hold`）。
+  - **兵器（2026-11-25 起）**：用古兵器素材包（60 款古代兵器，授权在项目方）里挑的整件，`scripts/import_pack_weapons.py` 导出成 `mobile/art/model-hero/weapons.glb`：刀、剑、枪各三件、弓两件，按锻造出的刃型 / 枪头 / 弓臂挑，贴图照原样，游戏里只套卡通着色和描边，不按五行上色。握点、朝向、尺寸在脚本里统一，弓弦拆成单独一件给拉弓用。三把刀素材里刃口都朝 -X，脚本里都要绕 Z 翻半圈（2026-11-25 前只翻了錾花刀，柳叶刀、宽头大刀是刀背朝前拿的）。
+    ```powershell
+    blender -b --factory-startup -P gen-out/model/scripts/import_pack_weapons.py -- "D:/BaiduNetdiskDownload/dass036---60款古代兵器3D模型素材/古代兵器.fbx" mobile/art/model-hero/weapons.glb
+    ```
+  - 之前程序生成的零件兵器（`scripts/build_weapons.py`，同样输出 weapons.glb）留着备用，**跑它会覆盖素材包那份**。它的说明：剑三种刃（素、七星、波浪）、四种护手、四种柄首和穗子，长枪三种枪头（柳叶、蛇矛、戟）带红缨，弓两种（长弓、反曲）。零件按锻造结果挑，按用途上色。2026-11-25 照素材包的样子（只作参考，不进仓库）新增刀：刀身宽、越往前越宽，刀尖斜削到刀背，刀根铜吞口、靠刀背一道血槽；柳叶刀、雁翎刀、朴刀对应锻造的三种刃型，刀镡是横在柄上的盘（圆镡、S 形护手、云镡、碗镡），柄扁圆；游戏里形制「刀」用 `dao_` 零件，「剑」用 `sword_` 零件。弓改成丘比特弓的轮廓、弓臂加厚，柳叶枪头收窄加长、根部两片小翼，枪头座叠铜珠莲瓣。同日早先重做成古朴华丽：剑身起脊、近格错金菱纹，剑格加厚嵌宝，柄缠菱形绳、两头铜箍，剑首起同心圈；枪头起脊、铜銎铜镦，杆上髹漆描金，红缨蓬松，戟加横梁连住月牙；弓是反曲角弓，弓弰骨白、弦垫、红漆带描金。一个零件可以有几种材质（每种一个表面，按用途命名），游戏逐个表面上色。游戏里挂在手骨上，四指握拳攥住（`mobile/scripts/model_hero.gd` 的 `hold`）。
   - 加动作：把名字加进 `add_actions.py` 的 `WANT` 列表，然后重跑，已有的同名动作会被替换。
 - **所有部件：** 都绑定在 `Rig` 上，用 Armature 修改器。
 
@@ -47,6 +51,10 @@
 - `Leather_Bracer`：用的是游侠护腕。它只在完整套装文件里有，模块化部件里没有，重新上成红色。
 - `Leather_Pauldron_L`：游侠肩甲换成红皮材质。`_R` 是它的镜像复制，同时把 `_l` 和 `_r` 的顶点组对调了。
 - `Leather_ThighGuard`（新建）：从裤子表面切出大腿外侧和前侧的面，沿法线往外推 1.6 cm，再用 Solidify 加 8 mm 厚度。
+
+## 札甲片和锁子环（`scripts/detail_armor.py`，2026-11-25）
+
+`build_leather.py` 的砖块纹贴在按包围盒拉伸、斜着投影的坐标上，甲片绕到侧面就变形、断成乱纹，铆钉是随机点；`build_chain.py` 的环是三维格子里的球壳，被身体表面切成大小不一的点和圈。`detail_armor.py` 把上衣、袖子、裤子的表面先摊成二维（绕身体或四肢的角度 × 沿轴的长度，单位米），再画规整的花纹：皮甲是一排排下端圆角的札甲片，上下排错开半片，每片一道浅褐编绳；领口和肩顶表面转平，改成素皮。链甲是两套错开的斜放椭圆环套在一起。导出和出陈列时都排在前面跑，只改内存；要存进 .blend，请用 Blender 5.3 加 `-- save` 跑（4.5 打开这个文件会丢东西）。
 
 ## 链甲套装是怎么做的（`scripts/build_chain.py`）
 
@@ -73,6 +81,22 @@
    - 戴头饰时发髻收在里面（`render_lib.objects_for` 的 `headgear` 参数、游戏 `model_hero.gd` 的 `headgear` 槽），鬓角和后脑的头发照常显示；戴兜帽时头发和头饰都藏起来。两个脚本都可以重复跑。
 5. **靴子（已修，2026-11-24）：** `scripts/build_laced_boots.py` 把皮甲靴改成原画那种前面系带的长靴：从游侠靴重新复制，每条腿只留最大的那块靴身，去掉搭扣皮带、金字塔铆钉和翻边（原来有约 1190 个小零件）。小腿正面加了交叉的鞋带和铜扣眼，用射线贴着靴面摆放，每个鞋带顶点的权重抄最近的靴身顶点，跑动时跟着腿走。鞋带并进 `Leather_Boots`，作为第 2、3 个材质。脚本可以重复跑。
 
+## 女主角（`female_char.blend`，2026-11-25）
+
+创角选「女」时，游戏用女主角模型（`mobile/art/model-hero/female.glb`）和女头像（`portrait_female.png`），其余流程和男主角一样。素材同样是 Quaternius 的 CC0 资源：女性骨架、女农夫和女游侠两套衣服、Superhero 女性头部（只留脖子以上）、`Hair_Buns` 发髻、女眉毛。
+
+- 骨架和男主角同名同层级（65 根），12 个动作由 `add_actions.py` 重定向到女骨架上，游戏里的出招、握拳、拉弓 IK 都照用。
+- 部件名前缀 `F_`，头部和男主角同名。皮甲 `F_Leather_*`、链甲 `F_Chain_*` 都是游侠那套复制后按亮度重新上色（暗红皮 / 钢灰），没有男主角那种札甲片、锁子环、护腿和系带靴。
+- 没有头饰（斗笠、兜鍪），发髻一直露着。游戏里换装槽对应见 `mobile/scripts/model_hero.gd` 的 `FEMALE_SLOTS`。
+- 女主角模型身高约 1.77 米，比男主角矮一点，行装页不再额外缩小。
+
+```powershell
+blender -b --factory-startup -P gen-out/model/scripts/build_female.py -- gen-out/model/female_char.blend
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/add_actions.py -- "D:/quaternius/UAL_Standard/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb"
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/female.glb 1024
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/render_portrait.py -- mobile/art/model-hero/portrait_female.png
+```
+
 ## 怎么重新出图
 
 ```powershell
@@ -94,12 +118,24 @@ blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/spli
 
 ```powershell
 # 烘焙每个材质的底色贴图（皮甲那些节点材质 glTF 带不过去），导出骨架、全部部件和动作
-blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/hero.glb 1024
+# 先跑 detail_armor.py：皮甲上衣的札甲片、链甲的锁子环在这里画（只改内存，不存 .blend）
+blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/detail_armor.py -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/hero.glb 1024
 # 主角头像（侧面半身像，230×300，透明底）
 blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/render_portrait.py -- mobile/art/model-hero/portrait.png
 ```
 
+```powershell
+# 装备格图标（上衣、护腕、护腿、靴子 × 布衣、皮甲、链甲），导出 hero.glb 以后重跑
+godot --path mobile --script res://tests/_gear_icons.gd
+```
+
 导出只在内存里改材质，不会改动 .blend。Godot 导入 glTF 时会把动作名结尾的 `_Loop` 去掉，`model_hero.gd` 的 `anim_name()` 会处理这个。
+
+陈列（三套衣装、每一件装备、每一种兵器摆成一排，看全貌用）：
+
+```powershell
+blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/detail_armor.py -P gen-out/model/scripts/showcase.py -- gen-out/model/showcase.blend
+```
 
 `build_scene.py` 和 `build_leather.py` 是从 Quaternius 原始文件一步步搭场景的脚本，里面写死了路径 `D:\quaternius\...`。如果只是在这个 .blend 上继续改，用不到它们。
 

@@ -22,7 +22,7 @@ const LANDSCAPE_ACTOR_MAGNIFICATION := 1.40
 const CUT_IN_TIME := 0.43
 # 连战镜头在原取景上整体推近：站位、人物和背景同比放大，交手距离的观感不变，
 # 只是空地少了，人物占得更满。
-const PORTRAIT_BATTLE_ZOOM := 1.24
+const PORTRAIT_BATTLE_ZOOM := 1.75   # 竖屏战斗推近：人物大一些（借街机格斗那种大人物）
 const LANDSCAPE_BATTLE_ZOOM := 1.22
 # 竖屏把地面线压低，下方空雪地让给人物；镜头中心左移，主角和精怪各占画面一侧。
 const PORTRAIT_BATTLE_FLOOR := 0.765
@@ -494,7 +494,7 @@ func _draw_cut_in() -> void:
 	var elapsed := CUT_IN_TIME - cut_in_left
 	var alpha := minf(elapsed / 0.05, 1.0) * minf(cut_in_left / 0.17, 1.0)
 	var wide := size.x >= size.y * 1.17
-	var portrait: Texture2D = SideArt.PORTRAIT
+	var portrait: Texture2D = SideArt.portrait(look.get("gender", ""))
 	var width := minf(size.x * 0.20, 260.0) if wide else size.x * 0.24
 	var height := width * portrait.get_height() / portrait.get_width()
 	var x := 18.0 - 24.0 * (1.0 - alpha)

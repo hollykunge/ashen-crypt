@@ -20,6 +20,7 @@ const Places = preload("res://scripts/rules/places.gd")
 const FxArt = preload("res://scripts/fx_art.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
 const CutoutHero = preload("res://scripts/cutout_hero.gd")
+const ModelHero = preload("res://scripts/model_hero.gd")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
@@ -392,6 +393,13 @@ func _test_appearance() -> bool:
 	for element in WuXing.WUXING:
 		_check(Appearance.ROBE_TINTS.has(element) and Appearance.EDGE_TINTS.has(element),
 			"%s行有成套的袍色与刃色" % element)
+	for slot in Gear.ARMOR_TYPE_SLOTS:
+		_check(fire.tints.has(slot) and fire.tints[slot].is_equal_approx(Appearance.garment_tint(slot, entries[slot])),
+			"%s：模型和装备格图标用同一个颜色" % slot)
+		for kind in ["cloth", "leather", "chain"]:
+			_check(ResourceLoader.exists("res://art/model-hero/icons/%s_%s.png" % [slot, kind]),
+				"%s 的%s图标由模型渲出" % [slot, kind])
+	_check(not bare.tints.has("armor"), "没穿上衣时模型按原色")
 	var figure := ArmoryFigure.new()
 	root.add_child(figure)
 	figure.display({}, {"gender": "male"}, "sword")
@@ -399,14 +407,19 @@ func _test_appearance() -> bool:
 	_check(hero.outfit.torso == "peasant" and hero.outfit.shoulder == "none", "没穿护甲是布衣、不带肩甲")
 	var armor: Dictionary = entries.armor.duplicate(true)
 	armor.armor_type = "leather"
+	_check(not hero.female and hero._meshes.has("Male_Peasant_Body"), "男角色用男主角模型")
 	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
-	var tint: Color = hero._materials["Leather_Body"][0].get_shader_parameter("tint")
+	hero = figure.actor.hero
+	_check(hero.female and hero._meshes.has("F_Peasant_Body") and hero.anim.has_animation(hero.anim_name("Sword_Attack")),
+		"女角色换成女主角模型，动作和男主角同名")
+	var tint: Color = hero._materials["F_Leather_Body"][0].get_shader_parameter("tint")
 	_check(hero.outfit.torso == "leather" and hero.outfit.shoulder == "leather" and tint.r > tint.b,
 		"试穿的皮甲换上皮甲上衣和肩甲，并显示火行染色")
 	_check(hero.outfit.arms == "peasant" and figure.actor.form == "bow", "只换上衣那一槽，试穿预览保留角色兵器")
 	_check(figure.trying_label.visible, "试穿时标出「试穿」")
 	figure.display({}, {"gender": "female"}, "spear")
-	tint = hero._materials["Male_Peasant_Body"][0].get_shader_parameter("tint")
+	_check(figure.actor.hero == hero, "性别没变不重建模型")
+	tint = hero._materials["F_Peasant_Body"][0].get_shader_parameter("tint")
 	_check(hero.outfit.torso == "peasant" and tint.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
 		"卸下装备恢复布衣原色")
 	figure.free()
@@ -427,7 +440,7 @@ func _test_weapon_grips() -> bool:
 		_check(grip.distance_to(hand) < 8.0, "%s 握点跟着手走" % form)
 		_check(body._drawing == (form == "bow"), "%s 出手前只有弓拉弦" % form)
 		var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
-		var prefix: String = "sword" if form == "jian" else form
+		var prefix: String = ModelHero.kit_of(form) if form in ["sword", "jian"] else form   # 刀 dao_、剑 sword_、枪 spear_、弓 bow_
 		_check(not shown.is_empty() and shown.all(func(p): return p.begins_with(prefix + "_")),
 			"%s 手里拿的是 3D %s 的零件" % [form, prefix])
 		_check(body.hero._kit.get_parent() == body.hero._hands["l" if form == "bow" else "r"]
@@ -438,15 +451,34 @@ func _test_weapon_grips() -> bool:
 		_check(body._action == "Walk_Loop", "%s 走动时播走路步态" % form)
 		body.drive(&"", 0.0, 0.0, false, [])
 		_check(body._action == "Sword_Idle", "%s 站着时摆戒备架势" % form)
-	var sword := WeaponDesign.plain("sword")
-	sword.blade = "qixing"
-	sword.guard = "crescent"
-	sword.pommel = "ring"
-	sword.tassel = Color("#3a6b4c")
-	body.hero.hold("sword", sword)
-	for part in ["sword_blade_qixing", "sword_inlay_qixing", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]:
-		_check(body.hero._kit_parts[part].visible, "锻出的剑按样子换零件：%s" % part)
-	_check(not body.hero._kit_parts["sword_blade_jian"].visible, "换了七星刃就不显示素刃")
+		if form != "bow":
+			var tip: Vector3 = (body.hero._global_of("hand_r") * body.hero._kit.transform).basis.y.normalized()
+			_check(absf(tip.x) < 0.05 and tip.z > 0.8 and tip.y >= 0.0,
+				"%s 戒备时贴着侧面朝前上方，不横着戳向镜头" % form)
+	# 拉弓：撒放前右手拉到下巴、弦跟着手；撒放后弦弹直
+	body.dress(Appearance.bare("bow"))
+	body.drive(&"attack", 0.32, 0.0, false, [0.33])
+	var chin: Vector3 = body.hero._global_of("Head").origin + ModelHero.DRAW_ANCHOR
+	_check(body.hero._global_of("hand_r").origin.distance_to(chin) < 0.12, "拉满时右手到下巴边")
+	_check(body.hero._string_parts.all(func(p): return p.visible), "拉弦时弓弦跟着右手")
+	body.drive(&"attack", 0.9, 0.0, false, [0.33])
+	_check(body.hero._string_parts.all(func(p): return not p.visible)
+		and body.hero._kit_parts["bow_string_" + body.hero._bow_limbs].visible, "撒放以后弓弦弹直")
+	# 整件兵器：每种形制、每种锻出的刃型 / 枪头 / 弓臂都有一件，手里只显示那一件（弓再加弦）
+	var looks := {"sword": ["blade", ["jian", "qixing", "bolang"]], "jian": ["blade", ["jian", "qixing", "bolang"]],
+		"spear": ["head", ["leaf", "snake", "ji"]], "bow": ["head", ["chang", "fanqu"]]}
+	for form in looks:
+		for variant in looks[form][1]:
+			var design := WeaponDesign.plain(form)
+			design[looks[form][0]] = variant
+			body.hero.hold(form, design)
+			var part := ModelHero.weapon_part(form, design)
+			var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
+			var expected := [part] + (["bow_string_" + variant] if form == "bow" else [])
+			_check(body.hero._kit_parts.has(part) and shown.size() == expected.size() and expected.all(func(p): return p in shown),
+				"%s 的 %s 是一件整件兵器：%s" % [form, variant, part])
+	_check(ModelHero.weapon_part("sword", {"blade": "jian"}) != ModelHero.weapon_part("jian", {"blade": "jian"}),
+		"刀和剑是两件不同的兵器")
 	body.free()
 	return true
 
