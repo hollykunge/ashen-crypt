@@ -99,6 +99,46 @@ const FEMALE_SLOTS := {
 	},
 	"headgear": {"none": [], "hat": [], "leather": [], "iron": []},
 }
+## Tripo 分槽男主角（gen-out/model/tripo-dark-hero/parts，导出 hero_tripo.glb）：短打、皮甲、链甲三套 Tripo 模型
+## 拆成部件，和一副打底身体（无头无臂，按三套衣服最内层收缩过）一起蒙在短打那副骨架上（骨骼名、动作和 hero.glb 相同），
+## 各槽可以混搭。用 ModelHero.new("tripo") 创建；只有用到时才加载
+const TRIPO_SCENE := "res://art/model-hero/hero_tripo.glb"
+## 始终露着：打底身体和短打的头（脸和短发一体）
+const TRIPO_HEAD := ["body__base_body", "peasant3__body_head"]
+const _TRIPO_TORSO := {
+	"peasant": ["peasant3__top", "peasant3__belt"],
+	"leather": ["leather2__top", "leather2__belt"],
+	"chain": ["chain2__top", "chain2__belt"],
+}
+const _TRIPO_ARMS := {
+	"peasant": ["peasant3__body_arm_L", "peasant3__body_arm_R", "peasant3__bracer_L", "peasant3__bracer_R"],
+	"leather": ["leather2__arm_L", "leather2__arm_R"],
+	"chain": ["chain2__arm_L", "chain2__arm_R"],
+}
+const _TRIPO_LEGS := {"peasant": ["peasant3__pants"], "leather": ["leather2__pants"], "chain": ["chain2__pants"]}
+const _TRIPO_FEET := {
+	"peasant": ["peasant3__boot_L", "peasant3__boot_R"],
+	"leather": ["leather2__boot_L", "leather2__boot_R"],
+	"chain": ["chain2__boot_L", "chain2__boot_R"],
+}
+## 没有游侠那套，退回短打；肩甲长在上衣里，没有单独的肩甲和兜帽；没有斗笠，不戴头盔就露出发髻
+const TRIPO_SLOTS := {
+	"torso": {"peasant": _TRIPO_TORSO.peasant, "ranger": _TRIPO_TORSO.peasant, "leather": _TRIPO_TORSO.leather, "chain": _TRIPO_TORSO.chain},
+	"arms": {"peasant": _TRIPO_ARMS.peasant, "ranger": _TRIPO_ARMS.peasant, "leather": _TRIPO_ARMS.leather, "chain": _TRIPO_ARMS.chain},
+	"legs": {"peasant": _TRIPO_LEGS.peasant, "ranger": _TRIPO_LEGS.peasant, "leather": _TRIPO_LEGS.leather, "chain": _TRIPO_LEGS.chain},
+	"feet": {"peasant": _TRIPO_FEET.peasant, "ranger": _TRIPO_FEET.peasant, "leather": _TRIPO_FEET.leather, "chain": _TRIPO_FEET.chain},
+	"shoulder": {"none": [], "ranger": [], "leather": [], "chain": []},
+	"hood": {"none": [], "ranger": []},
+	"headgear": {
+		"none": ["peasant3__hair_topknot"],
+		"hat": ["peasant3__hair_topknot"],
+		"leather": ["leather2__helmet"],
+		"iron": ["chain2__helmet"],
+	},
+}
+## 链甲的手臂槽只有前臂护腕和手，上半截袖子长在链甲上衣上：上衣不是链甲时补上短打的光胳膊
+const TRIPO_UPPER_ARMS := ["peasant3__body_arm_L", "peasant3__body_arm_R"]
+var tripo := false
 var female := false
 var slots: Dictionary = SLOTS
 var head_parts: Array = HEAD
@@ -157,13 +197,19 @@ var _materials := {}  # 部件名 → [卡通材质]（染色用）
 var hull_outline := true
 
 
-## 模型在创建时就装好（不等进场景树），这样还没上场就能先换装、定动作。gender 为 "female" 时用女主角模型
+## 模型在创建时就装好（不等进场景树），这样还没上场就能先换装、定动作。gender 为 "female" 时用女主角模型，
+## 为 "tripo" 时用 Tripo 分槽男主角
 func _init(gender := "male") -> void:
 	female = gender == "female"
-	slots = FEMALE_SLOTS if female else SLOTS
-	head_parts = FEMALE_HEAD if female else HEAD
-	topknot = [] if female else TOPKNOT
-	var model: Node = (load(FEMALE_SCENE) as PackedScene).instantiate() if female else SCENE.instantiate()
+	tripo = gender == "tripo"
+	slots = FEMALE_SLOTS if female else (TRIPO_SLOTS if tripo else SLOTS)
+	head_parts = FEMALE_HEAD if female else (TRIPO_HEAD if tripo else HEAD)
+	topknot = [] if female or tripo else TOPKNOT   # Tripo 的发髻放在 headgear 的 none / hat 里
+	var model: Node
+	if female or tripo:
+		model = (load(FEMALE_SCENE if female else TRIPO_SCENE) as PackedScene).instantiate()
+	else:
+		model = SCENE.instantiate()
 	add_child(model)
 	for node: MeshInstance3D in model.find_children("*", "MeshInstance3D", true, false):
 		_meshes[String(node.name)] = node
@@ -207,6 +253,12 @@ func _init(gender := "male") -> void:
 	apply_outfit()
 
 
+## 兵器零件在 hold() 之前不在节点树里，角色被释放时要顺手释放（没拿兵器就被换掉、或测试里直接 new 出来的角色）
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and is_instance_valid(_kit) and _kit.get_parent() == null:
+		_kit.free()
+
+
 func _ready() -> void:
 	if anim.current_animation.is_empty():
 		play("Idle_Loop", 0.0)
@@ -235,6 +287,8 @@ func apply_outfit() -> void:
 	elif gear != "none":  # 头饰盖住头顶：发髻收在里面
 		for part in topknot:
 			wanted.erase(part)
+	if tripo and outfit.get("arms", "") == "chain" and outfit.get("torso", "") != "chain":
+		wanted += TRIPO_UPPER_ARMS
 	for part in _meshes:
 		_meshes[part].visible = part in wanted
 		if part in wanted:
@@ -244,7 +298,7 @@ func apply_outfit() -> void:
 ## 体型（body_shape.gd）：部件第一次露出来时才推形，没穿的衣服不白算
 func shape(part: String) -> void:
 	var node: MeshInstance3D = _meshes[part]
-	if node.has_meta("shaped"):
+	if tripo or node.has_meta("shaped"):  # 形变场按 hero.glb 的身材量的，Tripo 模型比例不同，不推
 		return
 	node.set_meta("shaped", true)
 	node.mesh = BodyShape.shaped("female" if female else "male", part, node.mesh)
@@ -576,6 +630,8 @@ func _bend(bone: String, axis: Vector3, degrees: float) -> void:
 func set_tint(slot: String, color: Color) -> void:
 	for variant in slots[slot]:
 		for part in slots[slot][variant]:
+			if part.contains("__body_"):  # Tripo 短打的光胳膊是皮肤，不跟着护腕染色
+				continue
 			for mat in _materials.get(part, []):
 				mat.set_shader_parameter("tint", color)
 

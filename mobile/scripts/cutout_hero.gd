@@ -19,6 +19,9 @@ const MODEL_HEIGHT := 1.80
 
 ## 游戏里的护甲类别 → 模型的款式（游侠那套没有对应的护甲类别，只在试穿台里用）
 const OUTFITS := {"cloth": "peasant", "leather": "leather", "chain": "chain"}
+## 性别 → 主角模型（model_hero.gd 的 gender 参数）：男主角用 Tripo 分槽模型（短打 / 皮甲 / 链甲按槽混搭）；
+## 女主角照旧。图标渲染等其他地方直接 new 的 ModelHero 不受影响
+const MODEL_OF := {"male": "tripo"}
 ## 上衣的护甲类别 → 头饰
 const HEADGEAR := {"cloth": "hat", "leather": "leather", "chain": "iron"}
 ## 游戏的装备槽 → 模型的槽
@@ -135,7 +138,7 @@ func _make_hero(gender: String) -> void:
 		hero.queue_free()
 		viewport.remove_child(hero)
 	_gender = gender
-	hero = ModelHero.new(gender)
+	hero = ModelHero.new(MODEL_OF.get(gender, gender))
 	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
 	hero.rotation.y = deg_to_rad(_yaw)
 	viewport.add_child(hero)
