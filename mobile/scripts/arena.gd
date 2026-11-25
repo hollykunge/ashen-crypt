@@ -22,7 +22,7 @@ const LANDSCAPE_ACTOR_MAGNIFICATION := 1.40
 const CUT_IN_TIME := 0.43
 # 连战镜头在原取景上整体推近：站位、人物和背景同比放大，交手距离的观感不变，
 # 只是空地少了，人物占得更满。
-const PORTRAIT_BATTLE_ZOOM := 1.24
+const PORTRAIT_BATTLE_ZOOM := 1.75   # 竖屏战斗推近：人物大一些（借街机格斗那种大人物）
 const LANDSCAPE_BATTLE_ZOOM := 1.22
 # 竖屏把地面线压低，下方空雪地让给人物；镜头中心左移，主角和精怪各占画面一侧。
 const PORTRAIT_BATTLE_FLOOR := 0.765

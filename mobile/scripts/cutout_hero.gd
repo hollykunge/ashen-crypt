@@ -168,7 +168,7 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 	# 出招按拳头握；站着戒备、走跑时剑和枪贴着侧面朝前上方（弓照常握在左手）
 	var striking := motion in [&"attack", &"cleave"]
 	if form == "spear" and striking:
-		hero.set_grip_mode("along")
+		hero.set_grip_mode("thrust")
 	elif motion.is_empty() and form != "bow":
 		hero.set_grip_mode("plane")
 	else:

@@ -75,6 +75,8 @@
 
 **暗黑调色**常开（[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 的 `gothic()`）：去掉大半饱和、拉对比、阴影偏冷灰青、亮部偏旧骨黄，只有真正的朱红（血、布穗、火）和亮处保留颜色，四角压暗。力度由 `arena.gd` 的 `GRADE`、`VIGNETTE` 控制。
 
+**人物**借街机格斗的画法（2026-11-25）：主角是两阶硬明暗、暗部偏冷，受光边一道暖色轮廓光（[model_toon.gdshader](mobile/scripts/model_toon.gdshader)），外轮廓一圈近黑粗描边（[model_silhouette.gdshader](mobile/scripts/model_silhouette.gdshader) 的 `THICK`）；竖屏战斗镜头推近，人物更大（`arena.gd` 的 `PORTRAIT_BATTLE_ZOOM`）。场景配色照旧。
+
 长卷之外还有两层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
 
 玩家角色和随侍共用[角色画布](mobile/scripts/cutout_hero.gd)：它在离屏画布里从侧面渲染[主角模型](mobile/scripts/model_hero.gd)，再画进战场。行装试穿与战斗用的是同一个模型、同一套衣装和脚底锚点，头像也是模型渲的侧面半身像。定稿范围见[主角美术定稿](mobile/art/model-hero/README.md)。

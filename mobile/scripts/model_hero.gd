@@ -67,13 +67,9 @@ const THUMB := {"02": 25.0, "03": 35.0}
 const FINGERS := ["index", "middle", "ring", "pinky"]
 ## 哪只手握拳（"r"、"l"）
 var fists := {"r": false, "l": false}
-## 兵器：零件按锻造出的样子挑（weapon_design.gd 的 blade / guard / pommel / head），按用途上色
-## 剑身放大（x 刃宽、z 刃厚，刃长不变）：照实的剑在手机战场上只有几个像素宽，侧过来时细成一根线、混进地面
-const BLADE_SCALE := Vector3(1.35, 1.0, 2.0)
-## 刀身本来就宽，只加厚（侧过来时别细成一根线）
-const DAO_BLADE_SCALE := Vector3(1.0, 1.0, 2.0)
+## 兵器：古兵器素材包里挑的整件（gen-out/model/scripts/import_pack_weapons.py 导出），按锻造出的刃型 / 枪头 /
+## 弓臂（weapon_design.gd 的 blade / head）挑一件，贴图照原样，只套卡通着色和描边
 const STRING_COLOR := Color("#d4c4a5")
-const SPEAR_TUFT := Color("#b8342a")
 var weapon_form := ""
 var grip_mode := "fist"
 ## plane 握法：兵器贴着侧面（相机看过去的那个平面）朝前上方伸出，抬多少度。
@@ -115,10 +111,6 @@ func _init() -> void:
 		_kit_parts[String(node.name)] = node
 		_toonify(node, 0.003)
 		node.visible = false
-		if String(node.name).begins_with("sword_blade_") or String(node.name).begins_with("sword_inlay_"):
-			node.scale *= BLADE_SCALE
-		elif String(node.name).begins_with("dao_blade_"):
-			node.scale *= DAO_BLADE_SCALE
 	for i in 2:
 		var piece := MeshInstance3D.new()
 		var rod := CylinderMesh.new()
@@ -197,43 +189,24 @@ func hold(form: String, design: Dictionary) -> void:
 		_kit.get_parent().remove_child(_kit)
 	_hands[side].add_child(_kit)
 	_kit.transform = _grip_transform(side)
-	var show: Array = []
+	# 每种形制按锻造出的刃型 / 枪头 / 弓臂挑一件整件兵器；贴图照原样，不按五行上色（五行只管属性）
+	var show: Array = [weapon_part(form, design)]
+	if form == "bow":
+		show.append("bow_string_" + limbs_of(design))
+	_bow_limbs = limbs_of(design) if form == "bow" else ""
+	for part in _kit_parts:
+		_kit_parts[part].visible = part in show
+	apply_fists()
+
+
+## 一件兵器在 weapons.glb 里的名字：刀 dao_blade_*、剑 sword_blade_*、枪 spear_head_*、弓 bow_limbs_*
+static func weapon_part(form: String, design: Dictionary) -> String:
 	match form:
 		"spear":
-			show = ["spear_pole", "spear_cap", "spear_tassel",
-				"spear_head_" + _pick(design.get("head", ""), ["leaf", "snake", "ji"])]
+			return "spear_head_" + _pick(design.get("head", ""), ["leaf", "snake", "ji"])
 		"bow":
-			var limbs := "chang" if design.get("head", "") == "chang" else "fanqu"
-			show = ["bow_limbs_" + limbs, "bow_grip", "bow_string_" + limbs]
-		_:
-			# 刀（形制 sword）用 dao_ 那套零件，剑（形制 jian）用 sword_ 那套；锻造的刃型、护手、首的名字两套通用
-			var kit := kit_of(form)
-			var blade := _pick(design.get("blade", ""), ["jian", "qixing", "bolang"])
-			show = [kit + "_blade_" + blade, kit + "_grip",
-				kit + "_guard_" + _pick(design.get("guard", ""), ["disc", "bar", "ruyi", "crescent"]),
-				kit + "_pommel_" + _pick(design.get("pommel", ""), ["knob", "hex", "ring", "cloud"])]
-			if blade == "qixing" and kit == "sword":
-				show.append("sword_inlay_qixing")
-			if Color(design.get("tassel", Color.TRANSPARENT)).a > 0.0:
-				show.append(kit + "_tassel")
-	_bow_limbs = limbs_of(design) if form == "bow" else ""
-	var pole: Dictionary = design.get("pole", {})
-	var tassel: Color = design.get("tassel", Color.TRANSPARENT)
-	var colors := {
-		"steel": Color(design.get("steel", Color("#8d9196"))).darkened(0.3), "trim": design.get("trim", Color("#a0804c")),
-		"wrap": design.get("wrap", Color("#6f2a1c")), "accent": design.get("accent", SPEAR_TUFT),
-		"wood": pole.get("wood", Color("#7c5a3c")), "core": pole.get("core", Color("#2e2219")),
-		"cap": pole.get("cap", Color("#a58a5e")), "string": STRING_COLOR,
-		"tassel": tassel if tassel.a > 0.0 else SPEAR_TUFT,
-	}
-	for part in _kit_parts:
-		var mesh: MeshInstance3D = _kit_parts[part]
-		mesh.visible = part in show
-		for i in mesh.get_surface_override_material_count():
-			var mat := mesh.get_surface_override_material(i) as ShaderMaterial
-			var role: String = mat.get_meta("role", "")
-			mat.set_shader_parameter("tint", Color(colors.get(role, Color.WHITE), 1.0))
-	apply_fists()
+			return "bow_limbs_" + limbs_of(design)
+	return kit_of(form) + "_blade_" + _pick(design.get("blade", ""), ["jian", "qixing", "bolang"])
 
 
 var _bow_limbs := ""
@@ -251,31 +224,51 @@ static func _pick(value: String, allowed: Array) -> String:
 	return value if value in allowed else allowed[0]
 
 
-## 握点在手骨本地坐标里的位置和朝向：拳眼在指根和弯下来的中指第二节之间；
-## 兵器沿指根连线（小指 → 食指）伸出，刃宽朝指节指的方向（刃口跟着拳面走）
+## 握点在手骨本地坐标里的位置和朝向：拳眼是四指弯起来围出的那个洞的中心（各指四个关节握拳后的平均位置）；
+## 兵器沿指根连线（小指 → 食指）伸出，刃宽朝指节指的方向（刃口跟着拳面走）。
+## 原来取「指根和弯下来的中指第二节之间」，比洞心往指节那边偏了快两厘米，柄从指节底下滑出去，看着不像握在手里
 func _grip_transform(side: String) -> Transform3D:
 	var index := _rest_origin("index_01_" + side)
 	var pinky := _rest_origin("pinky_01_" + side)
 	var middle := _rest_origin("middle_01_" + side)
-	var m01 := skeleton.get_bone_rest(skeleton.find_bone("middle_01_" + side))
-	m01.basis = Basis(m01.basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, deg_to_rad(CURL_SIGN * CURL["01"]))) \
-		.scaled(m01.basis.get_scale())
-	var curled := m01 * _rest_origin("middle_02_" + side)
-	var knuckles := (index + pinky) * 0.5
+	var hole := Vector3.ZERO
+	for finger in FINGERS:
+		for p in _curled_finger(finger, side):
+			hole += p
+	hole /= FINGERS.size() * 4.0
 	var y := (index - pinky).normalized()
 	var x := (middle - y * middle.dot(y)).normalized()
-	if grip_mode != "fist":
+	if grip_mode in ["along", "against"]:
 		# along：顺着手（手腕 → 指根）伸出去。前刺时拳面朝下，指根连线是横的，枪会横过来，改成顺着小臂刺出；
 		# 垂手站着时顺着手往下，剑尖朝地。against：反过来，手垂着时枪尖朝天、拄着站
 		var along := middle.normalized() * (1.0 if grip_mode == "along" else -1.0)
 		x = (y - along * y.dot(along)).normalized()
 		y = along
 	var z := x.cross(y)
-	return Transform3D(Basis(x, y, z), knuckles.lerp(curled, 0.5))
+	return Transform3D(Basis(x, y, z), hole)
 
 
-## 握法：fist 沿拳头的握轴（出招），along 顺着手伸出（长枪前刺、垂手持剑），against 逆着手（垂手拄枪），
-## plane 贴着侧面朝前上方（戒备、走跑；每帧按手的姿势重算，见 _apply_plane）
+## 一根手指握拳以后四个关节（指根、二节、三节、指尖）在手骨本地坐标里的位置：
+## 从静止姿势出发，每节按 CURL 弯过去（和 apply_fists 弯的一样）
+func _curled_finger(finger: String, side: String) -> Array:
+	var points := []
+	var chain := Transform3D.IDENTITY
+	for joint in ["01", "02", "03", "04_leaf"]:
+		var b := skeleton.find_bone("%s_%s_%s" % [finger, joint, side])
+		if b < 0:
+			break
+		var rest := skeleton.get_bone_rest(b)
+		if CURL.has(joint):
+			rest.basis = Basis(rest.basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, deg_to_rad(CURL_SIGN * CURL[joint]))) \
+				.scaled(rest.basis.get_scale())
+		chain = chain * rest
+		points.append(chain.origin)
+	return points
+
+
+## 握法：fist 沿拳头的握轴（出招），along 顺着手伸出（垂手持剑），against 逆着手（垂手拄枪），
+## plane 贴着侧面朝前上方（戒备、走跑；每帧按手的姿势重算，见 _apply_plane），
+## thrust 长枪前刺：枪照样穿过拳眼，把手腕转过去让拳的握轴顺着小臂朝前（见 _apply_thrust）
 func set_grip_mode(mode: String) -> void:
 	if mode == grip_mode:
 		return
@@ -287,6 +280,16 @@ func set_grip_mode(mode: String) -> void:
 			_kit.transform = _grip_transform("l" if weapon_form == "bow" else "r")
 
 
+## 长枪前刺：动作是一记直拳，拳面朝前、指根连线横着，顺着拳的握轴拿枪，枪会横在身前；
+## 顺着手伸出去（along）的话枪又从手掌底下穿过，看着是手搭在枪上。这里枪照样穿过拳眼（fist 的握点），
+## 把手腕转过去，让拳的握轴顺着小臂朝前，枪就攥在拳里刺出去
+func _apply_thrust() -> void:
+	var hand := _global_of("hand_r")
+	var forearm := hand.origin - _global_of("lowerarm_r").origin
+	var axis := hand.basis * _grip_transform("r").basis.y
+	_swing(skeleton.find_bone("hand_r"), axis, forearm, 1.0)
+
+
 ## 兵器在模型空间里的朝向定死：刃尖朝前上方，刃面朝相机（-X），握点仍在拳眼。
 ## 骨架空间就是模型空间（Rig、Skeleton3D 都没有变换）
 func _apply_plane() -> void:
@@ -294,8 +297,9 @@ func _apply_plane() -> void:
 	var hand := _global_of("hand_" + side)
 	var pitch := deg_to_rad(PLANE_PITCH.get(weapon_form, PLANE_PITCH_DEFAULT))
 	var y := Vector3(0.0, sin(pitch), cos(pitch))
-	# 刃面朝相机；弓的弓腹（零件 +X）要朝前（+Z），所以弓的 z 反过来取 -X
-	var z := Vector3.LEFT if weapon_form == "bow" else Vector3.RIGHT
+	# 刃面朝相机。弓的弓腹、刀的刃口都是零件的 +X：弓腹要朝前，刀刃要朝下（不然戒备时刀刃朝天），
+	# 这两样 z 取 -X，零件的 +X 就翻到下前方
+	var z := Vector3.LEFT if weapon_form in ["bow", "sword"] else Vector3.RIGHT
 	var want := Basis(y.cross(z), y, z)
 	var size := hand.basis.get_scale().x
 	var grip := _grip_transform(side)
@@ -311,6 +315,8 @@ func apply_fists() -> void:
 	_apply_draw()
 	if grip_mode == "plane" and _kit.get_parent() != null:
 		_apply_plane()
+	elif grip_mode == "thrust" and weapon_form == "spear":
+		_apply_thrust()
 	for side in fists:
 		if not fists[side]:
 			continue

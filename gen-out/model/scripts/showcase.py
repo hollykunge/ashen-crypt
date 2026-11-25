@@ -35,22 +35,13 @@ OUTFITS = {
 # 单件陈列：游戏的装备槽 → 模型的槽
 PIECES = [("上衣", ["torso", "shoulder"]), ("护腕", ["arms"]), ("护腿", ["legs"]), ("靴子", ["feet"]), ("头饰", ["headgear"])]
 # 兵器：名字 → 零件（共用一个原点：握点）
-ARMS = [
-    ("柳叶刀", ["dao_blade_jian", "dao_grip", "dao_guard_disc", "dao_pommel_knob"]),
-    ("雁翎刀", ["dao_blade_qixing", "dao_grip", "dao_guard_bar", "dao_pommel_ring", "dao_tassel"]),
-    ("朴刀", ["dao_blade_bolang", "dao_grip", "dao_guard_ruyi", "dao_pommel_hex"]),
-    ("素刃剑", ["sword_blade_jian", "sword_grip", "sword_guard_disc", "sword_pommel_knob"]),
-    ("七星剑", ["sword_blade_qixing", "sword_inlay_qixing", "sword_grip", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]),
-    ("波浪剑", ["sword_blade_bolang", "sword_grip", "sword_guard_ruyi", "sword_pommel_cloud"]),
-    ("柳叶枪", ["spear_pole", "spear_cap", "spear_tassel", "spear_head_leaf"]),
-    ("蛇矛", ["spear_pole", "spear_cap", "spear_tassel", "spear_head_snake"]),
-    ("戟", ["spear_pole", "spear_cap", "spear_tassel", "spear_head_ji"]),
-    ("长弓", ["bow_limbs_chang", "bow_grip", "bow_string_chang"]),
-    ("反曲弓", ["bow_limbs_fanqu", "bow_grip", "bow_string_fanqu"]),
+ARMS = [   # 古兵器素材包里挑的整件（import_pack_weapons.py），弓再加弦
+    ("柳叶刀", ["dao_blade_jian"]), ("錾花刀", ["dao_blade_qixing"]), ("宽头大刀", ["dao_blade_bolang"]),
+    ("素剑", ["sword_blade_jian"]), ("圆格花剑", ["sword_blade_qixing"]), ("红柄剑", ["sword_blade_bolang"]),
+    ("黑缨枪", ["spear_head_leaf"]), ("花枪", ["spear_head_snake"]), ("月牙戟", ["spear_head_ji"]),
+    ("长弓", ["bow_limbs_chang", "bow_string_chang"]), ("反曲弓", ["bow_limbs_fanqu", "bow_string_fanqu"]),
 ]
-SMALL = [("护手·圆盘", "sword_guard_disc"), ("护手·一字", "sword_guard_bar"), ("护手·如意", "sword_guard_ruyi"),
-         ("护手·月牙", "sword_guard_crescent"), ("柄首·六棱", "sword_pommel_hex"), ("柄首·圆球", "sword_pommel_knob"),
-         ("柄首·云头", "sword_pommel_cloud"), ("柄首·圆环", "sword_pommel_ring")]
+SMALL = []
 # 兵器零件按用途上色：游戏里没锻造时的默认色（model_hero.gd 的 hold）
 ROLE_COLORS = {"steel": "#62656a", "trim": "#a0804c", "wrap": "#6f2a1c", "accent": "#b8342a", "wood": "#7c5a3c",
                "core": "#2e2219", "cap": "#a58a5e", "string": "#d4c4a5", "tassel": "#b8342a"}
@@ -157,12 +148,6 @@ kit = {o.name.split(".")[0]: o for o in set(bpy.data.objects) - before if o.type
 for o in set(bpy.data.objects) - before:   # 导入的原件先从当前场景摘下，只用复制出来的
     for c in list(o.users_collection):
         c.objects.unlink(o)
-for mat in {m for o in kit.values() for m in o.data.materials if m}:
-    role = mat.name.split(".")[0]
-    if role in ROLE_COLORS:
-        bsdf = bsdf_of(mat)
-        if bsdf:
-            bsdf.inputs["Base Color"].default_value = hex_rgba(ROLE_COLORS[role])
 
 
 def place(parts, x, z, scale=1.0, tilt=False):
@@ -183,12 +168,11 @@ x = 0.0
 label("兵器", x + 0.2, WEAPON_ROW + 2.75, 0.22)
 for name, parts in ARMS:
     # 握点在原点：剑往上 0.9 米，枪尾在握点下 0.8 米，弓上下各 0.7 米，都抬到地面以上
-    lift = {"sword": 0.25, "dao": 0.25, "spear": 0.85, "bow": 0.75}[parts[0].split("_")[0]]
+    lift = {"sword": 0.55, "dao": 0.55, "spear": 0.85, "bow": 0.75}[parts[0].split("_")[0]]
     place(parts, x, WEAPON_ROW + lift)
     label(name, x, WEAPON_ROW - 0.2, 0.12)
     x += 0.55
 x += 0.3
-label("护手与柄首（放大三倍）", x + 1.4, WEAPON_ROW + 1.1, 0.16)
 for name, part in SMALL:
     place([part], x, WEAPON_ROW + 0.4, 3.0, tilt=True)
     label(name, x, WEAPON_ROW - 0.2, 0.09)

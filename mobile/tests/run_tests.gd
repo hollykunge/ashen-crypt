@@ -435,7 +435,7 @@ func _test_weapon_grips() -> bool:
 		_check(grip.distance_to(hand) < 8.0, "%s 握点跟着手走" % form)
 		_check(body._drawing == (form == "bow"), "%s 出手前只有弓拉弦" % form)
 		var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
-		var prefix: String = ModelHero.kit_of(form) if form in ["sword", "jian"] else form
+		var prefix: String = ModelHero.kit_of(form) if form in ["sword", "jian"] else form   # 刀 dao_、剑 sword_、枪 spear_、弓 bow_
 		_check(not shown.is_empty() and shown.all(func(p): return p.begins_with(prefix + "_")),
 			"%s 手里拿的是 3D %s 的零件" % [form, prefix])
 		_check(body.hero._kit.get_parent() == body.hero._hands["l" if form == "bow" else "r"]
@@ -459,21 +459,21 @@ func _test_weapon_grips() -> bool:
 	body.drive(&"attack", 0.9, 0.0, false, [0.33])
 	_check(body.hero._string_parts.all(func(p): return not p.visible)
 		and body.hero._kit_parts["bow_string_" + body.hero._bow_limbs].visible, "撒放以后弓弦弹直")
-	var sword := WeaponDesign.plain("sword")
-	sword.blade = "qixing"
-	sword.guard = "crescent"
-	sword.pommel = "ring"
-	sword.tassel = Color("#3a6b4c")
-	body.hero.hold("jian", sword)
-	for part in ["sword_blade_qixing", "sword_inlay_qixing", "sword_guard_crescent", "sword_pommel_ring", "sword_tassel"]:
-		_check(body.hero._kit_parts[part].visible, "锻出的剑按样子换零件：%s" % part)
-	_check(not body.hero._kit_parts["sword_blade_jian"].visible, "换了七星刃就不显示素刃")
-	# 刀用自己的那套零件（dao_），锻造的刃型、护手、首的名字和剑通用
-	body.hero.hold("sword", sword)
-	for part in ["dao_blade_qixing", "dao_guard_crescent", "dao_pommel_ring", "dao_tassel"]:
-		_check(body.hero._kit_parts[part].visible, "刀按锻出的样子换零件：%s" % part)
-	_check(not body.hero._kit_parts["sword_blade_qixing"].visible and not body.hero._kit_parts["sword_inlay_qixing"].visible,
-		"拿刀时不显示剑的零件")
+	# 整件兵器：每种形制、每种锻出的刃型 / 枪头 / 弓臂都有一件，手里只显示那一件（弓再加弦）
+	var looks := {"sword": ["blade", ["jian", "qixing", "bolang"]], "jian": ["blade", ["jian", "qixing", "bolang"]],
+		"spear": ["head", ["leaf", "snake", "ji"]], "bow": ["head", ["chang", "fanqu"]]}
+	for form in looks:
+		for variant in looks[form][1]:
+			var design := WeaponDesign.plain(form)
+			design[looks[form][0]] = variant
+			body.hero.hold(form, design)
+			var part := ModelHero.weapon_part(form, design)
+			var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
+			var expected := [part] + (["bow_string_" + variant] if form == "bow" else [])
+			_check(body.hero._kit_parts.has(part) and shown.size() == expected.size() and expected.all(func(p): return p in shown),
+				"%s 的 %s 是一件整件兵器：%s" % [form, variant, part])
+	_check(ModelHero.weapon_part("sword", {"blade": "jian"}) != ModelHero.weapon_part("jian", {"blade": "jian"}),
+		"刀和剑是两件不同的兵器")
 	body.free()
 	return true
 
