@@ -89,7 +89,7 @@ func _person_card(slot: int, profile) -> void:
 	var female: bool = person.get("gender") == "female"
 	var stem := String(person.get("day_stem", "geng"))
 	var element := WuXing.stem_element(stem)
-	var face: TextureRect = ui._image(SideArt.PORTRAIT)
+	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	face.custom_minimum_size = Vector2(80, 106)
 	face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)

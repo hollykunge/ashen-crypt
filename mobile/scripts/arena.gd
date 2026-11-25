@@ -494,7 +494,7 @@ func _draw_cut_in() -> void:
 	var elapsed := CUT_IN_TIME - cut_in_left
 	var alpha := minf(elapsed / 0.05, 1.0) * minf(cut_in_left / 0.17, 1.0)
 	var wide := size.x >= size.y * 1.17
-	var portrait: Texture2D = SideArt.PORTRAIT
+	var portrait: Texture2D = SideArt.portrait(look.get("gender", ""))
 	var width := minf(size.x * 0.20, 260.0) if wide else size.x * 0.24
 	var height := width * portrait.get_height() / portrait.get_width()
 	var x := 18.0 - 24.0 * (1.0 - alpha)

@@ -407,14 +407,19 @@ func _test_appearance() -> bool:
 	_check(hero.outfit.torso == "peasant" and hero.outfit.shoulder == "none", "没穿护甲是布衣、不带肩甲")
 	var armor: Dictionary = entries.armor.duplicate(true)
 	armor.armor_type = "leather"
+	_check(not hero.female and hero._meshes.has("Male_Peasant_Body"), "男角色用男主角模型")
 	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
-	var tint: Color = hero._materials["Leather_Body"][0].get_shader_parameter("tint")
+	hero = figure.actor.hero
+	_check(hero.female and hero._meshes.has("F_Peasant_Body") and hero.anim.has_animation(hero.anim_name("Sword_Attack")),
+		"女角色换成女主角模型，动作和男主角同名")
+	var tint: Color = hero._materials["F_Leather_Body"][0].get_shader_parameter("tint")
 	_check(hero.outfit.torso == "leather" and hero.outfit.shoulder == "leather" and tint.r > tint.b,
 		"试穿的皮甲换上皮甲上衣和肩甲，并显示火行染色")
 	_check(hero.outfit.arms == "peasant" and figure.actor.form == "bow", "只换上衣那一槽，试穿预览保留角色兵器")
 	_check(figure.trying_label.visible, "试穿时标出「试穿」")
 	figure.display({}, {"gender": "female"}, "spear")
-	tint = hero._materials["Male_Peasant_Body"][0].get_shader_parameter("tint")
+	_check(figure.actor.hero == hero, "性别没变不重建模型")
+	tint = hero._materials["F_Peasant_Body"][0].get_shader_parameter("tint")
 	_check(hero.outfit.torso == "peasant" and tint.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
 		"卸下装备恢复布衣原色")
 	figure.free()

@@ -62,6 +62,7 @@ var _skeleton: Skeleton3D
 var _skeleton_xform := Transform3D.IDENTITY  # 骨架 → 角色根节点
 var _moving := false
 var _drawing := false  # 弓：拉满还没撒放
+var _gender := ""
 
 
 func _init() -> void:
@@ -85,9 +86,7 @@ func _init() -> void:
 	viewport.add_child(key)
 	key.transform = Transform3D.IDENTITY.looking_at(Vector3(3.0, -4.0, -2.5), Vector3.UP)
 
-	hero = ModelHero.new()
-	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
-	viewport.add_child(hero)
+	_make_hero("male")
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
 	camera.size = BOX.y * MODEL_HEIGHT
@@ -108,25 +107,45 @@ func _init() -> void:
 	_outlined.add_child(_outline_rect)
 	_texture = _outlined.get_texture()
 
+
+## 男女主角是两个模型（model_hero.gd 按 gender 装），换性别时整个换掉，动作接着放
+func _make_hero(gender: String) -> void:
+	if hero != null:
+		hero.queue_free()
+		viewport.remove_child(hero)
+	_gender = gender
+	hero = ModelHero.new(gender)
+	hero.set_hull_outline(false)   # 描边改在下面的轮廓画布里一次画完
+	viewport.add_child(hero)
 	_skeleton = hero.find_child("Skeleton3D", true, false)
+	_skeleton_xform = Transform3D.IDENTITY
 	var node: Node = _skeleton
 	while node != hero:
 		_skeleton_xform = (node as Node3D).transform * _skeleton_xform
 		node = node.get_parent()
+	if is_node_ready():
+		_start_anim()
 
 
 func _ready() -> void:
+	_start_anim()
+	if not _look.is_empty():
+		dress(_look)
+
+
+func _start_anim() -> void:
 	hero.anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	var first := _action if not _action.is_empty() else "Sword_Idle"
 	_action = ""
 	_play(first)
-	if not _look.is_empty():
-		dress(_look)
 
 
 ## 按装备换各槽款式，按染色给各槽上色。
 func dress(look: Dictionary) -> void:
 	_look = look
+	var gender: String = "female" if look.get("gender", "") == "female" else "male"
+	if gender != _gender:
+		_make_hero(gender)
 	form = look.get("form", "sword")
 	if not MOVES.has(form):
 		form = "sword"
@@ -151,6 +170,13 @@ func dress(look: Dictionary) -> void:
 			hero.set_tint("shoulder", tint)
 
 
+## 挥砍（Sword_Attack，24fps）时刀往刀背那边翻多少度：起手 5 帧里翻过去、刀背过肩，
+## 第 7 帧起往回翻，10.5 帧（打中前半帧）翻正，刃口朝前劈下去
+const SWING_COCK := -110.0
+static func swing_cock(frame: float) -> float:
+	return SWING_COCK * smoothstep(0.0, 5.0, frame) * (1.0 - smoothstep(7.0, 10.5, frame))
+
+
 ## 行装页：站着待机。
 func present_outfit() -> void:
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
@@ -169,12 +195,15 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 	var striking := motion in [&"attack", &"cleave"]
 	if form == "spear" and striking:
 		hero.set_grip_mode("thrust")
-	elif motion.is_empty() and form != "bow":
+	elif form == "bow":  # 弓一直竖着拿，弓腹朝前
+		hero.set_grip_mode("upright")
+	elif motion.is_empty():
 		hero.set_grip_mode("plane")
 	else:
 		hero.set_grip_mode("fist")
 	_drawing = false
 	hero.draw_reach = 0.0
+	hero.swing_cock = 0.0
 	match motion:
 		&"attack", &"cleave":
 			var move: Dictionary = MOVES[form]
@@ -186,6 +215,8 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 			_drawing = form == "bow" and seconds < hit
 			if form == "bow":
 				_draw_bow(seconds, hit, end)
+			elif form in ["sword", "jian"]:
+				hero.swing_cock = swing_cock(seconds * 24.0)
 			_pose_at(move.attack, seconds)
 		&"skill", &"tactic":
 			_pose_at(CAST, phase * _length(CAST))

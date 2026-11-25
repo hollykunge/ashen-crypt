@@ -44,7 +44,7 @@ func _play(game) -> bool:
 	_press(game, "性别")
 	_check(_press(game, "女"), "性别页可更换角色")
 	_press(game, "日干")
-	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.SideArt.PORTRAIT
+	_check(_press(game, "甲\n阳木") and game.selection.portrait.texture == game.SideArt.PORTRAIT_FEMALE
 		and game.selection.portrait.modulate == game.Roster.ELEMENT_TINTS.mu.lerp(Color.WHITE, 0.67),
 		"甲木女性显示对应立绘和五行色")
 	var pane: Rect2 = game.selection.page_area.get_global_rect()

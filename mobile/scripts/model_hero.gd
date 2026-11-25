@@ -56,6 +56,52 @@ const SLOTS := {
 		"iron": ["Head_Helm_Iron"],
 	},
 }
+## 女主角（gen-out/model/scripts/build_female.py，导出 female.glb）：骨架和动作与男主角同名，部件不同。
+## 只有布衣（女农夫）和游侠两套原装，皮甲、链甲是游侠那套重新上色；没有头饰，发髻一直露着
+## 只有女主角才加载（不和男模型一起常驻内存）
+const FEMALE_SCENE := "res://art/model-hero/female.glb"
+const FEMALE_HEAD := ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main"]
+const FEMALE_SLOTS := {
+	"torso": {
+		"peasant": ["F_Peasant_Body"],
+		"ranger": ["F_Ranger_Body", "F_Ranger_Body_1", "F_Ranger_Body_2"],
+		"leather": ["F_Leather_Body", "F_Leather_Body_1", "F_Leather_Body_2"],
+		"chain": ["F_Chain_Body", "F_Chain_Body_1", "F_Chain_Body_2"],
+	},
+	"arms": {
+		"peasant": ["F_Peasant_Arms"],
+		"ranger": ["F_Ranger_Arms", "F_Ranger_Arms_1"],
+		"leather": ["F_Leather_Arms", "F_Leather_Arms_1"],
+		"chain": ["F_Chain_Arms", "F_Chain_Arms_1"],
+	},
+	"legs": {
+		"peasant": ["F_Peasant_Legs"],
+		"ranger": ["F_Ranger_Legs"],
+		"leather": ["F_Leather_Legs"],
+		"chain": ["F_Chain_Legs"],
+	},
+	"feet": {
+		"peasant": ["F_Peasant_Feet"],
+		"ranger": ["F_Ranger_Feet"],
+		"leather": ["F_Leather_Feet"],
+		"chain": ["F_Chain_Feet"],
+	},
+	"shoulder": {
+		"none": [],
+		"ranger": ["F_Ranger_Acc_Pauldrons"],
+		"leather": ["F_Leather_Acc_Pauldrons"],
+		"chain": ["F_Chain_Acc_Pauldrons"],
+	},
+	"hood": {
+		"none": [],
+		"ranger": ["F_Ranger_Head_Hood"],
+	},
+	"headgear": {"none": [], "hat": [], "leather": [], "iron": []},
+}
+var female := false
+var slots: Dictionary = SLOTS
+var head_parts: Array = HEAD
+var topknot: Array = TOPKNOT
 ## 循环播放的动作；其余（挥砍、受击、倒地、翻滚）播一次停在最后一帧
 const LOOPING := ["Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Sword_Idle"]
 
@@ -76,6 +122,17 @@ var grip_mode := "fist"
 ## 戒备动作里手是垂着的，照拳头的握轴拿，剑和枪会横着戳向镜头，侧视里只剩一小截还插进身体
 const PLANE_PITCH := {"spear": 12.0, "bow": 55.0}   # 行装页：弓斜着朝前上方提在左手
 const PLANE_PITCH_DEFAULT := 20.0
+## upright 握法（战场上的弓）：弓竖着、上弓臂略朝前倾，弓腹朝目标。原来按左拳的握轴拿，
+## 拉弓时弓平躺着横在身前（俯视看弓臂左右横着），不像在射箭
+const UPRIGHT_PITCH := 80.0
+## 挥砍时刀剑绕拳眼往刀背那边翻多少度（cutout_hero.gd 按出招进度设）：蓄力时刀背过肩，
+## 劈下去之前翻回来。动作素材是空手的，照拳头握轴拿，蓄力时刀尖朝前、下劈前刀竖在脸前
+var swing_cock := 0.0
+## 长枪：右手握在离枪尾多远（米）；左手握在右手前面多远。两只手都握在杆上，
+## 不然前刺是单手一拳，枪尾从头上穿过去
+const SPEAR_REAR_GRIP := 0.22
+const SPEAR_HAND_GAP := 0.42
+const SUPPORT_ELBOW := Vector3(0.7, -1.0, -0.2)   # 左肘朝外、朝下
 ## 拉弓：右手从弓弦拉到下巴右侧（模型空间：朝 +Z，左手 +X，相机在 -X）
 const DRAW_ANCHOR := Vector3(-0.07, -0.06, 0.06)   # 相对头骨
 const ELBOW_HINT := Vector3(-0.6, -0.2, -1.0)       # 右肘朝外、朝后
@@ -96,9 +153,13 @@ var _materials := {}  # 部件名 → [卡通材质]（染色用）
 var hull_outline := true
 
 
-## 模型在创建时就装好（不等进场景树），这样还没上场就能先换装、定动作
-func _init() -> void:
-	var model := SCENE.instantiate()
+## 模型在创建时就装好（不等进场景树），这样还没上场就能先换装、定动作。gender 为 "female" 时用女主角模型
+func _init(gender := "male") -> void:
+	female = gender == "female"
+	slots = FEMALE_SLOTS if female else SLOTS
+	head_parts = FEMALE_HEAD if female else HEAD
+	topknot = [] if female else TOPKNOT
+	var model: Node = (load(FEMALE_SCENE) as PackedScene).instantiate() if female else SCENE.instantiate()
 	add_child(model)
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		_meshes[String(node.name)] = node
@@ -160,15 +221,15 @@ func set_slot(slot: String, variant: String) -> void:
 
 
 func apply_outfit() -> void:
-	var wanted := HEAD.duplicate()
+	var wanted := head_parts.duplicate()
 	for slot in outfit:
-		wanted += SLOTS[slot][outfit[slot]]
+		wanted += slots[slot][outfit[slot]]
 	var gear: String = outfit.get("headgear", "none")
 	if outfit.get("hood", "none") != "none":  # 戴兜帽时藏起头发和头饰
-		for part in ["Head_Hair_Main"] + TOPKNOT + SLOTS.headgear[gear]:
+		for part in ["Head_Hair_Main"] + topknot + slots.headgear[gear]:
 			wanted.erase(part)
 	elif gear != "none":  # 头饰盖住头顶：发髻收在里面
-		for part in TOPKNOT:
+		for part in topknot:
 			wanted.erase(part)
 	for part in _meshes:
 		_meshes[part].visible = part in wanted
@@ -274,7 +335,7 @@ func set_grip_mode(mode: String) -> void:
 		return
 	grip_mode = mode
 	if _kit.get_parent() != null:
-		if mode == "plane":
+		if mode in ["plane", "upright"]:
 			_apply_plane()
 		else:
 			_kit.transform = _grip_transform("l" if weapon_form == "bow" else "r")
@@ -290,12 +351,42 @@ func _apply_thrust() -> void:
 	_swing(skeleton.find_bone("hand_r"), axis, forearm, 1.0)
 
 
+## 长枪双手握，左手用两段骨 IK 送到枪杆上，手腕转到拳的握轴顺着枪杆（IK 和转腕互相影响，来回做两遍）。
+## 戒备：右手在后、握在离枪尾 SPEAR_REAR_GRIP 处，左手在前。前刺：动作是右手直拳、左手收在下巴前，
+## 右手伸直够不到更前面，所以右手在前，左手在后握枪尾那段
+func _apply_spear_hands() -> void:
+	var part: MeshInstance3D = null
+	for name in _kit_parts:
+		if name.begins_with("spear_head_") and _kit_parts[name].visible:
+			part = _kit_parts[name]
+	if part == null:
+		return
+	var butt := (part.transform * part.get_aabb()).position.y
+	var thrust := grip_mode == "thrust"
+	var hold := butt + SPEAR_REAR_GRIP + (SPEAR_HAND_GAP if thrust else 0.0)
+	var kit := _kit.transform
+	kit.origin = _grip_transform("r").origin - kit.basis * Vector3(0.0, hold, 0.0)
+	_kit.transform = kit
+	var to_skel := _global_of("hand_r") * _kit.transform
+	var shaft := (to_skel.basis * Vector3.UP).normalized()
+	var gap := SPEAR_HAND_GAP / to_skel.basis.y.length() * (-1.0 if thrust else 1.0)
+	var front := to_skel * Vector3(0.0, hold + gap, 0.0)
+	var grip_l := _grip_transform("l")
+	var hand_l := skeleton.find_bone("hand_l")
+	for i in 2:
+		var hand := _global(hand_l)
+		_reach("upperarm_l", "lowerarm_l", "hand_l", front - hand.basis * grip_l.origin, SUPPORT_ELBOW, 1.0)
+		hand = _global(hand_l)
+		var axis := (hand.basis * grip_l.basis.y).normalized()
+		_swing(hand_l, axis, shaft if axis.dot(shaft) >= 0.0 else -shaft, 1.0)
+
+
 ## 兵器在模型空间里的朝向定死：刃尖朝前上方，刃面朝相机（-X），握点仍在拳眼。
 ## 骨架空间就是模型空间（Rig、Skeleton3D 都没有变换）
 func _apply_plane() -> void:
 	var side := "l" if weapon_form == "bow" else "r"
 	var hand := _global_of("hand_" + side)
-	var pitch := deg_to_rad(PLANE_PITCH.get(weapon_form, PLANE_PITCH_DEFAULT))
+	var pitch := deg_to_rad(UPRIGHT_PITCH if grip_mode == "upright" else PLANE_PITCH.get(weapon_form, PLANE_PITCH_DEFAULT))
 	var y := Vector3(0.0, sin(pitch), cos(pitch))
 	# 刃面朝相机。弓的弓腹、刀的刃口都是零件的 +X：弓腹要朝前，刀刃要朝下（不然戒备时刀刃朝天），
 	# 这两样 z 取 -X，零件的 +X 就翻到下前方
@@ -313,10 +404,15 @@ func _rest_origin(bone: String) -> Vector3:
 ## 动画每次套到骨架上以后，把要握拳那只手的手指改成握拳（相对静止姿势设定，重复调用结果一样）
 func apply_fists() -> void:
 	_apply_draw()
-	if grip_mode == "plane" and _kit.get_parent() != null:
+	if grip_mode in ["plane", "upright"] and _kit.get_parent() != null:
 		_apply_plane()
 	elif grip_mode == "thrust" and weapon_form == "spear":
 		_apply_thrust()
+	elif grip_mode == "fist" and weapon_form in ["sword", "jian"] and _kit.get_parent() != null:
+		# 绕拳眼翻腕（零件 +Y 刀尖、+X 刃口，绕零件 Z 轴转；负角度刀尖往刃口那边转，蓄力时就是往身后）
+		_kit.transform = _grip_transform("r").rotated_local(Vector3.BACK, deg_to_rad(swing_cock))
+	if weapon_form == "spear" and grip_mode in ["plane", "thrust"] and _kit.get_parent() != null:
+		_apply_spear_hands()
 	for side in fists:
 		if not fists[side]:
 			continue
@@ -442,8 +538,8 @@ func _bend(bone: String, axis: Vector3, degrees: float) -> void:
 
 ## 给一个槽的所有款式统一上色（染色）；白色就是原色
 func set_tint(slot: String, color: Color) -> void:
-	for variant in SLOTS[slot]:
-		for part in SLOTS[slot][variant]:
+	for variant in slots[slot]:
+		for part in slots[slot][variant]:
 			for mat in _materials.get(part, []):
 				mat.set_shader_parameter("tint", color)
 

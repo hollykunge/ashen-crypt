@@ -26,7 +26,7 @@
 
   - 动作来自 Universal Animation Library v3.0 免费版（quaternius.itch.io/universal-animation-library，`Universal Animation Library[Standard].zip`，用的是不带根运动的 `Unreal-Godot/UAL1_Standard.glb`），由 `scripts/add_actions.py` 重定向到 `Rig` 上。
   - 不能直接套用原关键帧：两边骨骼同名，但 Blender 导入后有些骨骼的静止朝向不一样（`spine_03` 差 11°，脖子差 6°，拇指和脚也有偏差），我们的腿也比动作库的人体模型长约 5 cm。所以是逐帧把每根骨骼相对静止姿势的转角搬过来，位置按我们自己的骨长算，骨盆位移按骨盆高度比例（1.035）缩放。
-  - **兵器（2026-11-25 起）**：用古兵器素材包（60 款古代兵器，授权在项目方）里挑的整件，`scripts/import_pack_weapons.py` 导出成 `mobile/art/model-hero/weapons.glb`：刀、剑、枪各三件、弓两件，按锻造出的刃型 / 枪头 / 弓臂挑，贴图照原样，游戏里只套卡通着色和描边，不按五行上色。握点、朝向、尺寸在脚本里统一，弓弦拆成单独一件给拉弓用。
+  - **兵器（2026-11-25 起）**：用古兵器素材包（60 款古代兵器，授权在项目方）里挑的整件，`scripts/import_pack_weapons.py` 导出成 `mobile/art/model-hero/weapons.glb`：刀、剑、枪各三件、弓两件，按锻造出的刃型 / 枪头 / 弓臂挑，贴图照原样，游戏里只套卡通着色和描边，不按五行上色。握点、朝向、尺寸在脚本里统一，弓弦拆成单独一件给拉弓用。三把刀素材里刃口都朝 -X，脚本里都要绕 Z 翻半圈（2026-11-25 前只翻了錾花刀，柳叶刀、宽头大刀是刀背朝前拿的）。
     ```powershell
     blender -b --factory-startup -P gen-out/model/scripts/import_pack_weapons.py -- "D:/BaiduNetdiskDownload/dass036---60款古代兵器3D模型素材/古代兵器.fbx" mobile/art/model-hero/weapons.glb
     ```
@@ -80,6 +80,22 @@
    - `scripts/build_headgear.py`：头发是我最做不好的部分，所以主角平时戴头饰，头饰跟着上衣的护甲类别走：布衣或没穿护甲戴斗笠（`Head_Hat`，竹编纹、内圈篾箍、下巴系带）；皮甲戴皮兜鍪（`Head_Helm_Leather`，分瓣红皮盔、深色额箍、铜顶珠、皮顿项）；链甲戴铁兜鍪（`Head_Helm_Iron`，尖顶铁盔、盔沿、锁子甲顿项、铜盔顶加红盔缨）。盔体是按头和头发量出的椭球再放大一圈，从额头到后颈切一条平滑的边，护额和顿项都沿着这条边做。所有头饰 100% 跟 Head 骨骼走。
    - 戴头饰时发髻收在里面（`render_lib.objects_for` 的 `headgear` 参数、游戏 `model_hero.gd` 的 `headgear` 槽），鬓角和后脑的头发照常显示；戴兜帽时头发和头饰都藏起来。两个脚本都可以重复跑。
 5. **靴子（已修，2026-11-24）：** `scripts/build_laced_boots.py` 把皮甲靴改成原画那种前面系带的长靴：从游侠靴重新复制，每条腿只留最大的那块靴身，去掉搭扣皮带、金字塔铆钉和翻边（原来有约 1190 个小零件）。小腿正面加了交叉的鞋带和铜扣眼，用射线贴着靴面摆放，每个鞋带顶点的权重抄最近的靴身顶点，跑动时跟着腿走。鞋带并进 `Leather_Boots`，作为第 2、3 个材质。脚本可以重复跑。
+
+## 女主角（`female_char.blend`，2026-11-25）
+
+创角选「女」时，游戏用女主角模型（`mobile/art/model-hero/female.glb`）和女头像（`portrait_female.png`），其余流程和男主角一样。素材同样是 Quaternius 的 CC0 资源：女性骨架、女农夫和女游侠两套衣服、Superhero 女性头部（只留脖子以上）、`Hair_Buns` 发髻、女眉毛。
+
+- 骨架和男主角同名同层级（65 根），12 个动作由 `add_actions.py` 重定向到女骨架上，游戏里的出招、握拳、拉弓 IK 都照用。
+- 部件名前缀 `F_`，头部和男主角同名。皮甲 `F_Leather_*`、链甲 `F_Chain_*` 都是游侠那套复制后按亮度重新上色（暗红皮 / 钢灰），没有男主角那种札甲片、锁子环、护腿和系带靴。
+- 没有头饰（斗笠、兜鍪），发髻一直露着。游戏里换装槽对应见 `mobile/scripts/model_hero.gd` 的 `FEMALE_SLOTS`。
+- 女主角模型身高约 1.77 米，比男主角矮一点，行装页不再额外缩小。
+
+```powershell
+blender -b --factory-startup -P gen-out/model/scripts/build_female.py -- gen-out/model/female_char.blend
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/add_actions.py -- "D:/quaternius/UAL_Standard/Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb"
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/export_godot.py -- mobile/art/model-hero/female.glb 1024
+blender -b gen-out/model/female_char.blend -P gen-out/model/scripts/render_portrait.py -- mobile/art/model-hero/portrait_female.png
+```
 
 ## 怎么重新出图
 

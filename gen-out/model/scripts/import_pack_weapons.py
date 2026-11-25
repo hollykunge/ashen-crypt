@@ -20,8 +20,9 @@ OUT = os.path.abspath(argv[1])
 TEX = int(argv[2]) if len(argv) > 2 else 512
 
 # 刀的刃口统一朝 +X：游戏里出招打中那一下是零件的 +X 那侧砍在前头（在游戏里量过朝向）。
-# 素材里柳叶刀、宽头大刀外鼓的刃口本来就朝 +X；錾花刀的刃（量过最薄的那侧）朝 -X，绕 Z 转半圈
-FLIP = {"dao_blade_qixing"}
+# 三把刀在素材里刃口（量过最薄、外鼓的那侧）都朝 -X，绕 Z 转半圈。2026-11-25 前只翻了錾花刀，
+# 柳叶刀、宽头大刀一直是刀背朝前（戒备时刃口朝天、劈下去是刀背在前）
+FLIP = {"dao_blade_qixing", "dao_blade_jian", "dao_blade_bolang"}
 PICK = {
     "dao_blade_jian": ("yksc_34", "blade", 1.05),     # 柳叶刀
     "dao_blade_qixing": ("yksc_18", "blade", 1.00),   # 錾花刀

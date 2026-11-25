@@ -259,7 +259,7 @@ func _refresh_creator() -> void:
 		for id in choice_buttons[field]:
 			ui._restyle(choice_buttons[field][id], draft[field] == id)
 	var day_element := WuXing.stem_element(draft.day_stem)
-	portrait.texture = SideArt.PORTRAIT
+	portrait.texture = SideArt.portrait(draft.gender)
 	portrait.modulate = Roster.ELEMENT_TINTS[day_element].lerp(Color.WHITE, 0.67)
 	portrait_frame.tint = Roster.ELEMENT_GLOW[day_element].lerp(ui.GOLD, 0.68)
 	portrait_frame.queue_redraw()

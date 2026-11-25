@@ -22,10 +22,14 @@ if act.slots:
 sc = bpy.context.scene
 sc.frame_set(0)
 
-R.enable_leather()
-outfit = dict(head="bare", torso="peasant", arms="peasant", legs="peasant", feet="peasant", shoulder="none", hood="none",
-              headgear="hat")   # 默认（布衣）戴斗笠，和游戏里一致
-names = R.objects_for(outfit)
+if "F_Peasant_Body" in bpy.data.objects:   # 女主角（build_female.py）：布衣，没有头饰，露发髻
+    names = ["Head_Skin", "Head_Eyes", "Head_Eyebrows", "Head_Hair_Main",
+             "F_Peasant_Body", "F_Peasant_Arms", "F_Peasant_Legs", "F_Peasant_Feet"]
+else:
+    R.enable_leather()
+    outfit = dict(head="bare", torso="peasant", arms="peasant", legs="peasant", feet="peasant", shoulder="none", hood="none",
+                  headgear="hat")   # 默认（布衣）戴斗笠，和游戏里一致
+    names = R.objects_for(outfit)
 cam = R.setup_scene()
 head = rig.matrix_world @ rig.pose.bones["Head"].head
 cam.data.ortho_scale = 0.8

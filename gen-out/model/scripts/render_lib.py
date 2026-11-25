@@ -95,6 +95,12 @@ def setup_scene(ortho_scale=2.3, cam_target_z=0.95, facing="right"):
     sc.world = world
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
+    if bg is None:  # 新建的世界没有节点（比如 build_female.py 从空场景搭的）
+        nt = world.node_tree
+        bg = nt.nodes.new("ShaderNodeBackground")
+        bg.name = "Background"
+        out = next((n for n in nt.nodes if n.bl_idname == "ShaderNodeOutputWorld"), None) or nt.nodes.new("ShaderNodeOutputWorld")
+        nt.links.new(bg.outputs[0], out.inputs["Surface"])
     bg.inputs["Color"].default_value = (1, 1, 1, 1)
     bg.inputs["Strength"].default_value = 0.9
     sun = bpy.data.objects.get("Key")

@@ -4,6 +4,7 @@ const Places = preload("res://scripts/rules/places.gd")
 const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
 # 主角侧面半身像：3D 角色模型渲的（gen-out/model/scripts/render_portrait.py）
 const PORTRAIT := preload("res://art/model-hero/portrait.png")
+const PORTRAIT_FEMALE := preload("res://art/model-hero/portrait_female.png")
 const INK_STAGE := preload("res://art/ink/mountain-road.png")
 const CELL := Vector2(96, 96)
 const PIVOT := Vector2(47, 89)
@@ -88,3 +89,8 @@ static func pixels(texture: Texture2D) -> Image:
 	image.clear_mipmaps()
 	image.convert(Image.FORMAT_RGBA8)
 	return image
+
+
+## 按性别取主角头像（角色存档里的 gender，"female" 以外都按男）
+static func portrait(gender: String) -> Texture2D:
+	return PORTRAIT_FEMALE if gender == "female" else PORTRAIT
