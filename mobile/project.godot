@@ -2,7 +2,7 @@ config_version=5
 
 [application]
 
-config/name="余烬地牢"
+config/name="吾行"
 run/main_scene="res://main.tscn"
 config/description="中式暗黑神话 · 手绘皮影动作游戏"
 config/features=PackedStringArray("4.7", "GL Compatibility")

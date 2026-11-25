@@ -26,7 +26,7 @@ var weapon_buttons := {}
 var action_buttons := {}
 
 func _ready() -> void:
-	get_window().title = "余烬地牢 · 动作与换装试演"
+	get_window().title = "吾行 · 动作与换装试演"
 	game = Main.instantiate()
 	game.save_base = save_path
 	game.profile = Gear.new(save_path)
