@@ -7,6 +7,7 @@ const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const GearDesign = preload("res://scripts/gear_design.gd")
+const ModelHero = preload("res://scripts/model_hero.gd")
 
 const GOOD := Color("#4f7045")
 const BAD := Color("#a13f32")
@@ -76,7 +77,7 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	_ink_icon = null
 	_fabric_tint = Color.WHITE
 	# 护甲四槽画主角模型渲出来的那件（art/model-hero/icons，由 tests/_gear_icons.gd 生成），
-	# 按甲型挑图、按身上同一个颜色染，图标和人物穿的对得上；兵器画零件拼的那一件
+	# 按甲型挑图、按身上同一个颜色染，图标和人物穿的对得上；兵器也画模型手里那一件
 	if slot in Gear.ARMOR_TYPE_SLOTS:
 		_ink_icon = garment_icon(slot, derived.get("armor_type", "cloth") if occupied else "cloth")
 		_fabric_tint = Appearance.garment_tint(slot, derived) if occupied else Color.WHITE
@@ -84,7 +85,10 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		_icon = ForgeArt.weapon_icon(_form)
 		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \
 			else WeaponDesign.plain(_form)
-		if not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
+		# 画主角手里那一件 3D 兵器渲出来的图（art/model-hero/icons/weapon_*，由 tests/_weapon_icons.gd 生成），
+		# 挑法和 model_hero.gd 的 hold 一样，图标和人物拿的是同一把
+		_ink_icon = weapon_icon(ModelHero.weapon_part(_form, design))
+		if _ink_icon == null and not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
 			_design = design
 	elif _ink_icon == null:
 		var female: bool = person.get("gender") == "female"
@@ -92,6 +96,13 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	tooltip_text = title
 	accessibility_name = title
 	queue_redraw()
+
+static func weapon_icon(part: String) -> Texture2D:
+	var key := "weapon_" + part
+	if not _ink_icons.has(key):
+		var path := "res://art/model-hero/icons/%s.png" % key
+		_ink_icons[key] = load(path) if ResourceLoader.exists(path) else null
+	return _ink_icons[key]
 
 static func garment_icon(slot: String, armor_type: String) -> Texture2D:
 	if armor_type not in ["cloth", "leather", "chain"]:
