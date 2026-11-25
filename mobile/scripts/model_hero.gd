@@ -68,10 +68,23 @@ const FINGERS := ["index", "middle", "ring", "pinky"]
 ## 哪只手握拳（"r"、"l"）
 var fists := {"r": false, "l": false}
 ## 兵器：零件按锻造出的样子挑（weapon_design.gd 的 blade / guard / pommel / head），按用途上色
+## 剑身放大（x 刃宽、z 刃厚，刃长不变）：照实的剑在手机战场上只有几个像素宽，侧过来时细成一根线、混进地面
+const BLADE_SCALE := Vector3(1.35, 1.0, 2.0)
 const STRING_COLOR := Color("#d4c4a5")
 const SPEAR_TUFT := Color("#b8342a")
 var weapon_form := ""
 var grip_mode := "fist"
+## plane 握法：兵器贴着侧面（相机看过去的那个平面）朝前上方伸出，抬多少度。
+## 戒备动作里手是垂着的，照拳头的握轴拿，剑和枪会横着戳向镜头，侧视里只剩一小截还插进身体
+const PLANE_PITCH := {"spear": 12.0}
+const PLANE_PITCH_DEFAULT := 20.0
+## 拉弓：右手从弓弦拉到下巴右侧（模型空间：朝 +Z，左手 +X，相机在 -X）
+const DRAW_ANCHOR := Vector3(-0.07, -0.06, 0.06)   # 相对头骨
+const ELBOW_HINT := Vector3(-0.6, -0.2, -1.0)       # 右肘朝外、朝后
+var draw_pull := 0.0     # 0 手在弦上，1 拉满到下巴
+var draw_reach := 0.0    # 右臂多大程度听拉弓的（0 照动作，1 完全拉弓）
+var draw_string := false # 弓弦跟着右手（撒放以后弦弹直）
+var _string_parts: Array[MeshInstance3D] = []  # 拉弦时的两段弦
 var _kit: Node3D           # 兵器零件（weapons.glb 的实例），挂在握兵器那只手上
 var _kit_parts := {}       # 零件名 → MeshInstance3D
 var _hands := {}           # "r" / "l" → BoneAttachment3D
@@ -100,6 +113,27 @@ func _init() -> void:
 		_kit_parts[String(node.name)] = node
 		_toonify(node, 0.003)
 		node.visible = false
+		if String(node.name).begins_with("sword_blade_") or String(node.name).begins_with("sword_inlay_"):
+			node.scale *= BLADE_SCALE
+	for i in 2:
+		var piece := MeshInstance3D.new()
+		var rod := CylinderMesh.new()
+		rod.top_radius = 0.0035
+		rod.bottom_radius = 0.0035
+		rod.height = 1.0
+		rod.radial_segments = 6
+		rod.rings = 1
+		var base := StandardMaterial3D.new()
+		base.resource_name = "string"
+		rod.material = base
+		piece.mesh = rod
+		piece.name = "bow_string_drawn_%d" % i
+		piece.visible = false
+		_kit.add_child(piece)
+		_toonify(piece, 0.002)
+		for mat: ShaderMaterial in _materials[String(piece.name)]:
+			mat.set_shader_parameter("tint", STRING_COLOR)
+		_string_parts.append(piece)
 	for side in ["r", "l"]:
 		var hand := BoneAttachment3D.new()
 		skeleton.add_child(hand)
@@ -176,6 +210,7 @@ func hold(form: String, design: Dictionary) -> void:
 				show.append("sword_inlay_qixing")
 			if Color(design.get("tassel", Color.TRANSPARENT)).a > 0.0:
 				show.append("sword_tassel")
+	_bow_limbs = limbs_of(design) if form == "bow" else ""
 	var pole: Dictionary = design.get("pole", {})
 	var tassel: Color = design.get("tassel", Color.TRANSPARENT)
 	var colors := {
@@ -193,6 +228,12 @@ func hold(form: String, design: Dictionary) -> void:
 			var role: String = mat.get_meta("role", "")
 			mat.set_shader_parameter("tint", Color(colors.get(role, Color.WHITE), 1.0))
 	apply_fists()
+
+
+var _bow_limbs := ""
+
+static func limbs_of(design: Dictionary) -> String:
+	return "chang" if design.get("head", "") == "chang" else "fanqu"
 
 
 static func _pick(value: String, allowed: Array) -> String:
@@ -222,13 +263,31 @@ func _grip_transform(side: String) -> Transform3D:
 	return Transform3D(Basis(x, y, z), knuckles.lerp(curled, 0.5))
 
 
-## 握法：fist 沿拳头的握轴（平时），along 顺着手伸出（长枪前刺、垂手持剑），against 逆着手（垂手拄枪）
+## 握法：fist 沿拳头的握轴（出招），along 顺着手伸出（长枪前刺、垂手持剑），against 逆着手（垂手拄枪），
+## plane 贴着侧面朝前上方（戒备、走跑；每帧按手的姿势重算，见 _apply_plane）
 func set_grip_mode(mode: String) -> void:
 	if mode == grip_mode:
 		return
 	grip_mode = mode
 	if _kit.get_parent() != null:
-		_kit.transform = _grip_transform("l" if weapon_form == "bow" else "r")
+		if mode == "plane":
+			_apply_plane()
+		else:
+			_kit.transform = _grip_transform("l" if weapon_form == "bow" else "r")
+
+
+## 兵器在模型空间里的朝向定死：刃尖朝前上方，刃面朝相机（-X），握点仍在拳眼。
+## 骨架空间就是模型空间（Rig、Skeleton3D 都没有变换）
+func _apply_plane() -> void:
+	var side := "l" if weapon_form == "bow" else "r"
+	var hand := _global_of("hand_" + side)
+	var pitch := deg_to_rad(PLANE_PITCH.get(weapon_form, PLANE_PITCH_DEFAULT))
+	var y := Vector3(0.0, sin(pitch), cos(pitch))
+	var z := Vector3.RIGHT
+	var want := Basis(y.cross(z), y, z)
+	var size := hand.basis.get_scale().x
+	var grip := _grip_transform(side)
+	_kit.transform = Transform3D(hand.basis.inverse() * want.scaled(Vector3.ONE * size), grip.origin)
 
 
 func _rest_origin(bone: String) -> Vector3:
@@ -237,6 +296,9 @@ func _rest_origin(bone: String) -> Vector3:
 
 ## 动画每次套到骨架上以后，把要握拳那只手的手指改成握拳（相对静止姿势设定，重复调用结果一样）
 func apply_fists() -> void:
+	_apply_draw()
+	if grip_mode == "plane" and _kit.get_parent() != null:
+		_apply_plane()
 	for side in fists:
 		if not fists[side]:
 			continue
@@ -246,6 +308,110 @@ func apply_fists() -> void:
 				_bend("%s_%s_%s" % [finger, joint, side], Vector3.RIGHT, CURL_SIGN * CURL[joint])
 		for joint in THUMB:
 			_bend("thumb_%s_%s" % [joint, side], Vector3.BACK, -thumb_sign * THUMB[joint])
+
+
+## 拉弓：射箭动作原本是单手施法，右手垂在腰边。这里用两段骨的 IK 把右手送到弓弦上、往后拉到下巴，
+## 弓弦拆成两段跟着右手走；撒放以后弦弹直，右臂慢慢交回给动作。
+func _apply_draw() -> void:
+	var drawn := weapon_form == "bow" and draw_reach > 0.0 and _kit.get_parent() != null
+	var nock := _string_nock()
+	var pull_string := drawn and draw_string and not _bow_limbs.is_empty()
+	if not _bow_limbs.is_empty() and _kit_parts.has("bow_string_" + _bow_limbs):
+		_kit_parts["bow_string_" + _bow_limbs].visible = not pull_string
+	for piece in _string_parts:
+		piece.visible = pull_string
+	if not drawn:
+		return
+	var head := _global_of("Head").origin
+	var target := nock.lerp(head + DRAW_ANCHOR, draw_pull)
+	_reach("upperarm_r", "lowerarm_r", "hand_r", target, ELBOW_HINT, draw_reach)
+	if pull_string:
+		var hand := _global_of("hand_r")
+		var knuckles := (_global_of("index_01_r").origin
+			+ _global_of("middle_01_r").origin) * 0.5
+		var grip := hand.origin.lerp(knuckles, 0.7)
+		var to_kit := (_global_of("hand_l") * _kit.transform).affine_inverse()
+		var tips := _string_tips()
+		var held := to_kit * grip
+		for i in 2:
+			_rod(_string_parts[i], tips[i], held)
+
+
+## 弓弦两头（兵器零件坐标）：弦沿 +Y，取包围盒的上下两端
+func _string_tips() -> Array:
+	var mesh: MeshInstance3D = _kit_parts["bow_string_" + _bow_limbs]
+	var box := mesh.get_aabb()
+	var mid := box.get_center()
+	return [mesh.transform * Vector3(mid.x, box.position.y, mid.z), mesh.transform * Vector3(mid.x, box.end.y, mid.z)]
+
+
+## 弦正中在骨架空间的位置（右手从这里搭上弦）
+func _string_nock() -> Vector3:
+	if _bow_limbs.is_empty() or _kit.get_parent() == null:
+		return Vector3.ZERO
+	var tips := _string_tips()
+	var to_skel := _global_of("hand_l") * _kit.transform
+	return to_skel * ((tips[0] + tips[1]) * 0.5)
+
+
+func _rod(piece: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var along := b - a
+	var y := along.normalized()
+	var x := y.cross(Vector3.FORWARD if absf(y.z) < 0.9 else Vector3.RIGHT).normalized()
+	piece.transform = Transform3D(Basis(x, y * along.length(), y.cross(x)), (a + b) * 0.5)
+
+
+## 两段骨 IK：把 tip 骨的原点送到 target，肘朝 hint 那边弯；weight 在动作姿势和 IK 之间插值
+func _reach(root_bone: String, mid_bone: String, tip_bone: String, target: Vector3, hint: Vector3, weight: float) -> void:
+	var ri := skeleton.find_bone(root_bone)
+	var mi := skeleton.find_bone(mid_bone)
+	var ti := skeleton.find_bone(tip_bone)
+	var a := _global(ri).origin
+	var b := _global(mi).origin
+	var c := _global(ti).origin
+	var upper := a.distance_to(b)
+	var lower := b.distance_to(c)
+	var reach := clampf(a.distance_to(target), absf(upper - lower) + 0.001, (upper + lower) * 0.999)
+	var toward := (target - a).normalized()
+	var bend := hint - toward * hint.dot(toward)
+	if bend.length_squared() < 1e-6:
+		return
+	bend = bend.normalized()
+	var cos_a := clampf((upper * upper + reach * reach - lower * lower) / (2.0 * upper * reach), -1.0, 1.0)
+	var elbow := a + toward * upper * cos_a + bend * upper * sqrt(1.0 - cos_a * cos_a)
+	var wrist := a + toward * reach
+	_swing(ri, b - a, elbow - a, weight)
+	b = _global(mi).origin
+	c = _global(ti).origin
+	_swing(mi, c - b, wrist - b, weight)
+
+
+## 把一根骨在骨架空间里转一下，让它从 from 方向转到 to 方向（按 weight 只转一部分）
+func _swing(bone: int, from: Vector3, to: Vector3, weight: float) -> void:
+	if from.length_squared() < 1e-8 or to.length_squared() < 1e-8:
+		return
+	var turn := Quaternion(from.normalized(), to.normalized())
+	turn = Quaternion.IDENTITY.slerp(turn, clampf(weight, 0.0, 1.0))
+	var pose := _global(bone)
+	pose.basis = Basis(turn) * pose.basis
+	var parent := skeleton.get_bone_parent(bone)
+	var local := (_global(parent).affine_inverse() * pose) if parent >= 0 else pose
+	skeleton.set_bone_pose_rotation(bone, local.basis.get_rotation_quaternion())
+
+
+## 骨在骨架空间的当下姿势，直接由各级本地姿势乘出来。
+## 动画刚写进骨架时（mixer_applied 回调里），get_bone_global_pose 还是上一次的缓存，不能用
+func _global(bone: int) -> Transform3D:
+	var pose := skeleton.get_bone_pose(bone)
+	var parent := skeleton.get_bone_parent(bone)
+	while parent >= 0:
+		pose = skeleton.get_bone_pose(parent) * pose
+		parent = skeleton.get_bone_parent(parent)
+	return pose
+
+
+func _global_of(bone: String) -> Transform3D:
+	return _global(skeleton.find_bone(bone))
 
 
 func _bend(bone: String, axis: Vector3, degrees: float) -> void:

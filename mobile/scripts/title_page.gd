@@ -48,12 +48,14 @@ func build(main) -> void:
 	enter.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	enter.pressed.connect(func() -> void: start_requested.emit())
 	add_child(enter)
-	add_child(ui._space(10))
-	var preview: Button = ui._button("手绘试演 · 动作与换装", false, 44)
-	preview.custom_minimum_size.x = 240.0
-	preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	preview.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://ink_preview.tscn"))
-	add_child(preview)
+	# 动作与换装试演是开发工具，正式包里不给玩家看。
+	if OS.is_debug_build():
+		add_child(ui._space(10))
+		var preview: Button = ui._button("试演 · 动作与换装", false, 44)
+		preview.custom_minimum_size.x = 240.0
+		preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		preview.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://ink_preview.tscn"))
+		add_child(preview)
 	add_child(ui._space(14))
 	hint = ui._label("", 12, ui.MUTED)
 	hint.add_theme_constant_override("outline_size", 3)

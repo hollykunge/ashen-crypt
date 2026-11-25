@@ -142,24 +142,20 @@ func dress(look: Dictionary) -> void:
 	# 头饰跟着上衣的护甲类别：布衣或没穿护甲戴斗笠，皮甲戴皮兜鍪，链甲戴铁兜鍪
 	hero.outfit.headgear = HEADGEAR.get(types.get("armor", "cloth"), "hat")
 	hero.apply_outfit()
-	var dyes: Dictionary = look.get("dyes", {})
-	_tint("armor", look.get("robe", Color.WHITE), look.get("robe_amount", 0.0), dyes)
-	_tint("gloves", look.get("hands", Color.WHITE), look.get("hands_amount", 0.0), dyes)
-	_tint("greaves", look.get("greaves", Color.WHITE), look.get("greaves_amount", 0.0), dyes)
-	_tint("boots", look.get("boots", Color.WHITE), look.get("boots_amount", 0.0), dyes)
-
-
-func _tint(slot: String, color: Color, amount: float, dyes: Dictionary) -> void:
-	var tint: Color = dyes.get(slot, Color.WHITE.lerp(color, amount * 0.32))
-	hero.set_tint(SLOT_OF[slot], tint)
-	if slot == "armor":
-		hero.set_tint("shoulder", tint)
+	# 颜色由 appearance.gd 的 garment_tint 算好，装备格图标用同一个颜色
+	var tints: Dictionary = look.get("tints", {})
+	for slot in SLOT_OF:
+		var tint: Color = tints.get(slot, Color.WHITE)
+		hero.set_tint(SLOT_OF[slot], tint)
+		if slot == "armor":
+			hero.set_tint("shoulder", tint)
 
 
 ## 行装页：站着待机。
 func present_outfit() -> void:
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
 	hero.set_grip_mode({"spear": "against", "bow": "fist"}.get(form, "along"))
+	hero.draw_reach = 0.0
 	_play("Idle_Loop")
 	_manual = false
 
@@ -169,8 +165,16 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 	var distance := walked / maxf(_height, 1.0)
 	_manual = true
 	_moving = motion.is_empty() and walked > 0.0
-	hero.set_grip_mode("along" if form == "spear" and motion in [&"attack", &"cleave"] else "fist")
+	# 出招按拳头握；站着戒备、走跑时剑和枪贴着侧面朝前上方（弓照常握在左手）
+	var striking := motion in [&"attack", &"cleave"]
+	if form == "spear" and striking:
+		hero.set_grip_mode("along")
+	elif motion.is_empty() and form != "bow":
+		hero.set_grip_mode("plane")
+	else:
+		hero.set_grip_mode("fist")
 	_drawing = false
+	hero.draw_reach = 0.0
 	match motion:
 		&"attack", &"cleave":
 			var move: Dictionary = MOVES[form]
@@ -180,6 +184,8 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 			if motion == &"attack" and not cues.is_empty():
 				seconds = attack_time(phase, cues, hit, end).y
 			_drawing = form == "bow" and seconds < hit
+			if form == "bow":
+				_draw_bow(seconds, hit, end)
 			_pose_at(move.attack, seconds)
 		&"skill", &"tactic":
 			_pose_at(CAST, phase * _length(CAST))
@@ -196,6 +202,18 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 			else:
 				_manual = false
 				_play("Sword_Idle")
+
+
+## 弓：撒放之前右手搭弦、往后拉满（弦跟着手），撒放以后弦弹直，右手在下巴边停一下再交回给动作
+func _draw_bow(seconds: float, hit: float, end: float) -> void:
+	if seconds < hit:
+		hero.draw_reach = 1.0
+		hero.draw_pull = smoothstep(0.0, hit * 0.85, seconds)
+		hero.draw_string = true
+	else:
+		hero.draw_reach = 1.0 - smoothstep(hit, end, seconds)
+		hero.draw_pull = 1.0
+		hero.draw_string = false
 
 
 func _process(delta: float) -> void:

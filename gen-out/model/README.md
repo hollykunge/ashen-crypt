@@ -99,6 +99,11 @@ blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/expo
 blender -b gen-out/model/ashen_char_3outfits.blend -P gen-out/model/scripts/render_portrait.py -- mobile/art/model-hero/portrait.png
 ```
 
+```powershell
+# 装备格图标（上衣、护腕、护腿、靴子 × 布衣、皮甲、链甲），导出 hero.glb 以后重跑
+godot --path mobile --script res://tests/_gear_icons.gd
+```
+
 导出只在内存里改材质，不会改动 .blend。Godot 导入 glTF 时会把动作名结尾的 `_Loop` 去掉，`model_hero.gd` 的 `anim_name()` 会处理这个。
 
 `build_scene.py` 和 `build_leather.py` 是从 Quaternius 原始文件一步步搭场景的脚本，里面写死了路径 `D:\quaternius\...`。如果只是在这个 .blend 上继续改，用不到它们。

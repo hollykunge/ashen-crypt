@@ -26,7 +26,7 @@ var weapon_buttons := {}
 var action_buttons := {}
 
 func _ready() -> void:
-	get_window().title = "余烬地牢 · 手绘试演"
+	get_window().title = "余烬地牢 · 动作与换装试演"
 	game = Main.instantiate()
 	game.save_base = save_path
 	game.profile = Gear.new(save_path)
@@ -199,7 +199,7 @@ func _refresh_caption() -> void:
 	if caption == null:
 		return
 	var names := {"base": "底身", "shirt": "单穿布衣上衣", "cuirass": "皮胸甲", "cloth": "布衣", "leather": "皮甲", "chain": "链甲", "mixed": "混搭", "custom": "自选混搭"}
-	caption.text = "手绘试演 · " + names[style] + " · " + {"": "空手", "jian": "剑", "sword": "刀", "spear": "长枪", "bow": "弓"}[weapon]
+	caption.text = "试演 · " + names[style] + " · " + {"": "空手", "jian": "剑", "sword": "刀", "spear": "长枪", "bow": "弓"}[weapon]
 	for slot in piece_buttons:
 		var title: String = Gear.SLOT_NAMES[Gear.SLOTS.find(slot)]
 		if style in ["base", "shirt", "cuirass"]:

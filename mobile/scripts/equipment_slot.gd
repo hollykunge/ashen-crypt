@@ -74,9 +74,13 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	_form = form if ForgeArt.FORM_ICONS.has(form) else "sword"
 	_icon = ForgeArt.texture(icon_index)
 	_ink_icon = null
-	_fabric_tint = Gear.Pigments.GARMENT_DYES.get(derived.get("dye", "本色"), Color.WHITE) if slot in Gear.ARMOR_TYPE_SLOTS else Color.WHITE
-	# 原来护甲四槽和刀用旧皮影主角的部件图当图标（art/ink/hero，已删）；现在都画零件拼的装备图
-	if slot == "weapon":
+	_fabric_tint = Color.WHITE
+	# 护甲四槽画主角模型渲出来的那件（art/model-hero/icons，由 tests/_gear_icons.gd 生成），
+	# 按甲型挑图、按身上同一个颜色染，图标和人物穿的对得上；兵器画零件拼的那一件
+	if slot in Gear.ARMOR_TYPE_SLOTS:
+		_ink_icon = garment_icon(slot, derived.get("armor_type", "cloth") if occupied else "cloth")
+		_fabric_tint = Appearance.garment_tint(slot, derived) if occupied else Color.WHITE
+	elif slot == "weapon":
 		_icon = ForgeArt.weapon_icon(_form)
 		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \
 			else WeaponDesign.plain(_form)
@@ -88,6 +92,14 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	tooltip_text = title
 	accessibility_name = title
 	queue_redraw()
+
+static func garment_icon(slot: String, armor_type: String) -> Texture2D:
+	if armor_type not in ["cloth", "leather", "chain"]:
+		armor_type = "cloth"
+	var key := slot + "_" + armor_type
+	if not _ink_icons.has(key):
+		_ink_icons[key] = load("res://art/model-hero/icons/%s.png" % key)
+	return _ink_icons[key]
 
 func _draw() -> void:
 	if simple:
