@@ -2,28 +2,20 @@ extends RefCounted
 
 const CELL := Vector2(128, 128)
 
-# 皮影兵器保持与手持模型相同的刀身、枪头或弓臂形制。
 const WEAPONS = preload("res://art/piying/v4/weapons.png")
 const GARMENTS = preload("res://art/piying/v4/garments.png")
-const WEAPON_GRID := Vector2(4, 3)
-const FORM_ICONS := {"bow": 7, "spear": 8, "jian": 4, "sword": 0}
-const WEAPON_PARTS := [
-	"dao_blade_jian", "dao_blade_qixing", "dao_blade_bolang", "bow_limbs_chang",
-	"sword_blade_jian", "sword_blade_qixing", "sword_blade_bolang", "bow_limbs_fanqu",
-	"spear_head_leaf", "spear_head_snake", "spear_head_ji"
-]
+const WEAPON_GRID := Vector2(3, 2)
+const FORM_ICONS := {"sword": 0, "jian": 3}
 
-static func weapon_region(form: String, part := "") -> Rect2:
-	var index := WEAPON_PARTS.find(part)
-	if index < 0:
-		index = FORM_ICONS[form]
+static func weapon_region(form: String, variant := 0) -> Rect2:
+	var index: int = FORM_ICONS[form] + clampi(variant, 0, 2)
 	var cell := WEAPONS.get_size() / WEAPON_GRID
 	return Rect2(Vector2(index % int(WEAPON_GRID.x), floori(index / WEAPON_GRID.x)) * cell, cell)
 
-static func weapon_icon(form: String, part := "") -> AtlasTexture:
+static func weapon_icon(form: String, variant := 0) -> AtlasTexture:
 	var result := AtlasTexture.new()
 	result.atlas = WEAPONS
-	result.region = weapon_region(form, part)
+	result.region = weapon_region(form, variant)
 	result.filter_clip = true
 	return result
 

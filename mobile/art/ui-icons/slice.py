@@ -5,7 +5,7 @@ from PIL import Image, ImageOps
 HERE = Path(__file__).resolve().parent
 STAGE = HERE.parent / "piying/stage"
 FX = HERE.parent / "piying/fx"
-GLYPHS = "dao jian spear bow slash sigil retreat portal pause march pack notice back forward leave sound mute manual assist auto".split()
+GLYPHS = "dao jian - - slash sigil retreat portal pause march pack notice back forward leave sound mute manual assist auto".split()
 
 
 def source(name):
@@ -28,6 +28,9 @@ def grid(name, columns, rows, limit, edges=None):
     xs = edges or [i / columns for i in range(columns + 1)]
     for y in range(rows):
         for x in range(columns):
+            if name == "glyphs" and GLYPHS[y * columns + x] == "-":
+                yield None
+                continue
             yield cut(sheet, (round(xs[x] * sheet.width), round(y * sheet.height / rows),
                               round(xs[x + 1] * sheet.width), round((y + 1) * sheet.height / rows)), limit)
 
@@ -68,19 +71,16 @@ def main():
         cut(fittings, box, limit).save(path)
     plaque = cut(fittings, (397, 0, 1031, 512), (324, 62))
     plaque.resize((180, 33), Image.Resampling.LANCZOS).save(HERE / "plaque.png")
-    with Image.open(HERE / "paper-card.png") as panel:
-        panel.resize((64, 64), Image.Resampling.LANCZOS).save(HERE / "slot-plate.png")
 
     for name, cell in zip(GLYPHS, grid("glyphs", 5, 4, (128, 128)), strict=True):
-        cell.save(HERE / f"{name}.png")
+        if name != "-":
+            cell.save(HERE / f"{name}.png")
     faces = source("faces")
     cut(faces, (0, 0, 512, 512), (256, 256)).save(HERE / "portrait-female.png")
     for x in range(3):
         cut(faces, (512*x, 512, 512*(x+1), 1024), (128, 128)).save(HERE / f"speed{x+1}.png")
     for i, cell in enumerate(grid("gallery", 3, 2, (256, 256))):
         cell.save(HERE / f"immortal-{i}.png")
-    atlas("gear", "gear", 3, (0, 0.285, 0.50, 0.73, 1))
-    atlas("weapons", "weapon-forms", 3)
     atlas("materials", "materials", 4)
 
 

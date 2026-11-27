@@ -4,7 +4,6 @@ signal start_requested
 var ui
 var title: Label
 var enter: Button
-var preview: Button
 var hint: Label
 
 func build(main) -> void:
@@ -20,11 +19,6 @@ func build(main) -> void:
 	enter.add_theme_font_override("font", ui.HEADING_FONT)
 	enter.pressed.connect(func() -> void: start_requested.emit())
 	add_child(enter)
-	preview = ui._button("试演 · 动作与换装", false, 30)
-	preview.add_theme_font_size_override("font_size", 13)
-	preview.visible = OS.is_debug_build()
-	preview.pressed.connect(func() -> void: get_tree().change_scene_to_file("res://ink_preview.tscn"))
-	add_child(preview)
 	hint = ui._label("", 11, ui.INK)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(hint)
@@ -45,8 +39,8 @@ func _layout() -> void:
 	title.size = title.get_combined_minimum_size()
 	title.position = center - title.size * 0.5
 	var y := center.y + pixels * 0.62
-	for cell in [enter, preview, hint]:
-		cell.size = Vector2(202 if cell != preview else 164, cell.get_combined_minimum_size().y)
+	for cell in [enter, hint]:
+		cell.size = Vector2(202, cell.get_combined_minimum_size().y)
 		cell.position = Vector2(center.x - cell.size.x * 0.5, y)
 		y += cell.size.y + 5
 

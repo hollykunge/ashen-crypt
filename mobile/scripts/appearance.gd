@@ -7,7 +7,7 @@ extends RefCounted
 # 规则与 docs/crafting-rules.md 同源，外观只读推导结果，不自己造数值。
 #
 # 槽位 → 画面：
-#   weapon 武器 → 刃光、斩击与弹道的颜色
+#   weapon 武器 → 刃光、斩击的颜色
 #   armor  护甲 → 胸甲、肩甲、衣摆和披帛
 #   gloves 护手 → 随腕移动的护臂、出手时的腕光
 #   greaves 护腿 → 随小腿移动的腿甲
@@ -16,7 +16,6 @@ extends RefCounted
 
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Loadout = preload("res://scripts/loadout.gd")
-const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Pigments = preload("res://scripts/pigments.gd")
 
 # 五行用色统一在 pigments.gd：袍色用染布那一档，才压得住立绘；刃光用光那一档，要亮过立绘才看得见。
@@ -111,7 +110,6 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 	look.halo_color = _halo_color(patterns, look)
 	look.marks = _marks(patterns)
 	var weapon: Dictionary = entries.get("weapon", {})
-	look.design = WeaponDesign.pick(weapon, weapon_form, amount_of(weapon))
 	return look
 
 # 护甲四槽的那件衣服在模型上乘的颜色：染过色用染料色；没染按主行淡淡偏一点，炉温越高越偏。

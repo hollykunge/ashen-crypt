@@ -6,11 +6,6 @@ signal enemy_slain(boss: bool)
 
 const Gear = preload("res://scripts/gear.gd")
 
-const HEROES: Array[Dictionary] = [
-	{"name": "神将", "skill": "镇山诀", "tactic": "裂岳", "hp": 156, "speed": 106.0, "damage": 31, "interval": 0.33, "reach": 103.0, "cooldown": 3.6, "color": Color("#ffbd76")},
-	{"name": "神射", "skill": "连珠箭", "tactic": "贯云矢", "hp": 109, "speed": 122.0, "damage": 24, "interval": 0.24, "reach": 490.0, "cooldown": 3.3, "color": Color("#8af1c6")},
-	{"name": "雷法", "skill": "五雷印", "tactic": "寒霄诀", "hp": 105, "speed": 101.0, "damage": 35, "interval": 0.43, "reach": 460.0, "cooldown": 4.1, "color": Color("#ddb2ff")}
-]
 # 十天干精怪共用战斗结构，各有形制、数值与层主招式。
 const ARCHETYPES := {
 	"jia": {"name": "藤巨妖", "skill": "青藤冲撞", "art": 0, "speed": 92.0, "vitality": 1.06, "force": 1.0, "radius": 71.0, "windup": 0.96, "effect": "knock"},
@@ -36,13 +31,10 @@ const MAX_MANA := 100.0
 const SKILL_COST := 30.0
 const TACTIC_COST := 22.0
 const PLAYER := {"hp": 150, "speed": 115.0, "damage": 34, "cooldown": 3.2, "color": Color("#e5cb93")}
-const PROJECTILE_START := 15.0
 # 剑一轮两剑，两道刃光把一次普攻的伤害分开打出去。
 const BLADE_CUES := {"sword": [0.20, 0.56]}
 const BLADE_SLICES := {"sword": [Vector2(0.0, 0.42), Vector2(0.42, 1.0)]}
-# 远程形制：普攻放弹道，不用贴身。
-const RANGED_FORMS := ["bow"]
-# 长枪一枪扎出去的宽度：只扫到枪杆这一路，前后站成一串的都会被穿。
+# 直刺的宽度：只扫到剑锋这一路，前后站成一串的都会被穿。
 const THRUST_WIDTH := 30.0
 const ATTACK_BUFFER := 0.16
 const COMBO_WINDOW := 1.25
@@ -77,7 +69,7 @@ var weapon_form := "sword"
 const Cleave = preload("res://scripts/leaping_cleave.gd")
 var leaping_cleave := false
 var cleave_power := 0
-# 斩击与弹道的颜色由兵器的五行决定，画面层在换装备时写进来。
+# 斩击的颜色由兵器的五行决定，画面层在换装备时写进来。
 var trail_color := Color("#e5cb93")
 # 武器主行，决定击打特效取哪一行配色；空手为空串。由画面层按外观写入。
 var hit_element := ""
@@ -144,7 +136,6 @@ var trigger_tokens := {}
 
 var enemies: Array[Dictionary] = []
 var fallen_enemies: Array[Dictionary] = []
-var shots: Array[Dictionary] = []
 var drops: Array[Dictionary] = []
 var effects: Array[Dictionary] = []
 var popups: Array[Dictionary] = []
@@ -215,7 +206,6 @@ func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = fal
 	trigger_tokens.clear()
 	enemies.clear()
 	fallen_enemies.clear()
-	shots.clear()
 	drops.clear()
 	effects.clear()
 	popups.clear()
@@ -276,8 +266,7 @@ func attack(buffer := true) -> void:
 	_start_motion(&"attack", hero.interval)
 
 func attack_cues() -> Array:
-	const SINGLE := {"spear": 0.40}
-	return BLADE_CUES.get(weapon_form, [SINGLE.get(weapon_form, 1.0 / 3.0)])
+	return BLADE_CUES.get(weapon_form, [1.0 / 3.0])
 
 func skill() -> void:
 	if result != &"" or advancing or skill_left > 0.0 or dodge_left > 0.0 or mana < skill_cost:
@@ -287,18 +276,12 @@ func skill() -> void:
 	skill_left = float(hero.cooldown) * (1.0 - _stat("cooldown") / 100.0)
 	_start_motion(&"cleave" if leaping_cleave else &"skill", Cleave.DURATION if leaping_cleave else 0.34)
 	var power := roundi(float(hero.damage) * 1.65 + _stat("skill_damage") + _stat("elemental_power"))
-	var form := &"seal_burst"
-	if weapon_form == "bow":
-		form = &"arrow_seal"
-		for spread in [-0.20, 0.0, 0.20]:
-			_fire(facing + spread, power, 880.0, hero.reach, 2, 0.0, false, true)
-	elif leaping_cleave:
+	if leaping_cleave:
 		cleave_power = power
 	else:
-		_crush(position + Vector2.from_angle(facing) * 65.0, 125.0, power, 200.0)
-	var center := position + Vector2.from_angle(facing) * 65.0 if form == &"seal_burst" else position
-	if not leaping_cleave:
-		_cast_effect(form, center, trail_color, 125.0 if form == &"seal_burst" else 65.0)
+		var center := position + Vector2.from_angle(facing) * 65.0
+		_crush(center, 125.0, power, 200.0)
+		_cast_effect(&"seal_burst", center, trail_color, 125.0)
 	_trigger("消耗灵力时")
 	_trigger("释放技能时")
 	_pulse(&"cast", position, 1.2)
@@ -363,7 +346,6 @@ func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = f
 		hold_attack = _basic_attack_reaches(_nearest_enemy())
 	if hold_attack or (attack_buffer_left > 0.0 and motion.is_empty()):
 		attack(false)
-	_step_shots(delta)
 	_step_enemies(delta)
 	_step_drops(delta)
 	_tick_bonus(delta)
@@ -396,7 +378,6 @@ func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = f
 				motion = &""
 				attack_buffer_left = 0.0
 				dodge_left = 0.0
-				shots.clear()
 		return
 	if hp <= 0:
 		hp = max_hp
@@ -418,8 +399,7 @@ func _basic_attack_reaches(enemy: Dictionary) -> bool:
 	if enemy.is_empty() or enemy.hp <= 0 or enemy.spawn > 0.0:
 		return false
 	var reach := float(hero.reach)
-	if weapon_form not in RANGED_FORMS:
-		reach = minf(reach + _strike_padding(enemy), _enemy_contact_distance(enemy) + 26.0)
+	reach = minf(reach + _strike_padding(enemy), _enemy_contact_distance(enemy) + 26.0)
 	return position.distance_to(enemy.pos) < reach - 3.0
 
 func _enemy_contact_distance(enemy: Dictionary) -> float:
@@ -487,8 +467,7 @@ func _farm_actions(target: Dictionary) -> void:
 		return
 	var gap := position.distance_to(target.pos)
 	var reach := float(hero.reach)
-	if weapon_form not in RANGED_FORMS:
-		reach = maxf(155.0, reach + _strike_padding(target))
+	reach = maxf(155.0, reach + _strike_padding(target))
 	if gap < reach:
 		if skill_left <= 0.0 and mana >= skill_cost:
 			skill()
@@ -636,13 +615,10 @@ func _release_attack(index: int) -> void:
 	match weapon_form:
 		"sword":
 			_blade_strike(index, damage)
-		"jian", "spear":
+		"jian":
 			_thrust(damage)
-		"bow":
-			_fire(facing, damage, 910.0, hero.reach, 2, 0.0, basic_critical)
-			feedback.emit(&"shot")
 
-# 长枪：沿面朝方向一条窄路上的全扎到，离得最远的那只也吃满伤害。
+# 剑：沿面朝方向一条窄路上的全扎到，离得最远的那只也吃满伤害。
 func _thrust(damage: int) -> void:
 	var forward := Vector2.from_angle(facing)
 	var reach: float = hero.reach
@@ -683,14 +659,6 @@ func _crush(center: Vector2, radius: float, damage: int, force: float, critical:
 	for enemy in enemies:
 		if center.distance_to(enemy.pos) < radius + _strike_padding(enemy):
 			_damage_enemy(enemy, damage, force, critical)
-
-func _fire(angle: float, damage: int, speed: float, reach: float, hits: int = 1, splash: float = 0.0,
-		critical: bool = false, empowered: bool = false) -> void:
-	var forward := Vector2.from_angle(angle)
-	shots.append({"pos": position + forward * PROJECTILE_START, "source": position, "reach": reach,
-		"velocity": forward * speed, "life": (reach - PROJECTILE_START) / speed, "damage": damage,
-		"magic": false, "wand": false, "color": trail_color, "hits": hits, "struck": [],
-		"splash": splash, "critical": critical, "empowered": empowered})
 
 func _cast_effect(kind: StringName, point: Vector2, color: Color, radius: float) -> void:
 	const DURATION := 0.47
@@ -971,31 +939,6 @@ func _boss_hit_effect(enemy: Dictionary) -> void:
 			player_slow = 1.1
 		"flare":
 			enemy.cooldown = 1.55
-
-func _step_shots(delta: float) -> void:
-	for shot in shots:
-		shot.pos += shot.velocity * minf(delta, shot.life)
-		shot.life -= delta
-		for enemy in enemies:
-			if enemy.spawn > 0.0 or enemy.hp <= 0 or shot.struck.has(enemy.serial):
-				continue
-			var radius: float = enemy.stats.radius + (8.0 if shot.magic else 3.0)
-			if Vector2(shot.pos).distance_squared_to(enemy.pos) < radius * radius:
-				_damage_enemy(enemy, shot.damage, 105.0 if shot.magic else 60.0, shot.critical)
-				shot.struck.append(enemy.serial)
-				shot.hits -= 1
-				_ring(shot.pos - Vector2(0, 13), shot.color, maxf(24.0, shot.splash))
-				if shot.get("empowered", false):
-					_cast_effect(&"spell_impact" if shot.magic else &"arrow_impact", enemy.pos, shot.color,
-						maxf(34.0, shot.splash))
-				if shot.splash > 0.0:
-					for target in enemies:
-						if target.serial != enemy.serial and Vector2(enemy.pos).distance_to(target.pos) < shot.splash:
-							_damage_enemy(target, roundi(shot.damage * 0.45), 48.0, shot.critical)
-				if shot.hits == 0:
-					shot.life = 0.0
-					break
-	shots = shots.filter(func(shot: Dictionary) -> bool: return shot.life > 0.0)
 
 func _step_drops(delta: float) -> void:
 	for drop in drops:

@@ -218,7 +218,6 @@
 | [roster.gd](../mobile/scripts/roster.gd) | 六位仙人从**可选角色**变为**仙班名录数据**（图鉴 + 敕令来源 + 主持天劫） |
 | [main.gd](../mobile/scripts/main.gd) | "选择出战神仙"→ 命格与出身创建页；"男仙名册/女仙名册"→ 删除 |
 | [combat.gd](../mobile/scripts/combat.gd) | `HEROES` 三职业从玩家可选项里摘出，**但不要删** —— 见下 |
-| [index.html](../index.html) / [game.js](../game.js) | 网页原型同步 |
 | 新增 | `realm.gd`：境界、天劫、规矩、转世、宿慧、叙事记录（**已有**） |
 | 新增 | `relief.gd`：驻留行善、本层地方的灾情与收益（[叙事 §1.2](story.md#1-两幕结构)） |
 

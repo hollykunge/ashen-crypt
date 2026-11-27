@@ -2,7 +2,7 @@ extends Control
 
 const Art = preload("res://scripts/forge_art.gd")
 const SCENE = preload("res://art/piying/v4/banners.webp")
-const IDS := ["sword", "jian", "spear", "bow"]
+const IDS := ["sword", "jian"]
 var forge
 var selected: String
 var heading: Label
@@ -33,7 +33,7 @@ func _ready() -> void:
 		card.flat = true
 		for style in ["normal", "hover", "pressed", "focus"]:
 			card.add_theme_stylebox_override(style, StyleBoxEmpty.new())
-		card.accessibility_name = "枪" if id == "spear" else forge.Rules.NAME_PARTS.weapons[id]
+		card.accessibility_name = forge.Rules.NAME_PARTS.weapons[id]
 		card.pressed.connect(_select.bind(id))
 		cards.append(card)
 		add_child(card)
@@ -74,11 +74,11 @@ func _layout() -> void:
 	for i in cards.size():
 		var card := cards[i]
 		if wide:
-			card.position = size * Vector2(0.143 + 0.187 * i, 0.236)
-			card.size = size * Vector2(0.158, 0.54)
+			card.position = size * Vector2(0.23 + 0.30 * i, 0.236)
+			card.size = size * Vector2(0.253, 0.54)
 		else:
-			card.position = size * Vector2(0.17 + 0.403 * (i % 2), 0.167 + 0.355 * floori(i / 2.0))
-			card.size = size * Vector2(0.26, 0.255)
+			card.position = size * Vector2(0.17 + 0.403 * i, 0.262)
+			card.size = size * Vector2(0.26, 0.40)
 		var label: Label = card.get_child(0)
 		label.size = Vector2(minf(card.size.x, 110), 30)
 		label.position = Vector2((card.size.x - label.size.x) * 0.5, 0)
@@ -98,7 +98,7 @@ func _draw() -> void:
 		draw_texture_rect(SCENE, Rect2(Vector2.ZERO, size), false)
 	else:
 		draw_texture_rect(preload("res://art/piying/v4/banners-tall.webp"), Rect2(Vector2.ZERO, size), false)
-	if cards.size() == 4:
+	if cards.size() == IDS.size():
 		var c := cards[IDS.find(selected)]
 		var frame := Rect2(c.position, c.size)
 		var left := frame.position.x

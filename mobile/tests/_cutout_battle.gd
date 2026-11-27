@@ -56,12 +56,11 @@ func _process(_delta: float) -> bool:
 	var run = game.run
 	var path := "%s/shot-%02d.png" % [out_dir, taken]
 	image.save_png(path)
-	var hero = game.field.cutout
-	print("%s motion=%s stride=%.1f advancing=%s hero_action=%s t=%.2f outfit=%s" % [path, run.motion, run.stride, run.advancing,
-		hero._action if hero != null else "-", hero.hero.anim.current_animation_position if hero != null else 0.0,
-		hero.hero.outfit if hero != null else {}])
-	if hero != null and OS.get_environment("CUTOUT_DEBUG") != "":
-		hero.viewport.get_texture().get_image().save_png(path.replace(".png", "-vp.png"))
+	var puppet = game.field.cutout.puppet
+	print("%s motion=%s stride=%.1f advancing=%s puppet=%s action=%s" % [
+		path, run.motion, run.stride, run.advancing, puppet.who, puppet.rig.current_action()])
+	if OS.get_environment("CUTOUT_DEBUG") != "":
+		puppet.viewport.get_texture().get_image().save_png(path.replace(".png", "-vp.png"))
 	taken += 1
 	if taken >= shots:
 		_cleanup()

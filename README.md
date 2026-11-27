@@ -1,9 +1,6 @@
 # 吾行 · Ashen Crypt
 
-**主角美术已定稿：** 主角是 3D 角色模型，游戏里实时渲染成侧面，布衣、皮甲、链甲按槽混搭，剑、长枪、弓是 3D 零件握在手里。以后只在这套上修和加，不再换路线，规矩见 [主角美术定稿](mobile/art/model-hero/README.md)。调试版标题页有「试演 · 动作与换装」，Windows 也可运行 `preview-ink.ps1`，见 [界面与场景预览](mobile/art/ink/README.md)。
-
-《吾行》是一款中国神仙题材的 2D 动作游戏。玩家在列仙图录中选择二郎神、九天玄女、后羿、青鸟仙子、雷部天师或电母，领取土地公的敕令，守住昆仑山门。五道敕令沿用五波战斗，最后一关需要降伏镇山兽。Godot 版可以用掉落的材料在兜率炉坊打造武器、护腕、靴子、上衣和护腿。
-
+《吾行》是一款中国神仙题材的侧视动作游戏。玩家扮演斗笠少年或鬼面女将，在月夜河卷上与皮影精怪战斗，用掉落的材料锻造刀剑与护具。角色、行装与战斗共用同一具皮影骨架。[主角定稿](mobile/art/piying/HERO-YOUTH.md) · [界面定稿](mobile/art/piying/STYLE-V4.md)
 
 ## 设计文档
 
@@ -39,23 +36,17 @@
 
 | 概念 | 用词 | 出处 |
 | --- | --- | --- |
-| 关卡场所 | **昆仑山门** | `index.html`、`game.js` |
+| 关卡场所 | **昆仑山门** | `places.gd` |
 | 一个关卡 | **一层 = 一个地方 = 一道敕令** | `rules/places.gd` 的六十层地点表 |
 | 进层那一屏 | **本层告示**（地名 · 灾情 · 敕令 · 在身的规矩） | `place_notice.gd` |
 | 打造装备处 | **兜率炉坊** | `forge.gd`、`main.gd` |
-| 选角与备战处 | **列仙图录**（选角）、**点将台**（备战） | `main.gd`、`index.html` |
+| 选角与备战处 | **列仙图录**（选角）、**点将台**（备战） | `main.gd` |
 | 本层当令 | **地气**（天干，`(层数−1)%10`） | `wuxing.gd::ling_of` |
 | 不进层去救人 | **驻留行善** | `gear.gd::aid_layer` |
-| 敌人 | **精怪**（泛称）、山魈／火狐／镇山兽（具体） | `combat.gd`、`game.js` |
+| 敌人 | **精怪**（泛称）、山魈／火狐／镇山兽（具体） | `combat.gd` |
 | 蓝条 | **灵力**（上限／每秒回蓝） | `equipment.gd`、`main.gd` |
 | 货币 | **灵砂** | `main.gd` 的「击杀 %d · 灵砂 %d · 材料 %d」 |
 | 打造材料 | **材料**（白话材质名：生铁、铁屑、火砂、冰核、龙骨……） | `materials.gd` |
-
-两点说明：
-
-- **项目名仍是《吾行》**（`index.html` 的 `<title>` 未改），所以文档标题沿用，没有跟着题材改名。
-- 原型目前是**五道敕令**的五波战斗；设计文档里的 **60 层 = 5 境界 + 待诏期**结构取代它，一道敕令即一层。
-- 出身文档里的货币按代码统一写作**灵砂**。若要让「银两」作为凡俗货币与灵砂并存（富商持银两、修行者用灵砂），那是另一套经济设计。
 
 ## Godot 手机版
 
@@ -67,25 +58,7 @@
 
 ### 战斗表现
 
-战场采用侧视构图，远山、残祠、石路和场上精灵沿着同一条地面线排列。[战场渲染](mobile/scripts/arena.gd) 把场上的前后走位投影成石路上的小幅纵深，也按同一套投影绘制预警和弹道。
-
-底图跟着地方走：六个地域各有一条长卷（陇右旱、河东疫、太行矿、朔方兵、江淮涝、上界），每条由四幅拼成、约 7800 像素宽，一个地域的十层沿长卷从左走到右，天劫那层在最右端。各地域另有自己的远景雾色、前景天气（热尘、灰烬、煤尘、斜雨、云絮）与脚下阴影色。长卷按需加载，只常驻当前一张。出图规格、生成脚本与拼接工具见 [mobile/art/side/plates](mobile/art/side/plates)。
-
-**打击感**按层叠：打中时整场停顿几十毫秒（顿帧，[combat.gd](mobile/scripts/combat.gd) 的 `HITSTOP`，暴击、击杀、层主倒地依次加长，挂机减半），每一下普攻把小怪往外推一小步并带极短硬直，层主几乎推不动；倒下的精怪被打飞一段、烧成焦黑再化灰。画面层（[arena.gd](mobile/scripts/arena.gd)）的震屏按「创伤值」累加、按 1.5 次方换算位移，偏向打击方向，另有一下沿打击方向的镜头冲击；打中溅暗红血雾，暴击夹火星，击杀腾起火星与灰片。不用手机震动。调手感只改 `HITSTOP`、`KNOCKBACK`、`SHAKE_PIXELS` 这几个常量，`hitstop_scale` 为 0 即关掉顿帧。
-
-**暗黑调色**常开（[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 的 `gothic()`）：去掉大半饱和、拉对比、阴影偏冷灰青、亮部偏旧骨黄，只有真正的朱红（血、布穗、火）和亮处保留颜色，四角压暗。力度由 `arena.gd` 的 `GRADE`、`VIGNETTE` 控制。
-
-**人物**借街机格斗的画法（2026-11-25）：主角是两阶硬明暗、暗部偏冷，受光边一道暖色轮廓光（[model_toon.gdshader](mobile/scripts/model_toon.gdshader)），外轮廓一圈近黑粗描边（[model_silhouette.gdshader](mobile/scripts/model_silhouette.gdshader) 的 `THICK`）；竖屏战斗镜头推近，人物更大（`arena.gd` 的 `PORTRAIT_BATTLE_ZOOM`）。场景配色照旧。
-
-长卷之外还有两层氛围，都在 [arena.gd](mobile/scripts/arena.gd) 里。**近景剪影**：画面底边一丛丛草、芦苇、乱石或云絮，走得比镜头快（1.6 倍），拉出纵深。**天色**：连战第一波是白天，第二波黄昏，层主在夜里；挂机按五分钟一天轮转。[atmosphere.gdshader](mobile/scripts/atmosphere.gdshader) 入夜压暗发蓝，亮处（灯笼、炉火、打击光）不跟着暗，主角身边留一圈暖光。
-
-玩家角色和随侍共用[角色画布](mobile/scripts/cutout_hero.gd)：它在离屏画布里从侧面渲染[主角模型](mobile/scripts/model_hero.gd)，再画进战场。行装试穿与战斗用的是同一个模型、同一套衣装和脚底锚点，头像也是模型渲的侧面半身像。定稿范围见[主角美术定稿](mobile/art/model-hero/README.md)。
-
-剑一轮两斩，挥砍动作对齐每次命中时刻；长枪右手前刺，弓在左手发射远程箭矢。旧存档的长刃和双刀归剑，重锤归长枪，法杖和短杖归弓。战斗仍由 [combat.gd](mobile/scripts/combat.gd) 结算。
-
-炉坊按装备的五行与阴阳挑选武器零件和饰色。武器和装备图标由 [weapon_design.gd](mobile/scripts/weapon_design.gd) 和 [gear_design.gd](mobile/scripts/gear_design.gd) 定款，颜色取自 [pigments.gd](mobile/scripts/pigments.gd)。原画在 `mobile/art/side/source/parts/`，由 [pack_parts.py](mobile/art/side/pack_parts.py) 打包。
-
-精怪各用一张 4 列 × 3 行的图集（四步走、起手、挥击、收招、待机、四格倒地），每格的逻辑尺寸是 160 × 96，定义在 [monster_art.gd](mobile/scripts/monster_art.gd)。原图是像素画，[pack_monsters.py](mobile/art/side/pack_monsters.py) 用带容差的 EPX 把锯齿补圆后放大到 3 倍，和人物一样走线性取样；贴图按需加载，只留最近用到的两张。这一步只解决「粗」，细节没有变多——有了真正的高清十二格原画，放进 [art/side/source/monsters](mobile/art/side/source/monsters) 重跑脚本即可。
+战场使用月夜河卷。皮影拆件按骨骼驱动，行走按移动距离推进，挥刀与命中时刻同步。刀的一轮两斩共用伤害预算，剑沿面朝方向直刺。
 
 手操战的走位用浮动摇杆（[stick.gd](mobile/scripts/stick.gd)）：在战场区按下即生摇杆，松手即收，键盘 WASD 与前后键同时保留。
 
@@ -99,23 +72,4 @@
 godot --headless --path mobile --script res://tests/run_tests.gd        # 规则与表现的单元断言
 godot --headless --path mobile --script res://tests/run_playthrough.gd  # 创角到渡劫的实玩流程
 godot --path mobile --script res://tests/_shot.gd -- shot.png           # 截图
-godot --path mobile --script res://tests/_gear_icons.gd                 # 用主角模型重渲装备格图标
-godot --path mobile --script res://tests/_dress.gd -- shot.png huo spear pose 30 attack 0.45
-godot --headless --path mobile --script res://tests/_fit_art.gd -- D:/out/ready-0.png ready-0 1.0
-python mobile/art/side/pack_weapons.py --preview out   # 重出手持兵器图集与形制图标
-python mobile/art/side/pack_monsters.py --preview out  # 把精怪的像素图集平滑放大
 ```
-
-`_dress.gd` 按指定五行穿满五个装备槽再截图，末尾可加 `female`，模式为 `bag` 时截行装页。图集脚本需要 Pillow、NumPy 和 SciPy。`_pack_fx.gd` 打包击打特效，`_stitch_plates.gd` 拼接地域长卷。
-
-## 网页原型
-
-在仓库根目录启动静态文件服务，再用浏览器打开 `http://localhost:8000`。
-
-```sh
-python3 -m http.server 8000
-```
-
-网页入口是 [index.html](index.html)，游戏逻辑位于 [game.js](game.js)。
-
-字体的版权与 SIL 开源字体许可证见 [mobile/art/fonts](mobile/art/fonts)。击打特效改编自 [pixelfx](https://github.com/patch-gg/pixelfx)，来源与 MIT 许可全文见 [mobile/art/fx/NOTICE.md](mobile/art/fx/NOTICE.md)。两端共用的神仙画像、战斗造型、场景与法器图集位于 [mobile/art/immortals](mobile/art/immortals)。

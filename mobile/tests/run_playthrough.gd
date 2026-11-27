@@ -167,22 +167,22 @@ func _test_armory() -> bool:
 	_press(game, "入山")
 	var blade := Gear.new_draft()
 	blade.materials = {"geng": 4}
-	var bow := Gear.new_draft()
-	bow.weapon_form = "bow"
-	bow.materials = {"ren": 5}
+	var jian := Gear.new_draft()
+	jian.weapon_form = "jian"
+	jian.materials = {"ren": 5}
 	game.profile.collect("geng", 4)
 	game.profile.collect("ren", 5)
 	game.profile.craft(blade)
-	game.profile.craft(bow)
+	game.profile.craft(jian)
 	game.profile.toggle_equip(blade.uid)
 	game._enter_farm()
 	var armory = game.forge.armory
 	game.gear_slots.weapon.pressed.emit()
 	_check(armory.selected_uid == blade.uid and armory.equip_button.text == "卸下", "点战场武器进入已穿戴的物品")
-	if not _check(_press(game, "查看同部位背包") and armory.bag_items.has(bow.uid) and not armory.bag_items.has(blade.uid),
+	if not _check(_press(game, "查看同部位背包") and armory.bag_items.has(jian.uid) and not armory.bag_items.has(blade.uid),
 			"背包过滤同部位，排除已穿戴的物品"):
 		return false
-	armory.bag_items[bow.uid].pressed.emit()
+	armory.bag_items[jian.uid].pressed.emit()
 	var before: Dictionary = armory.current_stats.duplicate()
 	var table: GridContainer
 	for child in armory.detail_body.get_children():
@@ -198,15 +198,15 @@ func _test_armory() -> bool:
 	_check(before.reach < projected.reach and displayed["攻击距离"] == str(roundi(projected.reach))
 		and displayed["物理攻击"] == str(roundi(projected.attack)), "预览的新数值与实际穿戴相符")
 	_press(game, "查看同部位背包")
-	_check(armory.bag_items.has(blade.uid) and not armory.bag_items.has(bow.uid), "替换后旧武器回到背包")
+	_check(armory.bag_items.has(blade.uid) and not armory.bag_items.has(jian.uid), "替换后旧武器回到背包")
 	armory.outfit_slots.boots.pressed.emit()
 	_check(armory.empty_hint.visible and _press(game, "打造靴子") and game.forge.draft.slot == "boots", "空槽能跳转到对应的锻造部位")
 	game.forge.close_requested.emit()
-	_check(game.run.weapon_form == "bow" and game.run.hero.damage == projected.attack and game.run.hero.reach == projected.reach
+	_check(game.run.weapon_form == "jian" and game.run.hero.damage == projected.attack and game.run.hero.reach == projected.reach
 		and game.run.max_hp == projected.hp, "角色装备所示数值与实战一致")
 	var reloaded := Gear.new(game.profile.save_path)
 	reloaded.load_profile()
-	_check(reloaded.equipped("weapon") == bow.uid and reloaded.items().size() == 2, "换装重启后仍保留两件物品")
+	_check(reloaded.equipped("weapon") == jian.uid and reloaded.items().size() == 2, "换装重启后仍保留两件物品")
 	game.queue_free()
 	return true
 
@@ -652,12 +652,12 @@ func _test_gallery(game) -> void:
 	var original: String = forge.draft.weapon_form
 	forge._open_weapons()
 	var gallery = game.weapon_gallery
-	_check(gallery.cards.size() == 4, "四个兵器挂幡")
-	gallery.cards[3].pressed.emit()
+	_check(gallery.cards.size() == 2, "两个兵器挂幡")
+	gallery.cards[1].pressed.emit()
 	_press(gallery, "返回")
 	_check(forge.draft.weapon_form == original, "取消兵器预选保留原草案")
 	forge._open_weapons()
 	gallery = game.weapon_gallery
-	gallery.cards[3].pressed.emit()
+	gallery.cards[1].pressed.emit()
 	_press(gallery, "选用")
-	_check(forge.draft.weapon_form == "bow", "选用弓写入实际锻造草案")
+	_check(forge.draft.weapon_form == "jian", "选用剑写入实际锻造草案")

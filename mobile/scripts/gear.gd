@@ -28,18 +28,14 @@ const SILVER_DROP_CHANCE := 0.2
 const SLOTS := Equipment.SLOTS
 const SLOT_NAMES := Equipment.SLOT_NAMES
 const WEAPON_FORMS := {
-	# 剑：两段快剑。长枪：出手慢一拍，够得最远，一枪扎穿一路。弓：远处快射。
 	"sword": {"interval": 0.33, "reach": 104.0},
 	"jian": {"interval": 0.28, "reach": 116.0},
-	"spear": {"interval": 0.45, "reach": 152.0},
-	"bow": {"interval": 0.29, "reach": 530.0}
 }
 # 甲型：上衣、护腕、护腿、靴子在炉坊里选布衣、皮甲或链甲，只改样子，数值仍由五行与材料决定。
 const ARMOR_TYPES := ["cloth", "leather", "chain"]
 const ARMOR_TYPE_SLOTS := ["armor", "gloves", "greaves", "boots"]
-# 兵器只留剑、长枪、弓三种；旧存档里别的形制按打法归过来：近身的刀剑归剑，重锤归长枪，远程的归弓。
-const RENAMED_FORMS := {"long_blade": "sword", "dual_blades": "sword", "hammer": "spear",
-	"staff": "bow", "wand": "bow"}
+const RENAMED_FORMS := {"long_blade": "sword", "dual_blades": "sword", "hammer": "sword", "spear": "sword",
+	"staff": "jian", "wand": "jian", "bow": "jian"}
 const MATERIAL_COLORS = Pigments.INK
 const MATERIAL_ICONS := {"jin": 0, "mu": 1, "shui": 1, "huo": 2, "tu": 0}
 
@@ -75,8 +71,10 @@ func load_profile() -> void:
 	if version == VERSION and parsed.get("character") is Dictionary and parsed.get("materials") is Dictionary \
 			and parsed.get("items") is Dictionary and parsed.get("equipped") is Dictionary:
 		state = parsed
-		for item in state.items.values():
-			_migrate_item(item)
+		var migrated_items := false
+		for entry in state.items.values():
+			if _migrate_item(entry):
+				migrated_items = true
 		var equipped_slots: Dictionary = _empty_profile().equipped
 		for slot in SLOTS:
 			equipped_slots[slot] = state.equipped.get(slot, "")
@@ -85,6 +83,8 @@ func load_profile() -> void:
 			if equipped_slots.greaves == "" and item(uid).get("slot") == "greaves":
 				equipped_slots.greaves = uid
 		state.equipped = equipped_slots
+		if migrated_items:
+			_commit(state)
 		return
 	if version not in [1, 2, 3]:
 		storage_error = "存档读取失败"
@@ -100,18 +100,25 @@ func load_profile() -> void:
 	migrated.materials = _legacy_refund(parsed)
 	_commit(migrated)
 
-# 旧存档里去掉的形制换成留下的那三种；熔合留下的来源件也一并换。
-static func _migrate_item(item: Variant) -> void:
+# 旧存档里去掉的形制换成刀剑；熔合留下的来源件也一并换。
+static func _migrate_item(item: Variant) -> bool:
 	if not item is Dictionary:
-		return
+		return false
+	var changed := false
 	if item.get("slot") in ["charm", "ring"]:
 		item.slot = "greaves"
+		changed = true
 		if item.get("armor_type", "") not in ARMOR_TYPES:
 			item.armor_type = "cloth"
 	if RENAMED_FORMS.has(item.get("weapon_form", "")):
+		changed = true
 		item.weapon_form = RENAMED_FORMS[item.weapon_form]
+		if item.get("name") is String:
+			item.name = item.name.replace("长枪", "刀").replace("枪", "刀").replace("长弓", "剑").replace("弓", "剑")
 	for source in item.get("merge_sources", []):
-		_migrate_item(source)
+		if _migrate_item(source):
+			changed = true
+	return changed
 
 static func _legacy_refund(saved: Dictionary) -> Dictionary:
 	var totals := {"iron": 0, "bone": 0, "ember": 0}
@@ -668,6 +675,8 @@ func craft_cost(input: Dictionary) -> Dictionary:
 func craft_error(input: Dictionary) -> String:
 	if not has_character() or not SLOTS.has(input.slot):
 		return "先立下命籍"
+	if input.slot == "weapon" and not WEAPON_FORMS.has(input.get("weapon_form", "sword")):
+		return "请选择刀或剑"
 	if input.materials.is_empty():
 		return "先投至少一份材料"
 	if input.process.has("seal") and not WuXing.WUXING.has(input.get("sealed_element", "")):

@@ -1,10 +1,5 @@
 extends Node
-## 皮影主角：prototype/cutout 的拆件骨骼（piying 那套皮影刀客）画在一块离屏画布（SubViewport）上，
-## 战场、行装页贴到主角脚下时把这块画布当一张图贴上去，和 3D 主角画布（cutout_hero.gd）用法一样。
-## cutout_hero.gd 在有皮影部件的时候把活交给它（who_for）：男主角拿刀剑是皮影刀客（piying），
-## 女主角拿刀、剑、枪是鬼面女将（nvjiang，招牌兵器是月牙长刀，三种近战兵器都画它）；弓还是 3D。
-## 有骨骼动作的：备战、走、跑、劈砍；受击、闪避、施法这些还没做，先摆备战架势，
-## 闪白、残影、位移照旧由战场叠上去。
+## 男女主角共用的皮影动作与画布。
 const Rig = preload("res://prototype/cutout/cutout_rig.gd")
 const UNPREMULTIPLY = preload("res://scripts/unpremultiply.gdshader")
 const ROOT := "res://prototype/cutout/"
@@ -28,14 +23,6 @@ var _height_local := 1.0
 var _height := 0.0
 var _slash := -1
 var _last_phase := 0.0
-
-
-## 哪个皮影角色（prototype/cutout 下的目录名）；没有对应的皮影部件时返回空串，交回 3D
-static func who_for(look: Dictionary) -> String:
-	var form: String = look.get("form", "sword")
-	if look.get("gender", "") == "female":
-		return "nvjiang" if form in ["sword", "jian", "spear"] else ""
-	return "piying" if form in ["sword", "jian"] else ""
 
 
 var who := ""
@@ -69,13 +56,13 @@ func _init(character := "piying") -> void:
 	texture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
-## 停画（藏起来、或者交回 3D 主角时）
+## 停画（角色不可见时）
 func set_active(on: bool) -> void:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
 	rig.set_process(on)
 
 
-## 行装页：站着摆备战架势。皮影只有侧面，不像 3D 那样转过来
+## 行装页：站着摆备战架势
 func present() -> void:
 	_slash = -1
 	rig.play("ready")
@@ -108,7 +95,7 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 	rig.drive_t = beat.y
 
 
-## 出招进度 → [第几刀, 骨骼劈砍的时刻]（和 cutout_hero.gd 的同名函数一样）
+## 出招进度 → [第几刀, 骨骼劈砍的时刻]
 static func attack_time(phase: float, cues: Array, hit: float, end: float) -> Vector2:
 	var count := cues.size()
 	var start := 0.0
@@ -123,15 +110,6 @@ static func attack_time(phase: float, cues: Array, hit: float, end: float) -> Ve
 			return Vector2(i, lerpf(hit, settle, clampf((phase - cue) / maxf(finish - cue, 0.001), 0.0, 1.0)))
 		start = finish
 	return Vector2(count - 1, end)
-
-
-## 握刀拳头的位置（相对脚底，分格像素，x 朝前、y 朝下）
-func release_point() -> Vector2:
-	var hand: Node2D = rig._bones.get("arm_near_hand", rig._bones.get("arm_near_lo"))
-	if hand == null:
-		return Vector2(10.0, -SPRITE_HEIGHT * 0.5)
-	var p: Vector2 = (rig.get_global_transform().affine_inverse() * hand.get_global_transform()).origin
-	return (rig.transform * p) * SPRITE_HEIGHT / _height_local
 
 
 ## 让画布跟着人物在屏幕上的大小走（参数同 cutout_hero.gd 的 fit）

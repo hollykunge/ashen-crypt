@@ -492,8 +492,6 @@ func _draw() -> void:
 		_draw_enemy(actor)
 	_draw_hero()
 
-	for shot in run.shots:
-		_draw_projectile(shot)
 	for effect in run.effects:
 		_draw_effect(effect)
 	_draw_sparks()
@@ -810,34 +808,6 @@ func _draw_fallen_enemy(fallen: Dictionary) -> void:
 	MonsterArt.draw_frame(self, art, MonsterArt.death_frame(fallen.age), height, Color(ink, alpha))
 	_world_transform()
 
-func _draw_projectile(shot: Dictionary) -> void:
-	var direction := (Vector2(shot.velocity) * Vector2(1.0, lane_depth)).normalized()
-	var height := Vector2(0, 42 if shot.magic else 46) * actor_zoom
-	var tip := _floor(shot.pos) - height
-	if not shot.empowered:
-		var forward := Vector2(shot.velocity).normalized()
-		var facing := -1.0 if forward.x < 0.0 else 1.0
-		var release := cutout.release_point() * Vector2(facing, 1) * HERO_SCALE * actor_zoom
-		var first_point := _floor(Vector2(shot.source) + forward * Combat.PROJECTILE_START) - height
-		var remaining := clampf(shot.life * Vector2(shot.velocity).length() / (shot.reach - Combat.PROJECTILE_START), 0.0, 1.0)
-		tip += (_floor(shot.source) + release - first_point) * remaining
-	if shot.get("empowered", false):
-		draw_line(tip - direction * 66.0, tip, Color(shot.color, 0.35), 9.0, true)
-		draw_line(tip - direction * 47.0, tip, Color("#fff1c9", 0.84), 2.0, true)
-	if shot.magic:
-		var echo := 5 if shot.wand else 8
-		for i in range(echo, -1, -1):
-			var sway := sin(i * 2.0 + tip.x * 0.10) * mini(i, 4)
-			var point := tip - direction * (i * 4.0) + direction.orthogonal() * sway
-			_square(point, maxf(2.0, float(echo + 1 - i)), Color("#fff2ff") if i == 0 else Color(shot.color, 1.0 - i * 0.09))
-		return
-	var tail := tip - direction * 29.0 * HERO_SCALE * actor_zoom
-	var normal := direction.orthogonal()
-	draw_line(tail, tip, Color("#aa9776"), 2.0)
-	draw_colored_polygon(PackedVector2Array([tip + direction * 4.0, tip - direction * 4.0 + normal * 3.0, tip - direction * 4.0 - normal * 3.0]), Color("#f3ecdc"))
-	draw_line(tail - normal * 2.0, tail + direction * 5.0, Color(shot.color), 2.0)
-	draw_line(tail + normal * 2.0, tail + direction * 5.0, Color(shot.color), 2.0)
-
 func _draw_telegraphs() -> void:
 	for enemy in run.enemies:
 		if enemy.hp <= 0:
@@ -889,7 +859,7 @@ func _draw_effect(effect: Dictionary) -> void:
 		CombatFX.thrust(self, origin, effect, progress, actor_zoom)
 	elif effect.type == &"impact":
 		_draw_impact(effect, origin, progress)
-	elif effect.type in [&"seal_burst", &"quake_seal", &"arrow_seal", &"spell_seal", &"arrow_impact", &"spell_impact"]:
+	elif effect.type in [&"seal_burst", &"quake_seal", &"spell_seal", &"spell_impact"]:
 		CombatFX.cast(self, origin, effect, progress)
 	elif effect.type == &"thunder":
 		for i in range(-2, 3):

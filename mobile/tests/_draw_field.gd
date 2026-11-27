@@ -9,7 +9,7 @@ var game
 var frame := 0
 var stage := 0
 var last := -1
-const STAGES := ["全部", "去掉伤害数字", "去掉火花", "去掉特效/飞矢", "去掉天气飘尘", "去掉敌人", "去掉远景雾气", "去掉背景长卷", "去掉前景剪影", "去掉天光遮罩", "战场整个藏起来"]
+const STAGES := ["全部", "去掉伤害数字", "去掉火花", "去掉特效", "去掉天气飘尘", "去掉敌人", "去掉远景雾气", "去掉背景长卷", "去掉前景剪影", "去掉天光遮罩", "战场整个藏起来"]
 
 func _initialize() -> void:
 	game = Main.instantiate()
@@ -34,7 +34,7 @@ func _process(_delta: float) -> bool:
 	match stage:
 		1: f.run.popups.clear()
 		2: f.sparks.clear()
-		3: f.run.effects.clear(); f.run.shots.clear()
+		3: f.run.effects.clear()
 		4:
 			var p: Dictionary = f.plate.duplicate(); p.weather = &"none"; f.plate = p
 		5: f.run.enemies.clear(); f.run.fallen_enemies.clear()

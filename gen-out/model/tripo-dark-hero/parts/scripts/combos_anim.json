@@ -1,5 +1,0 @@
-{"all_peasant": {"helmet":"peasant","top":"peasant","belt":"peasant","pants":"peasant","boot_R":"peasant","boot_L":"peasant","arm_R":"peasant","arm_L":"peasant"},
- "all_leather": {"helmet":"leather-2","top":"leather-2","belt":"leather-2","pants":"leather-2","boot_R":"leather-2","boot_L":"leather-2","arm_R":"leather-2","arm_L":"leather-2"},
- "all_chain": {"helmet":"chain-2","top":"chain-2","belt":"chain-2","pants":"chain-2","boot_R":"chain-2","boot_L":"chain-2","arm_R":"chain-2","arm_L":"chain-2"},
- "mix_b": {"helmet":"leather-2","top":"chain-2","belt":"leather-2","pants":"leather-2","boot_R":"peasant","boot_L":"peasant","arm_R":"leather-2","arm_L":"leather-2"},
- "mix_c": {"helmet":"peasant","top":"peasant","belt":"chain-2","pants":"chain-2","boot_R":"leather-2","boot_L":"leather-2","arm_R":"chain-2","arm_L":"chain-2"}}

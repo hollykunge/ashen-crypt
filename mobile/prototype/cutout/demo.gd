@@ -28,7 +28,7 @@ func _ready() -> void:
 	get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	get_window().size = Vector2i(1280, 660)
 	var args := OS.get_cmdline_user_args()
-	var who: String = args[0] if args.size() > 0 else "shanxiao"
+	var who: String = args[0] if args.size() > 0 else "piying"
 	if args.size() > 1:
 		_frames_dir = args[1]
 		Engine.max_fps = 0

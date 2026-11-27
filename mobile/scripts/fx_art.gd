@@ -2,7 +2,6 @@ extends RefCounted
 
 # 击打特效图集。现在用皮影版（art/piying/fx，prototype/cutout/pack_puppet_fx.py 打包）：
 # 镂空团花炸开、暴击叠火焰星芒，几片花瓣、火苗飞散，按五行上色；格子、锚点和原来的一样。
-# 原来的像素火花还在 art/fx，由 pixelfx（MIT，见 art/fx/NOTICE.md）按五行配色渲出，配方在 art/fx/render.json。
 # 每张图一行一个五行（外加空手），一列一帧。
 
 const ROWS := ["jin", "mu", "shui", "huo", "tu", "none"]

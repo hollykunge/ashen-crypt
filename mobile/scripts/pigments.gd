@@ -20,7 +20,7 @@ const LIGHT := {"mu": Color("#bcd3b8"), "huo": Color("#e2b2a0"), "tu": Color("#e
 # 纸本界面的字色：保留五行色相，降低明度以保证浅底可读。
 const INK := {"mu": Color("#365b40"), "huo": Color("#8f3b2b"), "tu": Color("#80602c"),
 	"jin": Color("#655b48"), "shui": Color("#35547e")}
-# 光：刃光、弹道、灵珠，要在暗处亮得起来。
+# 光：刃光、灵珠，要在暗处亮得起来。
 const GLOW := {"mu": Color("#a9d9a6"), "huo": Color("#f2a083"), "tu": Color("#ecc98a"),
 	"jin": Color("#f4eedf"), "shui": Color("#9dbbe8")}
 # 阴阳边光：阳偏暖白，阴偏冷青。

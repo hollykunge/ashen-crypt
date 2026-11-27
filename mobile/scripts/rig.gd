@@ -32,7 +32,3 @@ func at(x: float, y: float) -> Vector2:
 
 func ground() -> Vector2:
 	return anchor
-
-func moved(offset: Vector2) -> Object:
-	var copy = (get_script() as GDScript).new(anchor + offset * zoom, zoom, facing, height, width, pose)
-	return copy

@@ -142,8 +142,7 @@ class Glyph extends Control:
 		resized.connect(queue_redraw)
 
 	# 出图的皮影图标（art/ui-icons/<名字>.png，切图见 art/ui-icons/PROMPTS.md）；有图就画图，没图画下面的线条。
-	# 有几个按钮的符号名和图名不一样：刀的普攻叫 sword、枪叫 cleave、弓叫 arrow
-	const ART_NAMES := {&"sword": "dao", &"cleave": "spear", &"arrow": "bow"}
+	const ART_NAMES := {&"sword": "dao"}
 	static var _art_cache := {}
 
 	static func art_for(name: StringName) -> Texture2D:
@@ -203,8 +202,6 @@ class Glyph extends Control:
 			&"retreat":
 				_path([Vector2(13, 8), Vector2(5, 15), Vector2(13, 22)], 2.1)
 				_path([Vector2(23, 8), Vector2(15, 15), Vector2(23, 22)], 2.1)
-			&"arrow", &"fan", &"heavy":
-				_arrow()
 				if symbol == &"fan":
 					_path([Vector2(15, 4), Vector2(26, 4), Vector2(26, 15)], 1.4)
 					_path([Vector2(27, 20), Vector2(27, 25), Vector2(22, 25)], 1.1)
@@ -278,10 +275,6 @@ class Glyph extends Control:
 				_path([Vector2(8, 17), Vector2(17, 24)], 2.0)
 				_path([Vector2(12, 21), Vector2(6, 27)], 2.5)
 
-	func _arrow() -> void:
-		_path([Vector2(5, 25), Vector2(23, 7)], 1.9)
-		_path([Vector2(16, 7), Vector2(23, 7), Vector2(23, 14)], 1.9)
-		_path([Vector2(5, 17), Vector2(5, 25), Vector2(13, 25)], 1.3)
 
 	func _path(points: PackedVector2Array, width: float) -> void:
 		draw_polyline(points, ink, width, true)

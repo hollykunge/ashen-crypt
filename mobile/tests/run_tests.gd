@@ -9,7 +9,6 @@ const Origins = preload("res://scripts/rules/origins.gd")
 const Realm = preload("res://scripts/rules/realm.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const ArmoryFigure = preload("res://scripts/armory_figure.gd")
-const HeldWeapon = preload("res://scripts/held_weapon.gd")
 const SideArt = preload("res://scripts/side_art.gd")
 const Motion = preload("res://scripts/motion.gd")
 const Roster = preload("res://scripts/roster.gd")
@@ -20,8 +19,6 @@ const Places = preload("res://scripts/rules/places.gd")
 const FxArt = preload("res://scripts/fx_art.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
 const CutoutHero = preload("res://scripts/cutout_hero.gd")
-const ModelHero = preload("res://scripts/model_hero.gd")
-const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const PURE_MATERIALS := {"jin": "geng", "mu": "jia", "shui": "ren", "huo": "bing", "tu": "wu"}
 
 var _checks := 0
@@ -29,7 +26,7 @@ var _failures := 0
 
 func _initialize() -> void:
 	var suites := [_test_conservation_tables, _test_bazi, _test_neutral_equipment, _test_companions,
-		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_cutout_hero, _test_new_forms,
+		_test_places, _test_rules, _test_tribulations, _test_forge_examples, _test_forge_rules, _test_appearance, _test_weapon_grips, _test_motion, _test_blade_flurry, _test_cutout_hero, _test_new_forms, _test_weapon_migration,
 		_test_control_modes, _test_hit_feel, _test_monster_motion, _test_body_spacing, _test_fx_art, _test_plates, _test_horde]
 	for suite: Callable in suites:
 		_check(suite.call() == true, "测试组意外中断：%s" % suite.get_method())
@@ -396,110 +393,30 @@ func _test_appearance() -> bool:
 	for slot in Gear.ARMOR_TYPE_SLOTS:
 		_check(fire.tints.has(slot) and fire.tints[slot].is_equal_approx(Appearance.garment_tint(slot, entries[slot])),
 			"%s：模型和装备格图标用同一个颜色" % slot)
-		for kind in ["cloth", "leather", "chain"]:
-			_check(ResourceLoader.exists("res://art/model-hero/icons/%s_%s.png" % [slot, kind]),
-				"%s 的%s图标由模型渲出" % [slot, kind])
-	_check(not bare.tints.has("armor"), "没穿上衣时模型按原色")
+		for kind in Gear.ARMOR_TYPES:
+			var icon := ForgeArt.garment_icon(Gear.SLOTS.find(slot) - 1, kind)
+			_check(Rect2(Vector2.ZERO, icon.atlas.get_size()).encloses(icon.region), "%s %s 皮影护具图标" % [kind, slot])
 	var figure := ArmoryFigure.new()
 	root.add_child(figure)
-	figure.display({}, {"gender": "male"}, "sword")
-	var hero = figure.actor.hero
-	_check(hero.outfit.torso == "peasant" and hero.outfit.shoulder == "none", "没穿护甲是布衣、不带肩甲")
-	var armor: Dictionary = entries.armor.duplicate(true)
-	armor.armor_type = "leather"
-	_check(not hero.female and hero.tripo and hero._meshes["peasant3__top"].visible, "男角色用 Tripo 分槽模型，没穿护甲是短打")
-	figure.display({"entries": {"armor": armor}}, {"gender": "female"}, "bow", true)
-	hero = figure.actor.hero
-	_check(hero.female and hero._meshes.has("F_Peasant_Body") and hero.anim.has_animation(hero.anim_name("Sword_Attack")),
-		"女角色换成女主角模型，动作和男主角同名")
-	var tint: Color = hero._materials["F_Leather_Body"][0].get_shader_parameter("tint")
-	_check(hero.outfit.torso == "leather" and hero.outfit.shoulder == "leather" and tint.r > tint.b,
-		"试穿的皮甲换上皮甲上衣和肩甲，并显示火行染色")
-	_check(hero.outfit.arms == "peasant" and figure.actor.form == "bow", "只换上衣那一槽，试穿预览保留角色兵器")
-	_check(figure.trying_label.visible, "试穿时标出「试穿」")
-	figure.display({}, {"gender": "female"}, "spear")
-	_check(figure.actor.hero == hero, "性别没变不重建模型")
-	tint = hero._materials["F_Peasant_Body"][0].get_shader_parameter("tint")
-	_check(hero.outfit.torso == "peasant" and tint.is_equal_approx(Color.WHITE) and not figure.trying_label.visible,
-		"卸下装备恢复布衣原色")
+	for gender in ["male", "female"]:
+		figure.display({}, {"gender": gender}, "jian", true)
+		_check(figure.actor.puppet.who == ("nvjiang" if gender == "female" else "piying"), "试穿显示对应皮影")
+		_check(figure.trying_label.visible, "试穿提示")
 	figure.free()
 	return true
 
-
 func _test_weapon_grips() -> bool:
-	# 3D 模型主角：每种兵器有自己的出招动作，兵器画在手上（握点在拳里、弓在弓手）
 	var body := CutoutHero.new()
 	root.add_child(body)
-	body.fit(1.0, 1.0)
-	for form in Gear.WEAPON_FORMS:
-		body.dress(Appearance.bare(form))
-		# 男主角拿刀剑交给皮影主角（puppet_hero.gd，2D 拆件骨骼），动作在骨骼上查
-		_check(body._puppet_on == (form in ["sword", "jian"]), "%s 是否用皮影主角" % form)
-		if body._puppet_on:
-			var rig: Node2D = body.puppet.rig
+	for gender in ["male", "female"]:
+		for form in Gear.WEAPON_FORMS:
+			body.dress({"form": form, "gender": gender})
+			body.fit(1.0, 1.0)
 			body.drive(&"attack", 0.25, 0.0, false, [0.33])
-			_check(rig.current_action() == "attack", "%s 皮影主角出招播劈砍" % form)
-			_check(body.release_point().y < -10.0, "%s 皮影主角的握刀拳头在脚底上方" % form)
-			body.drive(&"", 0.0, 3.0, true, [])
-			_check(rig.current_action() == "run", "%s 皮影主角跑动" % form)
-			body.drive(&"", 0.0, 3.0, false, [])
-			_check(rig.current_action() == "walk", "%s 皮影主角走路" % form)
-			body.drive(&"", 0.0, 0.0, false, [])
-			_check(rig.current_action() == "ready", "%s 皮影主角站着摆备战架势" % form)
-			continue
-		body.drive(&"attack", 0.25, 0.0, false, [0.33])
-		_check(body.form == form and body._action == CutoutHero.MOVES[form].attack, "%s 出招播自己的动作" % form)
-		var hand: Vector2 = body._point("hand_l") if form == "bow" else body._point("hand_r")
-		var grip: Vector2 = body.release_point() if form == "bow" else body._fist()
-		_check(grip.distance_to(hand) < 8.0, "%s 握点跟着手走" % form)
-		_check(body._drawing == (form == "bow"), "%s 出手前只有弓拉弦" % form)
-		var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
-		var prefix: String = ModelHero.kit_of(form) if form in ["sword", "jian"] else form   # 刀 dao_、剑 sword_、枪 spear_、弓 bow_
-		_check(not shown.is_empty() and shown.all(func(p): return p.begins_with(prefix + "_")),
-			"%s 手里拿的是 3D %s 的零件" % [form, prefix])
-		_check(body.hero._kit.get_parent() == body.hero._hands["l" if form == "bow" else "r"]
-			and body.hero.fists[("l" if form == "bow" else "r")], "%s 兵器挂在握拳的那只手上" % form)
-		body.drive(&"", 0.0, 3.0, true, [])
-		_check(body._action == "Sprint_Loop", "%s 跑动时播冲刺步态" % form)
-		body.drive(&"", 0.0, 3.0, false, [])
-		_check(body._action == "Walk_Loop", "%s 走动时播走路步态" % form)
-		body.drive(&"", 0.0, 0.0, false, [])
-		_check(body._action == "Sword_Idle", "%s 站着时摆戒备架势" % form)
-		if form != "bow":
-			var tip: Vector3 = (body.hero._global_of("hand_r") * body.hero._kit.transform).basis.y.normalized()
-			_check(absf(tip.x) < 0.05 and tip.z > 0.8 and tip.y >= 0.0,
-				"%s 戒备时贴着侧面朝前上方，不横着戳向镜头" % form)
-	# 女主角：近战兵器都由皮影鬼面女将（nvjiang）来拿，弓还是 3D
-	for form in Gear.WEAPON_FORMS:
-		var her := Appearance.bare(form)
-		her.gender = "female"
-		body.dress(her)
-		var want := "" if form == "bow" else "nvjiang"
-		_check((body.puppet.who if body._puppet_on else "") == want, "女主角拿 %s 用%s" % [form, want if want != "" else " 3D 模型"])
-	# 拉弓：撒放前右手拉到下巴、弦跟着手；撒放后弦弹直
-	body.dress(Appearance.bare("bow"))
-	body.drive(&"attack", 0.32, 0.0, false, [0.33])
-	var chin: Vector3 = body.hero._global_of("Head").origin + ModelHero.DRAW_ANCHOR
-	_check(body.hero._global_of("hand_r").origin.distance_to(chin) < 0.12, "拉满时右手到下巴边")
-	_check(body.hero._string_parts.all(func(p): return p.visible), "拉弦时弓弦跟着右手")
-	body.drive(&"attack", 0.9, 0.0, false, [0.33])
-	_check(body.hero._string_parts.all(func(p): return not p.visible)
-		and body.hero._kit_parts["bow_string_" + body.hero._bow_limbs].visible, "撒放以后弓弦弹直")
-	# 整件兵器：每种形制、每种锻出的刃型 / 枪头 / 弓臂都有一件，手里只显示那一件（弓再加弦）
-	var looks := {"sword": ["blade", ["jian", "qixing", "bolang"]], "jian": ["blade", ["jian", "qixing", "bolang"]],
-		"spear": ["head", ["leaf", "snake", "ji"]], "bow": ["head", ["chang", "fanqu"]]}
-	for form in looks:
-		for variant in looks[form][1]:
-			var design := WeaponDesign.plain(form)
-			design[looks[form][0]] = variant
-			body.hero.hold(form, design)
-			var part := ModelHero.weapon_part(form, design)
-			var shown: Array = body.hero._kit_parts.keys().filter(func(p): return body.hero._kit_parts[p].visible)
-			var expected := [part] + (["bow_string_" + variant] if form == "bow" else [])
-			_check(body.hero._kit_parts.has(part) and shown.size() == expected.size() and expected.all(func(p): return p in shown),
-				"%s 的 %s 是一件整件兵器：%s" % [form, variant, part])
-	_check(ModelHero.weapon_part("sword", {"blade": "jian"}) != ModelHero.weapon_part("jian", {"blade": "jian"}),
-		"刀和剑是两件不同的兵器")
+			_check(body.puppet.rig.current_action() == "attack", "%s 皮影挥砍" % form)
+			for gait in ["run", "walk", "ready"]:
+				body.drive(&"", 0.0, 0.0 if gait == "ready" else 3.0, gait == "run", [])
+				_check(body.puppet.rig.current_action() == gait, "%s 皮影步态" % gait)
 	body.free()
 	return true
 
@@ -528,78 +445,18 @@ func _test_cutout_hero() -> bool:
 	var hit := 0.43
 	var end := 1.1
 	for i in cues.size():
-		var at := CutoutHero.attack_time(cues[i], cues, hit, end)
+		var at := CutoutHero.PuppetHero.attack_time(cues[i], cues, hit, end)
 		_check(int(at.x) == i and is_equal_approx(at.y, hit), "皮影劈砍：第 %d 刀打中对准结算" % (i + 1))
 	var last := Vector2(-1, -1)
 	for step in range(101):
-		var at := CutoutHero.attack_time(step / 100.0, cues, hit, end)
+		var at := CutoutHero.PuppetHero.attack_time(step / 100.0, cues, hit, end)
 		if at.x == last.x:
 			_check(at.y >= last.y - 0.0001, "皮影劈砍：同一刀里时刻不倒退（进度 %.2f）" % (step / 100.0))
 		last = at
-	_check(is_equal_approx(CutoutHero.attack_time(1.0, cues, hit, end).y, end), "皮影劈砍：最后一刀收到整段结束")
+	_check(is_equal_approx(CutoutHero.PuppetHero.attack_time(1.0, cues, hit, end).y, end), "皮影劈砍：最后一刀收到整段结束")
 	var look := Appearance.build({"armor": {"armor_type": "leather"}, "boots": {"armor_type": "chain"}}, {}, "sword")
 	_check(look.armor_types.get("armor") == "leather" and look.armor_types.get("boots") == "chain"
 		and not look.armor_types.has("gloves"), "外观带上护甲类别")
-	# 3D 模型主角：结算那一下挥砍正好打中；装备类别落到模型各槽；步态按走过的距离推进
-	var body := CutoutHero.new()
-	root.add_child(body)
-	body.fit(1.0, 1.0)
-	body.drive(&"attack", cues[0], 0.0, false, cues)
-	_near(body.hero.anim.current_animation_position, CutoutHero.ATTACK_HIT, "主角挥砍：结算那一下正是打中那一帧", 0.01)
-	body.dress(look)
-	_check(body.hero.outfit.torso == "leather" and body.hero.outfit.feet == "chain" and body.hero.outfit.arms == "peasant",
-		"皮甲上衣、链甲靴子、没戴护腕是布衣袖")
-	var meshes: Dictionary = body.hero._meshes
-	_check(body.hero.tripo and meshes["leather2__top"].visible and meshes["chain2__boot_L"].visible
-		and meshes["chain2__boot_R"].visible and not meshes["leather2__boot_L"].visible and not meshes["peasant3__top"].visible,
-		"男主角是 Tripo 分槽模型：皮甲上衣配链甲靴子")
-	_check(body.hero.outfit.headgear == "leather" and meshes["leather2__helmet"].visible
-		and not meshes["peasant3__hair_topknot"].visible and meshes["peasant3__body_head"].visible
-		and meshes["body__base_body"].visible, "皮甲上衣配皮兜鍪，发髻收在盔里；头和打底身体常在")
-	_check(meshes["peasant3__body_arm_L"].visible and meshes["peasant3__bracer_R"].visible
-		and not meshes["leather2__arm_L"].visible, "没戴护腕是短打的光胳膊加护腕")
-	for case in [[{}, "hat"], [{"armor": "cloth"}, "hat"], [{"armor": "chain"}, "iron"]]:
-		body.dress(Appearance.build({"armor": {"armor_type": case[0].get("armor", "cloth")}} if not case[0].is_empty() else {},
-			{}, "sword"))
-		_check(body.hero.outfit.headgear == case[1], "上衣 %s 配头饰 %s" % [case[0].get("armor", "无"), case[1]])
-	_check(meshes["chain2__helmet"].visible and meshes["chain2__top"].visible and not meshes["peasant3__hair_topknot"].visible,
-		"链甲上衣配铁兜鍪")
-	body.hero.set_slot("arms", "chain")
-	_check(meshes["chain2__arm_R"].visible and not meshes["peasant3__body_arm_R"].visible,
-		"链甲上衣配链甲护臂：上臂在上衣里，不补光胳膊")
-	body.hero.set_slot("torso", "peasant")
-	_check(meshes["chain2__arm_R"].visible and meshes["peasant3__body_arm_R"].visible and not meshes["peasant3__bracer_R"].visible,
-		"短打上衣配链甲护臂：补上短打的光胳膊，护腕换成链甲的")
-	body.hero.set_slot("headgear", "none")
-	_check(meshes["peasant3__hair_topknot"].visible and not meshes["chain2__helmet"].visible, "不戴头饰时露出发髻")
-	body.hero.set_tint("arms", Color.RED)
-	var skin_tint = body.hero._materials["peasant3__body_arm_R"][0].get_shader_parameter("tint")  # 没染过是空值
-	_check((skin_tint == null or skin_tint != Color.RED)
-		and body.hero._materials["chain2__arm_R"][0].get_shader_parameter("tint") == Color.RED,
-		"护臂染色不染光胳膊的皮肤")
-	# 原来的男主角模型（图标渲染、原型还在用）：发髻、兜帽、头饰的遮挡关系
-	var classic := CutoutHero.ModelHero.new()
-	var cm: Dictionary = classic._meshes
-	classic.set_slot("headgear", "none")
-	_check(cm["Head_Hair_Bun"].visible and cm["Head_Pin"].visible, "不戴头饰时露出发髻和簪子")
-	classic.set_slot("headgear", "leather")
-	_check(cm["Head_Helm_Leather"].visible and not cm["Head_Hair_Bun"].visible and cm["Head_Hair_Main"].visible,
-		"皮兜鍪盖住发髻，鬓角后脑的头发还在")
-	classic.set_slot("hood", "ranger")
-	_check(not cm["Head_Hair_Bun"].visible and not cm["Head_Hair_Main"].visible,
-		"戴兜帽时头发和发髻一起藏起来")
-	classic.set_slot("headgear", "iron")
-	_check(not cm["Head_Helm_Iron"].visible, "戴兜帽时头饰也藏起来")
-	classic.set_slot("hood", "none")
-	var boot: MeshInstance3D = cm["Leather_Boots"]
-	_check(boot.mesh.get_surface_count() == 3, "皮甲靴是前面系带的长靴（靴身、鞋带、铜扣眼三层）")
-	classic.free()
-	var stride: float = CutoutHero.GAIT.Walk_Loop * body._height
-	body.drive(&"", 0.0, stride * 0.25, false, [])
-	var quarter: float = body.hero.anim.current_animation_position
-	body.drive(&"", 0.0, stride * 1.25, false, [])
-	_near(body.hero.anim.current_animation_position, quarter, "走路：多走一整个步态循环，脚下姿势相同", 0.01)
-	body.free()
 	return true
 
 func _test_blade_flurry() -> bool:
@@ -631,9 +488,10 @@ func _test_blade_flurry() -> bool:
 	_check(run.motion.is_empty() and is_zero_approx(run.attack_buffer_left), "后撤取消待续普攻")
 	return true
 
-# 剑、长枪、弓三种形制各有各的打法，不是换皮。
+
 func _test_new_forms() -> bool:
-	for form in ["spear", "jian", "sword", "bow"]:
+	_check(Gear.WEAPON_FORMS.keys() == ["sword", "jian"], "游戏只保留刀剑")
+	for form in Gear.WEAPON_FORMS:
 		_check(Gear.WEAPON_FORMS.has(form) and Forge.NAME_PARTS.weapons.has(form) and ForgeArt.FORM_ICONS.has(form),
 			"%s 在数值表、名称表和炉坊图标里都登记了" % form)
 		var icon := ForgeArt.weapon_region(form)
@@ -648,29 +506,46 @@ func _test_new_forms() -> bool:
 	run.attack()
 	for i in range(24):
 		run.step(1.0 / 60.0)
-	_check(run.combo_hits == 2, "长剑一轮两剑")
-	_check(enemy.max_hp - enemy.hp == roundi(run.hero.damage * 0.89), "长剑两剑合起来是一次普攻的伤害")
+	_check(run.combo_hits == 2, "刀一轮两斩")
+	_check(enemy.max_hp - enemy.hp == roundi(run.hero.damage * 0.89), "刀的两斩合起来是一次普攻的伤害")
 
-	run.reset(1, {}, "spear", true)
+	run.reset(1, {}, "jian", true)
 	var front := run.enemies[0]
 	front.spawn = 0.0
 	front.cooldown = 10.0
 	front.stats.speed = 0.0
 	front.pos = Combat.HOME + Vector2(80, 0)
 	var back: Dictionary = front.duplicate(true)
-	back.serial = front.serial + 1
-	back.pos = Combat.HOME + Vector2(140, 0)
+	back.serial += 1
+	back.pos = Combat.HOME + Vector2(104, 0)
 	var flank: Dictionary = front.duplicate(true)
-	flank.serial = front.serial + 2
-	flank.pos = Combat.HOME + Vector2(80, 80)
-	run.enemies.append(back)
-	run.enemies.append(flank)
+	flank.serial += 2
+	flank.pos = Combat.HOME + Vector2(80, 100)
+	run.enemies.append_array([back, flank])
 	run.attack()
-	for i in range(30):
+	for i in range(18):
 		run.step(1.0 / 60.0)
-	_check(front.hp < front.max_hp and back.hp < back.max_hp, "长枪一枪扎穿前后站成一串的两只")
-	_check(flank.hp == flank.max_hp, "长枪扫不到隔了一路的侧翼")
-	_check(float(Gear.WEAPON_FORMS.spear.reach) > float(Gear.WEAPON_FORMS.sword.reach), "长枪比剑够得远")
+	_check(front.hp < front.max_hp and back.hp < back.max_hp, "剑直刺命中前方一线的两只精怪")
+	_check(flank.hp == flank.max_hp, "剑直刺避开侧翼目标")
+	return true
+
+func _test_weapon_migration() -> bool:
+	var path := "user://migration-" + Crypto.new().generate_random_bytes(8).hex_encode() + ".json"
+	var profile := Gear.new(path)
+	var entry := Gear.new_draft()
+	entry.weapon_form = "spear"
+	entry.name = "玄铁长枪"
+	entry.merge_sources = [{"weapon_form": "bow", "name": "寒弓"}, Gear.new_draft()]
+	profile.state.items[entry.uid] = entry
+	profile.state.equipped.weapon = entry.uid
+	_check(profile._commit(profile.state), "写入旧装备样本")
+	profile.load_profile()
+	var migrated := profile.item(entry.uid)
+	_check(profile.equipped("weapon") == entry.uid and migrated.weapon_form == "sword" and migrated.name == "玄铁刀", "已装备长枪迁移为刀")
+	_check(migrated.merge_sources[0] == {"weapon_form": "jian", "name": "寒剑"}, "熔合来源弓迁移为剑")
+	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	_check(saved.items[entry.uid] == migrated, "磁盘已保存迁移后的兵形、装备名和来源")
+	Gear.delete_slot(0, path)
 
 	return true
 

@@ -1,6 +1,6 @@
 """把 AI 出的拆件图切成单个部件，并检查能不能跟光身版对上。
 
-    cd shanxiao   # 在角色目录里运行
+    cd piying   # 在角色目录里运行
     python3 ../cut.py source/parts.png parts --names head,torso,upper_arm,forearm,thigh,shin
     python3 ../cut.py source/armor-1.png armor-1 --like parts --may-grow torso   # 切护甲版，逐件对齐到光身版
                                                     # --may-grow：提示词里允许伸出轮廓的件（护肩那件）
@@ -176,7 +176,7 @@ def paste(arr, shape, x, y):
 
 
 if __name__ == "__main__":
-    # 路径都按当前目录算，在角色目录（shanxiao/、hero/）里运行
+    # 路径都按当前目录算，在角色目录（piying/、nvjiang/）里运行
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
     pieces = cut(src, out)
     if "--names" in sys.argv:

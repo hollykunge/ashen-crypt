@@ -23,8 +23,6 @@ const HeroSheet = preload("res://scripts/hero_sheet.gd")
 const OfflineCard = preload("res://scripts/offline_card.gd")
 const CAMP = preload("res://art/ui-icons/stage-portrait.webp")
 const WIDE_STAGE = preload("res://art/ui-icons/stage.webp")
-const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
-const SPELL_GRADE = preload("res://art/gothic_grade.gdshader")
 const FONT = preload("res://art/fonts/body.ttf")
 const HEADING_FONT = preload("res://art/fonts/heading.tres")
 
@@ -35,12 +33,6 @@ const MUTED := Color("#c7bc9f")
 const IRON := Color("#233638")
 const BORDER := Color("#b99350")
 const CRIMSON := Color("#92271b")
-const SPELL_CELL := Vector2(128, 128)
-const SPELL_INDEX := {
-	&"sword": 0, &"slash": 1, &"cleave": 2, &"retreat": 3,
-	&"arrow": 4, &"fan": 5, &"heavy": 6, &"portal": 7,
-	&"spark": 8, &"sigil": 9, &"frost": 10, &"pause": 11
-}
 
 var run := Combat.new()
 var profile := Gear.new()
@@ -67,8 +59,6 @@ var settings: Control
 var weapon_gallery: Control
 var preferences := ConfigFile.new()
 var settings_path := "user://settings.cfg"
-var spell_textures: Dictionary = {}
-var spell_grade := ShaderMaterial.new()
 
 var safe: MarginContainer
 var armory_river := AtlasTexture.new()
@@ -135,9 +125,6 @@ func _ready() -> void:
 		add_child(preload("res://scripts/perf_overlay.gd").new())
 	original_design_size = get_window().content_scale_size
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	spell_grade.shader = SPELL_GRADE
-	spell_grade.set_shader_parameter("grade_weight", 0.68)
-	spell_grade.set_shader_parameter("exposure", 1.14)
 	var ui_style := Theme.new()
 	ui_style.default_font = FONT
 	ui_style.default_font_size = 16
@@ -870,7 +857,7 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	field.show()
 	battle_shade.visible = not run.continuous
 	battle.show()
-	var symbols := {"sword": &"sword", "jian": &"jian", "spear": &"cleave", "bow": &"arrow"}
+	var symbols := {"sword": &"sword", "jian": &"jian"}
 	_set_glyph(&"attack", symbols.get(form, &"sword"))
 	_set_glyph(&"skill", &"slash")
 	_set_glyph(&"tactic", &"sigil")
@@ -1273,19 +1260,6 @@ func _set_icon(button: Button, symbol: StringName) -> void:
 	glyph.symbol = symbol
 	glyph.art = Gothic.Glyph.art_for(symbol) # 有出图的皮影图标就用图，没有画线条
 	glyph.queue_redraw()
-
-func _spell_texture(symbol: StringName) -> Texture2D:
-	if not SPELL_INDEX.has(symbol):
-		return null
-	if not spell_textures.has(symbol):
-		var index: int = SPELL_INDEX[symbol]
-		var artwork := AtlasTexture.new()
-		artwork.atlas = SPELL_ATLAS
-		artwork.filter_clip = true
-		var origin := SPELL_CELL * Vector2(index % 4, floori(index / 4.0))
-		artwork.region = Rect2(origin + Vector2(5, 5), SPELL_CELL - Vector2(10, 10))
-		spell_textures[symbol] = artwork
-	return spell_textures[symbol]
 
 func _label(text: String, font_size: int, color: Color) -> Label:
 	var title := Label.new()

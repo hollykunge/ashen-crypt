@@ -1,9 +1,9 @@
 """把 AI 出的皮影拆件图按网格切成单个部件，自动估出各件的关节点，写出 rig.json。
 
     cd piying   # 在角色目录里运行
-    python3 ../cut_grid.py source/parts-1.png parts --rows 3 --cols 4 \
+    python3 ../cut_grid.py source/parts-2.png parts --rows 3 --cols 4 \
         --names head,hair,torso,pelvis,upper_arm,forearm,hand,far_hand,thigh,shin,weapon,skirt_front \
-        --template ../swordsman/rig.template.json
+        --template rig.json
 
 和 cut.py 的区别：皮影的镂空花纹、流苏会碎成很多不相连的小块，按连通块切会把它们当碎屑丢掉；
 这里一格就是一件，格子里所有不透明的像素都归这一件。出图要求见 prompts.json：

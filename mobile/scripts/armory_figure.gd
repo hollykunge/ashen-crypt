@@ -26,9 +26,9 @@ func _init() -> void:
 func display(config: Dictionary, person: Dictionary, form: String, preview := false) -> void:
 	actor.dress(Appearance.build(config.get("entries", {}), config.get("patterns", {}), form, person.get("gender", "")))
 	actor.present_outfit()
-	stature = 1.0  # 女主角模型本身矮一点（1.77 米对 1.80 米），不再另外缩
+	stature = 1.0
 	# 皮影女将竖端的月牙长刀比头高，人缩一点，刀头不顶出格子
-	if actor._puppet_on and actor.puppet.who == "nvjiang":
+	if actor.puppet.who == "nvjiang":
 		stature = 0.84
 	trying_label.visible = preview
 	var stem: String = person.get("day_stem", "")
@@ -37,12 +37,12 @@ func display(config: Dictionary, person: Dictionary, form: String, preview := fa
 
 
 func _draw() -> void:
-	if size.x < 1 or size.y < 1:
+	if actor.puppet == null or size.x < 1 or size.y < 1:
 		return
 	var height := minf(size.x * 2.0, size.y * 0.89 * stature)
 	var feet_x := size.x * 0.45
 	var feet_y := size.y * 0.90
-	if actor._puppet_on and actor.puppet.who == "piying":
+	if actor.puppet.who == "piying":
 		# 备战架势的刀伸向右上方，按人和刀的合计宽度取景。
 		height = minf(height, size.x * 1.10)
 		feet_x = size.x * 0.30

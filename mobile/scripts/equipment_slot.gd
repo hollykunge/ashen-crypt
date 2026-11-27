@@ -5,8 +5,6 @@ const Roster = preload("res://scripts/roster.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 
-const WeaponDesign = preload("res://scripts/weapon_design.gd")
-const ModelHero = preload("res://scripts/model_hero.gd")
 
 const GOOD := Color("#acc894")
 const BAD := Color("#ff9a79")
@@ -65,8 +63,10 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	if slot == "weapon":
 		if not ForgeArt.FORM_ICONS.has(form):
 			form = "sword"
-		var design := WeaponDesign.pick(derived, form, Appearance.amount_of(derived)) if occupied else WeaponDesign.plain(form)
-		_icon = ForgeArt.weapon_icon(form, ModelHero.weapon_part(form, design))
+		var variant := posmod(String(derived.get("uid", "")).hash(), 3) if occupied else 0
+		_icon = ForgeArt.weapon_icon(form, variant)
+		if occupied:
+			_fabric_tint = _tint.lerp(Color.WHITE, 0.65)
 	else:
 		var kind: String = derived.get("armor_type", "cloth") if occupied else "cloth"
 		_icon = ForgeArt.garment_icon(index - 1, kind)

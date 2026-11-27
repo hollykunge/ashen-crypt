@@ -32,7 +32,7 @@ static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: 
 	_crescent(canvas, pivot, axes * 0.94, side, lean + 0.09, 3.0, Color(IVORY, opacity))
 	_sparks(canvas, pivot + Vector2(swing * 0.68 * side, slant * 22.0), side, age, Color(tint, opacity), 10 if final else 6)
 
-# 枪芒：从肩前直直地送出去一道梭形的光，越往前越细，枪尖处炸一把火星。
+# 剑芒：从肩前直直地送出去一道梭形的光，越往前越细，剑尖处炸一把火星。
 static func thrust(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float, actor_zoom: float) -> void:
 	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
 	var opacity := pow(1.0 - age, 1.4)
@@ -53,15 +53,6 @@ static func cast(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: f
 	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
 	var radius: float = effect.radius * (0.50 + 0.59 * age)
 	var center := origin - Vector2(0.0, 42.0)
-	if kind == &"arrow_impact":
-		_sparks(canvas, center, side, age, Color(tint, strength), 12)
-		return
-	if kind == &"arrow_seal":
-		for i in range(-1, 2):
-			var arrow := center + Vector2((23.0 + age * 83.0) * side, i * (11.0 + age * 15.0))
-			canvas.draw_line(arrow - Vector2(47.0 * side, i * 9.0), arrow, Color(tint, strength * 0.65), 3.0, true)
-			_talisman(canvas, arrow, 7.0, strength, tint)
-		return
 	_ring(canvas, origin, Vector2(radius, radius * 0.20), Color(tint, strength), 2.3, 40)
 	_ring(canvas, origin, Vector2(radius * 0.78, radius * 0.155), Color(tint, strength * 0.57), 1.2, 8)
 	var number := 5 if kind == &"quake_seal" or kind == &"seal_burst" else 3
