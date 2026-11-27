@@ -25,14 +25,23 @@ func _run() -> void:
 		actor.fit(16.0, 1.0)
 		for i in 4:
 			await RenderingServer.frame_post_draw
-		var image: Image = actor._texture.get_image()
+		# 男主角拿刀时画的是皮影主角（puppet_hero.gd）那块画布
+		var image: Image = (actor.puppet.viewport.get_texture() if actor._puppet_on else actor._texture).get_image()
 		var used := image.get_used_rect()
 		var height := int(used.size.y * CROP)
 		var width := int(height * float(SIZE.x) / SIZE.y)
 		# 横向按头放在中间：取最高处那几行像素的中心
 		var top := image.get_region(Rect2i(used.position.x, used.position.y + int(height * 0.25), used.size.x, int(height * 0.1)))
 		var head_x := used.position.x + top.get_used_rect().get_center().x
-		var rect := Rect2i(head_x - width / 2, used.position.y - int(height * 0.07), width, height)
+		var head_top := used.position.y
+		if actor._puppet_on:
+			# 皮影主角的兵器可能比头高（女将竖端的长刀），最高处不一定是头：按骨骼里脖子的位置找头、按身高取景
+			var real: float = actor.puppet._height * actor.puppet._density
+			height = int(real * CROP)
+			width = int(height * float(SIZE.x) / SIZE.y)
+			head_x = int(actor.puppet.rig._bones.neck.get_global_transform().origin.x)
+			head_top = int(CutoutHero.FEET.y * real - real)
+		var rect := Rect2i(head_x - width / 2, head_top - int(height * 0.07), width, height)
 		var crop := Image.create(width, height, false, Image.FORMAT_RGBA8)
 		image.convert(Image.FORMAT_RGBA8)
 		crop.blit_rect(image, rect, Vector2i.ZERO)

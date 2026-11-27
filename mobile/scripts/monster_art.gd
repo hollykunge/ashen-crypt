@@ -2,13 +2,15 @@ extends RefCounted
 
 const Combat = preload("res://scripts/combat.gd")
 const SideArt = preload("res://scripts/side_art.gd")
-# 精怪图集：4 列 × 3 行，每格的逻辑尺寸是 160×96；贴图是它的 TEXEL 倍，
-# 由 art/side/pack_monsters.py 把像素原图平滑放大而来，和人物一样用带多级渐远的线性取样。
+# 精怪图集：4 列 × 3 行，每格的逻辑尺寸是 160×96；贴图是它的 TEXEL 倍，和人物一样用带多级渐远的线性取样。
+# 现在用的是皮影精怪（art/piying/monsters，prototype/cutout/pack_puppet_monsters.py 打包）：
+# 每只一整块皮子，12 帧按挑签子的动法摆（走时颠、摇，蓄力后仰，出击前扑，被打死往后翻倒）。
+# 原来的像素精怪还在 art/side/monsters，由 art/side/pack_monsters.py 平滑放大而来。
 const PATHS := [
-	"res://art/side/monsters/shanxiao.png",
-	"res://art/side/monsters/fire-fox.png",
-	"res://art/side/monsters/guardian.png",
-	"res://art/ink/vine-spirit.png",
+	"res://art/piying/monsters/shanxiao.png",
+	"res://art/piying/monsters/fire-fox.png",
+	"res://art/piying/monsters/guardian.png",
+	"res://art/piying/monsters/vine-spirit.png",
 ]
 const TEXEL := 3
 const CELL := Vector2(160, 96)

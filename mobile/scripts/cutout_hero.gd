@@ -2,8 +2,12 @@ extends Node
 ## 主角：3D 角色模型（scripts/model_hero.gd）在离屏画布里从侧面渲染，战场和行装把这块画布贴到脚底位置。
 ## 对外接口沿用原来的皮影主角（dress / fit / drive / draw / present_outfit / release_point），
 ## 战场（arena.gd）和行装页（armory_figure.gd）不用改调用方式。
+## 有皮影部件时（男主角拿刀剑、女主角拿近战兵器）改用皮影主角（puppet_hero.gd，2D 拆件骨骼），3D 画布停画；其余还是 3D
 
 const ModelHero = preload("res://scripts/model_hero.gd")
+const PuppetHero = preload("res://scripts/puppet_hero.gd")
+## 总开关：关掉就全用 3D 主角
+const PUPPET := true
 const SILHOUETTE = preload("res://scripts/model_silhouette.gdshader")
 const WeaponDesign = preload("res://scripts/weapon_design.gd")
 
@@ -77,6 +81,8 @@ var _gender := ""
 var _yaw := 0.0
 var _env: Environment
 var _display_lights: Array[DirectionalLight3D] = []
+var puppet: PuppetHero   # 皮影主角，第一次用到时才建
+var _puppet_on := false
 
 
 func _init() -> void:
@@ -168,6 +174,17 @@ func _start_anim() -> void:
 ## 按装备换各槽款式，按染色给各槽上色。
 func dress(look: Dictionary) -> void:
 	_look = look
+	var who := PuppetHero.who_for(look) if PUPPET else ""
+	_puppet_on = not who.is_empty()
+	if _puppet_on and (puppet == null or puppet.who != who):  # 换了角色（男女）就换一具皮影
+		if puppet != null:
+			puppet.queue_free()
+		puppet = PuppetHero.new(who)
+		add_child(puppet)
+		if _height > 0.0:
+			puppet.fit(_height / SPRITE_HEIGHT, _density)
+	if puppet != null:
+		puppet.set_active(_puppet_on)
 	var gender: String = "female" if look.get("gender", "") == "female" else "male"
 	if gender != _gender:
 		_make_hero(gender)
@@ -204,6 +221,8 @@ static func swing_cock(frame: float) -> float:
 
 ## 行装页：转过大半个正面，站着待机。
 func present_outfit() -> void:
+	if _puppet_on:
+		puppet.present()
 	# 垂手站着：剑尖朝地垂在手里，长枪拄着站，弓照常握
 	hero.along_tilt = PRESENT_TILT
 	hero.set_grip_mode({"spear": "against", "bow": "plane"}.get(form, "along"))
@@ -224,6 +243,9 @@ func _turn(degrees: float) -> void:
 
 ## 按战斗状态选动作并定时间：走跑按移动距离推步态，出招让「打中」对准结算的那一下（cues）。
 func drive(motion: StringName, phase: float, walked: float, running: bool, cues: Array) -> void:
+	if _puppet_on:
+		puppet.drive(motion, phase, walked, running, cues)
+		return
 	var distance := walked / maxf(_height, 1.0)
 	_manual = true
 	_turn(0.0)
@@ -289,6 +311,10 @@ func _process(delta: float) -> void:
 		return
 	# 贴画布的那个界面藏起来了（比如战斗时的行装页），两张画布都停渲染，不白花绘制
 	var shown := _canvas == null or not is_instance_valid(_canvas) or _canvas.is_visible_in_tree()
+	if puppet != null:
+		puppet.set_active(_puppet_on and shown)
+	if _puppet_on:  # 皮影主角在画，3D 画布整个停掉
+		shown = false
 	var mode := SubViewport.UPDATE_ALWAYS if shown else SubViewport.UPDATE_DISABLED
 	viewport.render_target_update_mode = mode
 	_outlined.render_target_update_mode = mode
@@ -319,6 +345,8 @@ func _length(action: String) -> float:
 
 ## 弓箭出手点（相对脚底，分格像素）：弓手（左手）前面一点
 func release_point() -> Vector2:
+	if _puppet_on:
+		return puppet.release_point()
 	if form == "bow":
 		return _point("hand_l") + Vector2(6.0, 0.0)
 	return _fist()
@@ -364,6 +392,8 @@ static func attack_time(phase: float, cues: Array, hit: float, end: float) -> Ve
 ## 让画布跟着人物在屏幕上的大小走。pixels：分格人物每个分格像素在屏幕上多大（界面逻辑像素）；
 ## density：一个逻辑像素是几个真实屏幕像素。画布按真实像素画，贴回来时再缩，手机高清屏上才不糊
 func fit(pixels: float, density: float) -> void:
+	if puppet != null:
+		puppet.fit(pixels, density)
 	var height := SPRITE_HEIGHT * pixels
 	if absf(height - _height) < 0.5 and is_equal_approx(density, _density):
 		return
@@ -380,6 +410,9 @@ func fit(pixels: float, density: float) -> void:
 ## 把画布贴到 canvas 上：feet 是脚底的屏幕位置，facing 朝向，offset 是残影往后错开的屏幕像素
 func draw(canvas: CanvasItem, feet: Vector2, facing: float, ink: Color, offset := Vector2.ZERO) -> void:
 	_canvas = canvas
+	if _puppet_on:
+		puppet.draw(canvas, feet, facing, ink, offset)
+		return
 	canvas.draw_set_transform(feet, 0.0, Vector2(facing, 1.0))
 	canvas.draw_texture_rect(_texture, Rect2(offset - FEET * _height, Vector2(viewport.size) / _density), false, ink)
 	canvas.draw_set_transform(Vector2.ZERO)

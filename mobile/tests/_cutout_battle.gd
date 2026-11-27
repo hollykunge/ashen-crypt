@@ -33,6 +33,12 @@ func _start() -> void:
 	_press(game, "进入游戏")
 	_press(game, "创建角色")
 	_press(game, "入山")
+	# 环境变量 GENDER=female：把刚建的角色改成女主角（存档和场上的外观一起改）
+	if OS.get_environment("GENDER") == "female":
+		game.profile.state.character.gender = "female"
+		var her: Dictionary = game.field.look.duplicate()
+		her.gender = "female"
+		game.field.look = her
 	if route:
 		game.challenge_button.pressed.emit()
 		_press(game.place_notice, "接敕")

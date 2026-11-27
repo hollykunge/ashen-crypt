@@ -38,6 +38,21 @@ const NEAR_PARALLAX := 1.6
 # 暗黑调色的力度（0 关掉，1 全开）和四角压暗。挂机取景远，压角轻一点。
 const GRADE := 1.0
 const VIGNETTE := 0.7
+## 皮影戏幕布：长卷换成被灯照透的暖琥珀幕布、景物成深褐影子（snow_haze.gdshader 的 screen），0 关掉
+const PIYING_SCREEN := 1.0
+## 皮影布景：镂空雕刻的远山、树、亭台、民房、石桥，立在人物身后的台口上，随镜头慢慢挪（_draw_scenery）。
+## [图, 高度（画面高的比例）, 视差（长卷走 1 它走多少）, 出现的权重]；远山走得最慢，在最后面
+const SCENERY := [
+	["mountains", 0.34, 0.35, 0.0], ["pine", 0.21, 0.6, 1.0], ["pavilion", 0.17, 0.6, 0.6],
+	["house", 0.15, 0.6, 0.9], ["bridge", 0.08, 0.6, 0.4], ["deadtree", 0.19, 0.6, 1.0],
+]
+const SCENERY_DIR := "res://art/piying/stage/"
+## 布景调淡、半透，颜色贴近幕布，退到人物后面当陪衬（人物、精怪是最鲜明的一层）；远山更淡
+const SCENERY_INK := Color(0.92, 0.72, 0.52, 0.42)
+const SCENERY_FAR_INK := Color(0.9, 0.7, 0.5, 0.3)
+static var _scenery_tex := {}
+## 幕布四边烧暗的力度（皮影戏台口外是黑的）
+const PIYING_VIGNETTE := 0.45
 const VIGNETTE_CAMP := 0.6
 
 var run: Combat
@@ -155,6 +170,7 @@ func set_camp_view(active: bool) -> void:
 	haze.set_shader_parameter("haze", 0.24 * depth)
 	haze.set_shader_parameter("flatten", 0.16 * depth)
 	haze.set_shader_parameter("desaturate", 0.24 * depth)
+	haze.set_shader_parameter("screen", PIYING_SCREEN)
 	street_floor = plate.floor
 	lane_depth = 0.30 if route_view else SIDE_DEPTH
 	follow = Vector2.ZERO
@@ -220,9 +236,9 @@ func _update_light() -> void:
 	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
 	if plate.get("ink", false):
 		# 纸本场景保留墨线和中间调，天色仍随关卡变化。
-		atmosphere.visible = warm > 0.01 or dark > 0.01
+		atmosphere.visible = warm > 0.01 or dark > 0.01 or PIYING_SCREEN > 0.0
 		light.set_shader_parameter("grade", 0.0)
-		light.set_shader_parameter("vignette", 0.10)
+		light.set_shader_parameter("vignette", PIYING_VIGNETTE if PIYING_SCREEN > 0.0 else 0.10)
 		light.set_shader_parameter("warm", warm * 0.12)
 		light.set_shader_parameter("night", dark * 0.22)
 		light.set_shader_parameter("aspect", size.x / size.y)
@@ -352,9 +368,69 @@ func _draw_sparks() -> void:
 			ink = ink.lerp(Color("#ffd28a"), fade * 0.5)
 		var c := Color(ink, fade)
 		var h := pixels * 0.5
-		pts.append_array([p + Vector2(-h, -h), p + Vector2(h, -h), p + Vector2(h, h), p + Vector2(-h, -h), p + Vector2(h, h), p + Vector2(-h, h)])
+		if PIYING_SCREEN > 0.0:
+			# 皮影戏：碎屑是剪纸的菱形小片，飞的时候翻转（宽窄跟着翻）
+			var spin: float = spark.life * 9.0 + spark.total * 13.0
+			var long := Vector2.from_angle(spin) * h * 1.6
+			var wide := Vector2.from_angle(spin + PI * 0.5) * h * (0.35 + 0.65 * absf(sin(spin * 1.7)))
+			pts.append_array([p - long, p + wide, p + long, p - long, p + long, p - wide])
+		else:
+			pts.append_array([p + Vector2(-h, -h), p + Vector2(h, -h), p + Vector2(h, h), p + Vector2(-h, -h), p + Vector2(h, h), p + Vector2(-h, h)])
 		cols.append_array([c, c, c, c, c, c])
 	RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), PackedInt32Array(), pts, cols)
+
+## 皮影布景：远山一排连着铺在最后面；前面每隔一段按种子摆一件（树、亭台、民房、石桥、枯树），
+## 有的位置空着。同一层每次进来摆法一样（种子取自层数）。都贴着画面坐标画，底边落在台口（地面线）稍后
+func _draw_scenery() -> void:
+	if PIYING_SCREEN <= 0.0 or size.y <= 0.0:
+		return
+	draw_set_transform(Vector2.ZERO)
+	var base := floor_height - size.y * 0.012 + jitter.y
+	var layer_seed: int = (run.dungeon_layer if run != null else 1) * 131
+	for spec in SCENERY:
+		if not _scenery_tex.has(spec[0]):
+			var path: String = SCENERY_DIR + spec[0] + ".png"
+			_scenery_tex[spec[0]] = load(path) if ResourceLoader.exists(path) else null
+	# 远山：一张接一张铺满，走得最慢
+	var hills: Texture2D = _scenery_tex.mountains
+	if hills != null:
+		var h: float = size.y * float(SCENERY[0][1])
+		var w := h * hills.get_width() / hills.get_height()
+		var shift := fposmod(-follow.x * scale_to_screen * float(SCENERY[0][2]) + jitter.x, w)
+		var x := shift - w
+		while x < size.x:
+			draw_texture_rect(hills, Rect2(x, base - h, w, h), false, SCENERY_FAR_INK)
+			x += w
+	# 近一层的景物：按格子摆，每格最多一件
+	var spacing := size.y * 0.30
+	var parallax: float = SCENERY[1][2]
+	var offset := -follow.x * scale_to_screen * parallax + jitter.x
+	var first := floori((-offset - spacing * 2.0) / spacing)
+	var last := ceili((size.x - offset + spacing) / spacing)
+	var total := 0.0
+	for spec in SCENERY.slice(1):
+		total += float(spec[3])
+	for i in range(first, last + 1):
+		var r := _hash(i + layer_seed)
+		if r < 0.45:
+			continue
+		var pick := _hash(i * 7 + layer_seed + 3) * total
+		var spec: Array = SCENERY[1]
+		for s in SCENERY.slice(1):
+			pick -= float(s[3])
+			if pick <= 0.0:
+				spec = s
+				break
+		var tex: Texture2D = _scenery_tex.get(spec[0])
+		if tex == null:
+			continue
+		var h: float = size.y * float(spec[1]) * (0.85 + 0.3 * _hash(i + layer_seed + 11))
+		var w := h * tex.get_width() / tex.get_height()
+		var flip := -1.0 if _hash(i + layer_seed + 29) < 0.5 else 1.0
+		var x := i * spacing + offset + (_hash(i + layer_seed + 17) - 0.5) * spacing * 0.6
+		draw_set_transform(Vector2(x, base), 0.0, Vector2(flip, 1.0))
+		draw_texture_rect(tex, Rect2(-w * 0.5, -h, w, h), false, SCENERY_INK)
+	draw_set_transform(Vector2.ZERO)
 
 func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -431,6 +507,7 @@ func _draw() -> void:
 	var perpendicular := Vector2(-shake_dir.y, shake_dir.x)
 	jitter = ((shake_dir * along * 0.7 + perpendicular * across * 0.35) * amplitude + kick) * scale_to_screen
 	_draw_mist()
+	_draw_scenery()
 	_world_transform()
 	_draw_telegraphs()
 	_draw_drops()
@@ -971,7 +1048,10 @@ func _draw_effect(effect: Dictionary) -> void:
 			_square(origin + mark - Vector2(0, progress * 10.0), 3.0 if i % 2 else 5.0, ink)
 
 # 影子画三层：外圈最虚，内圈最实，免得脚下像破了个洞。
+# 皮影戏：影人贴着幕布演，台口上没有落地的影子，不画
 func _shadow(point: Vector2, radius: Vector2, color: Color) -> void:
+	if PIYING_SCREEN > 0.0:
+		return
 	for layer in range(3):
 		var spread := radius * (1.22 - layer * 0.26)
 		var points := PackedVector2Array()

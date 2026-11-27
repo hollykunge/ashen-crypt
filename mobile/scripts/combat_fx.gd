@@ -2,6 +2,11 @@ extends RefCounted
 
 const IVORY := Color("#fff1c9")
 const CINNABAR := Color("#b6452f")
+## 皮影戏：刀光换成一片镂空的朱红月牙皮子（art/piying/fx/slash.png，凸面朝右），按刀光的转轴、半径、倾角贴上去
+const PIYING := true
+const PIYING_SLASH := preload("res://art/piying/fx/slash.png")
+## 月牙在刀光椭圆里占的范围（以椭圆半轴为单位）：左边到右边、上到下
+const PIYING_SLASH_BOX := Rect2(0.2, -1.08, 0.85, 2.16)
 
 static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float, actor_zoom: float) -> void:
 	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
@@ -14,6 +19,14 @@ static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: 
 	var lean := slant * 0.51
 	var opacity := pow(1.0 - age, 1.55)
 	var tint: Color = effect.color
+	if PIYING:
+		var box := PIYING_SLASH_BOX
+		var pts := PackedVector2Array()
+		for c in [box.position, Vector2(box.end.x, box.position.y), box.end, Vector2(box.position.x, box.end.y)]:
+			pts.append(pivot + (c * axes).rotated(lean) * Vector2(side, 1.0))
+		canvas.draw_polygon(pts, PackedColorArray([Color(1, 1, 1, opacity)]),
+			PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]), PIYING_SLASH)
+		return
 	_crescent(canvas, pivot, axes, side, lean, 15.0 if final else 11.0, Color(CINNABAR, opacity * 0.50))
 	_crescent(canvas, pivot, axes * 0.98, side, lean, 9.0 if final else 5.5, Color(tint, opacity))
 	_crescent(canvas, pivot, axes * 0.94, side, lean + 0.09, 3.0, Color(IVORY, opacity))

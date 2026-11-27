@@ -27,6 +27,9 @@ func display(config: Dictionary, person: Dictionary, form: String, preview := fa
 	actor.dress(Appearance.build(config.get("entries", {}), config.get("patterns", {}), form, person.get("gender", "")))
 	actor.present_outfit()
 	stature = 1.0  # 女主角模型本身矮一点（1.77 米对 1.80 米），不再另外缩
+	# 皮影女将竖端的月牙长刀比头高，人缩一点，刀头不顶出格子
+	if actor._puppet_on and actor.puppet.who == "nvjiang":
+		stature = 0.84
 	trying_label.visible = preview
 	var stem: String = person.get("day_stem", "")
 	tint = Color.WHITE if stem.is_empty() else Roster.ELEMENT_TINTS[WuXing.stem_element(stem)].lerp(Color.WHITE, 0.8)

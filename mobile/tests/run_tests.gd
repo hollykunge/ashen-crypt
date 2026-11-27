@@ -433,6 +433,20 @@ func _test_weapon_grips() -> bool:
 	body.fit(1.0, 1.0)
 	for form in Gear.WEAPON_FORMS:
 		body.dress(Appearance.bare(form))
+		# 男主角拿刀剑交给皮影主角（puppet_hero.gd，2D 拆件骨骼），动作在骨骼上查
+		_check(body._puppet_on == (form in ["sword", "jian"]), "%s 是否用皮影主角" % form)
+		if body._puppet_on:
+			var rig: Node2D = body.puppet.rig
+			body.drive(&"attack", 0.25, 0.0, false, [0.33])
+			_check(rig.current_action() == "attack", "%s 皮影主角出招播劈砍" % form)
+			_check(body.release_point().y < -10.0, "%s 皮影主角的握刀拳头在脚底上方" % form)
+			body.drive(&"", 0.0, 3.0, true, [])
+			_check(rig.current_action() == "run", "%s 皮影主角跑动" % form)
+			body.drive(&"", 0.0, 3.0, false, [])
+			_check(rig.current_action() == "walk", "%s 皮影主角走路" % form)
+			body.drive(&"", 0.0, 0.0, false, [])
+			_check(rig.current_action() == "ready", "%s 皮影主角站着摆备战架势" % form)
+			continue
 		body.drive(&"attack", 0.25, 0.0, false, [0.33])
 		_check(body.form == form and body._action == CutoutHero.MOVES[form].attack, "%s 出招播自己的动作" % form)
 		var hand: Vector2 = body._point("hand_l") if form == "bow" else body._point("hand_r")
@@ -455,6 +469,13 @@ func _test_weapon_grips() -> bool:
 			var tip: Vector3 = (body.hero._global_of("hand_r") * body.hero._kit.transform).basis.y.normalized()
 			_check(absf(tip.x) < 0.05 and tip.z > 0.8 and tip.y >= 0.0,
 				"%s 戒备时贴着侧面朝前上方，不横着戳向镜头" % form)
+	# 女主角：近战兵器都由皮影鬼面女将（nvjiang）来拿，弓还是 3D
+	for form in Gear.WEAPON_FORMS:
+		var her := Appearance.bare(form)
+		her.gender = "female"
+		body.dress(her)
+		var want := "" if form == "bow" else "nvjiang"
+		_check((body.puppet.who if body._puppet_on else "") == want, "女主角拿 %s 用%s" % [form, want if want != "" else " 3D 模型"])
 	# 拉弓：撒放前右手拉到下巴、弦跟着手；撒放后弦弹直
 	body.dress(Appearance.bare("bow"))
 	body.drive(&"attack", 0.32, 0.0, false, [0.33])
@@ -752,8 +773,9 @@ func _test_fx_art() -> bool:
 		var sheet: Dictionary = FxArt.SHEETS[kind]
 		var cell: Vector2i = sheet.cell
 		var texture: Texture2D = sheet.texture
-		_check(Vector2i(texture.get_size()) == Vector2i(cell.x * int(sheet.frames), cell.y * FxArt.ROWS.size()),
-			"%s 图集尺寸 = 帧数 × 五行行数" % kind)
+		var texel: int = sheet.get("texel", 1)
+		_check(Vector2i(texture.get_size()) == Vector2i(cell.x * int(sheet.frames), cell.y * FxArt.ROWS.size()) * texel,
+			"%s 图集尺寸 = 帧数 × 五行行数（乘清晰度倍数）" % kind)
 		var pivot: Vector2 = sheet.pivot
 		_check(Rect2(Vector2.ZERO, Vector2(cell)).has_point(pivot), "%s 锚点落在格内" % kind)
 		var image := texture.get_image()
