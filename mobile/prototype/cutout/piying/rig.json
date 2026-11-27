@@ -4,29 +4,23 @@
  "parts": {
   "head": {
    "pivot": [
-    210,
+    211,
     283
    ],
    "hair": [
-    182,
-    239
+    166,
+    139
    ],
    "behind": true,
-   "scale": [
-    0.68,
-    0.52
-   ],
+   "scale": 0.595,
    "tilt": 0.0
   },
   "hair": {
    "pivot": [
-    316,
-    26
+    317,
+    25
    ],
-   "scale": [
-    0.86,
-    0.48
-   ]
+   "scale": 0.642
   },
   "torso": {
    "pivot": [
@@ -34,12 +28,12 @@
     227
    ],
    "neck": [
-    125,
-    38
+    128,
+    40
    ],
    "shoulder": [
-    112,
-    68
+    58,
+    80
    ],
    "hip": [
     115,
@@ -51,7 +45,7 @@
   "pelvis": {
    "pivot": [
     155,
-    29
+    26
    ],
    "hip": [
     151,
@@ -66,32 +60,32 @@
   "upper_arm": {
    "pivot": [
     76,
-    32
+    31
    ],
    "end": [
-    72,
-    250
+    64,
+    249
    ],
    "scale": 0.64
   },
   "forearm": {
    "pivot": [
-    51,
-    34
+    49,
+    30
    ],
    "wrist": [
     45,
-    252
+    248
    ],
-   "split": 252,
+   "split": 248,
    "split_x": 45,
    "cleaned": true,
    "scale": 0.54
   },
   "hand": {
    "pivot": [
-    45,
-    32
+    43,
+    31
    ],
    "grip": [
     77,
@@ -103,7 +97,7 @@
   "far_hand": {
    "pivot": [
     42,
-    34
+    30
    ],
    "scale": 0.32
   },
@@ -113,13 +107,10 @@
     29
    ],
    "end": [
-    101,
-    276
+    97,
+    271
    ],
-   "scale": [
-    0.69,
-    0.84
-   ]
+   "scale": 0.761
   },
   "shin": {
    "pivot": [
@@ -134,10 +125,10 @@
     61,
     294
    ],
-   "scale": [
-    0.76,
-    0.88
-   ]
+   "scale": 0.818,
+   "split_x": 61,
+   "split": 246,
+   "overlap": 6
   },
   "weapon": {
    "pivot": [
@@ -179,24 +170,21 @@
   "stride": 0.55,
   "lift": 0.11,
   "bob": 0.014,
-  "arm": 32.0,
+  "arm": 24,
   "elbow": 12.0,
   "period": 0.9,
   "duty": 0.61,
-  "hip": 0.924,
-  "near_arm": 0.35,
+  "hip": 0.898,
+  "near_arm": 0.6,
   "near_up": -11.0,
   "near_lo": 17.0,
   "near_blade": 15.0,
   "head": 0.14,
   "reach": 0.354,
   "push": 0.305,
-  "knee": 20.0,
+  "knee": 0.14,
   "heel": 20.5,
-  "heel_from": 0.552,
-  "swing": 26.0,
-  "hop": 0.035,
-  "rock": 2.5
+  "heel_from": 0.552
  },
  "attack": [
   [
@@ -266,11 +254,11 @@
   [
    0.47,
    {
-    "torso": 27.0,
+    "torso": 21.0,
     "neck": -9.0,
-    "arm_near_up": 24.5,
+    "arm_near_up": 36.5,
     "arm_near_lo": 5.5,
-    "blade": 41.0,
+    "blade": 35.0,
     "arm_far_up": -32.0,
     "arm_far_lo": 45.0,
     "dx": 0.13,
@@ -319,25 +307,22 @@
   "reach": 0.321,
   "push": 0.437,
   "kick": 0.285,
-  "knee": 42.0,
+  "knee": 0.33,
   "lift": 0.34,
   "bob": 0.026,
-  "hip": 0.882,
+  "hip": 0.86,
   "duty": 0.414,
   "period": 0.6,
-  "arm": 46.0,
+  "arm": 37,
   "elbow": 24.0,
   "pump": 12.0,
-  "near_arm": 0.25,
+  "near_arm": 0.6,
   "near_up": -32.0,
   "near_lo": 34.0,
   "near_blade": 12.0,
   "hold": 0.0,
   "drag": 34.0,
-  "heel": 20.0,
-  "swing": 42.0,
-  "hop": 0.08,
-  "rock": 3.0
+  "heel": 20.0
  },
  "far_tint": 0.77,
  "slots": {
@@ -350,7 +335,7 @@
    "hand",
    "far_hand"
   ],
-  "pants": [
+  "greaves": [
    "pelvis",
    "thigh",
    "shin"
@@ -361,18 +346,18 @@
  },
  "attack_wrist": 40.0,
  "ready": {
-  "torso": 12.0,
+  "torso": 5,
   "neck": -3.5,
-  "hip": 0.865,
-  "dx": 0.055,
-  "foot_near_x": 0.409,
-  "foot_far_x": -0.358,
+  "hip": 0.92,
+  "dx": 0.012,
+  "foot_near_x": 0.24,
+  "foot_far_x": -0.22,
   "foot_far_heel": 4.0,
   "arm_near_up": 26.0,
   "arm_near_lo": 40.0,
   "blade": 0.0,
-  "arm_far_up": 31.0,
-  "arm_far_lo": 78.0
+  "arm_far_up": 11,
+  "arm_far_lo": 47
  },
  "trail_color": [
   0.62,
@@ -380,6 +365,5 @@
   0.05,
   0.55
  ],
- "style": "piying",
  "attack_strike": 2
 }

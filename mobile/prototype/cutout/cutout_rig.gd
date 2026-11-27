@@ -5,7 +5,12 @@ extends Node2D
 ## 换装就是把某根骨头上的图换成另一套（set_outfit），骨骼和动作都不变。
 ## 远侧的手脚复用近侧的图，压暗、错开一点当纵深。
 ##
-## 可选部件：skirt_front / skirt_back（长衣下摆前后片，挂在腰上，跟着大腿摆）、weapon（握在近侧手里）。
+## 可选部件：skirt_front / skirt_back（长衣下摆前后片，挂在腰上，跟着大腿摆）、weapon（握在近侧手里）、
+## foot（单独的脚，挂在小腿的 ankle 上、压在小腿下面）。
+## 部件写了 src 就从那个路径取图（比如光身底图借刀客的刀），不从 base_dir 取；
+## 写了 file 就用外观目录里叫这个名字的图（比如近侧上臂用 upper_arm_right.png），没写就用部件名。
+## 躯干写了 far_shoulder / far_hip 时，远侧胳膊、腿挂在这两个点上（躯干连着臀胯是一整块，前后肩、前后胯各有一颗铆钉），
+## 并且腿的挂点跟着躯干一起转。
 
 const SPINE_CURVE := preload("res://prototype/cutout/spine_curve.gdshader")
 
@@ -18,8 +23,8 @@ const FAR_SHIFT := Vector2(-6, -4)  # 远侧手脚往后错开一点做纵深；
 ## 腿只从下摆底下和两片之间的开衩露出来，不会画到布上面去。
 const Z := {
 	"hair": -10,
-	"arm_far_up": -9, "arm_far_hand": -8, "arm_far_lo": -7, "leg_far_up": -6, "leg_far_lo": -6, "boot_far": -5,
-	"crotch": -4, "leg_near_up": -3, "leg_near_lo": -3, "boot_near": -2, "skirt_back": -2, "pelvis": -1, "head_behind": -1, "torso": 0, "skirt_front": 1, "collar": 2, "head": 4,
+	"arm_far_up": -9, "arm_far_hand": -8, "arm_far_lo": -7, "foot_far": -7, "leg_far_up": -6, "leg_far_lo": -6, "boot_far": -5,
+	"crotch": -4, "foot_near": -4, "leg_near_up": -3, "leg_near_lo": -3, "boot_near": -2, "skirt_back": -2, "pelvis": -1, "head_behind": -1, "torso": 0, "skirt_front": 1, "collar": 2, "head": 4,
 	"weapon": 5, "arm_near_up": 6, "arm_near_hand": 7, "arm_near_lo": 8,
 }
 
@@ -240,7 +245,8 @@ func _build() -> void:
 		# 远侧手臂隔着身体，看到的是内侧；有 far_upper_arm / far_forearm 就用它们，没有就借近侧的图
 		var p_up := "far_upper_arm" if far and _has("far_upper_arm") else "upper_arm"
 		var p_lo := "far_forearm" if far and _has("far_forearm") else "forearm"
-		var up := _bone("arm_%s_up" % side, torso, _at("torso", "shoulder") + off)
+		var shoulder := _at("torso", "far_shoulder") if far and rig.parts.torso.has("far_shoulder") else _at("torso", "shoulder") + off
+		var up := _bone("arm_%s_up" % side, torso, shoulder)
 		_attach(up, p_up, "arm_%s_up" % side, far)
 		var lo := _bone("arm_%s_lo" % side, up, _at(p_up, "end"))
 		_attach(lo, p_lo, "arm_%s_lo" % side, far)
@@ -256,11 +262,19 @@ func _build() -> void:
 				_cut_forearm(p_lo)
 			var fh := _bone("arm_far_hand", lo, at)
 			_attach(fh, "far_hand", "arm_far_hand", true)
-		var th := _bone("leg_%s_up" % side, hips, hip_at + off)
-		_attach(th, "thigh", "leg_%s_up" % side, far)
-		var sh := _bone("leg_%s_lo" % side, th, _at("thigh", "end"))
-		_attach(sh, "shin", "leg_%s_lo" % side, far)
+		var th := _bone("leg_%s_up" % side, hips, _leg_root(side, 0.0))
+		# 远侧腿有 far_thigh / far_shin / far_foot 就用它们（左右腿轮廓是镜像的），没有就借近侧的图
+		var p_th := _leg_part("thigh", side)
+		var p_sh := _leg_part("shin", side)
+		_attach(th, p_th, "leg_%s_up" % side, far)
+		var sh := _bone("leg_%s_lo" % side, th, _at(p_th, "end"))
+		_attach(sh, p_sh, "leg_%s_lo" % side, far)
+		if _has("foot"):
+			var ft := _bone("foot_%s" % side, sh, _at(p_sh, "ankle"))
+			_attach(ft, _leg_part("foot", side), "foot_%s" % side, far)
 		# 靴子单独一件（鞋子槽），跟小腿共用关节点和缩放，压在小腿的裤管上面；裤管归裤子槽
+		if not _has("boot") and rig.parts.shin.has("split"):
+			_split("shin", sh, "foot_%s" % side, "leg_%s_lo" % side, far)
 		if _has("boot"):
 			_attach(sh, "boot", "boot_%s" % side, far)
 			# 有 split 时在脚踝处切开：靴筒跟着小腿，脚绕脚踝转，踩地时放平；foot_scale 单独缩脚（绕脚踝缩）
@@ -306,10 +320,14 @@ func _build() -> void:
 func set_outfit(outfit) -> void:
 	for part in _sprites:
 		var dir := _dir_for(part, outfit)
-		var path := "%s/%s.png" % [dir, part]
+		var file: String = rig.parts[part].get("file", part)
+		var path := "%s/%s.png" % [dir, file]
 		var m := _margin(dir)
-		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path, "Texture2D"):
-			path = "%s/%s.png" % [rig.base_dir, part]
+		if rig.parts[part].has("src"):
+			path = rig.parts[part].src
+			m = 0.0
+		elif not FileAccess.file_exists(path) and not ResourceLoader.exists(path, "Texture2D"):
+			path = "%s/%s.png" % [rig.base_dir, file]
 			m = 0.0
 		if not _textures.has(path):
 			var img: Image
@@ -378,6 +396,20 @@ func _hip_at() -> Vector2:
 	if rig.parts.torso.has("hip"):
 		return _at("torso", "hip")
 	return Vector2.ZERO
+
+
+## 腿挂在腰带（hips 骨头）上的位置。躯干写了 far_hip 时（躯干连着臀胯一整块），远侧腿挂在 far_hip，
+## 两条腿的挂点都跟着躯干转（torso_rad 是躯干当前的转角）；否则照旧挂在 _hip_at()，远侧错开 FAR_SHIFT
+func _leg_root(side: String, torso_rad: float) -> Vector2:
+	if not rig.parts.torso.has("far_hip"):
+		return _hip_at() + (FAR_SHIFT if side == "far" else Vector2.ZERO)
+	var key := "far_hip" if side == "far" else "hip"
+	return _at("torso", key).rotated(torso_rad)
+
+
+## 某条腿的这一节用哪件：远侧有 far_<件> 就用它，否则用近侧那件
+func _leg_part(part: String, side: String) -> String:
+	return "far_" + part if side == "far" and _has("far_" + part) else part
 
 
 ## 前臂只用到手腕：图里原来的拳头已经由 wrist_cut.py 按护腕底边抠掉了，这里不再切图
@@ -711,6 +743,19 @@ func _process(delta: float) -> void:
 			pose = _pose_attack(_action_t)
 		"ready":
 			pose = _pose_puppet_idle(_time, _ready_p) if puppet else _pose_ready(_time)
+		"hurt", "revive":
+			pose = _pose_ready(_time)
+			var u := clampf(_action_t, 0.0, 1.0)
+			if _action == "hurt":
+				var recoil := smoothstep(0.0, 0.18, u) * (1.0 - smoothstep(0.18, 1.0, u))
+				pose.torso -= 16.0 * recoil
+				pose.dx -= 0.075 * recoil
+				pose.hip -= 0.06 * recoil
+				pose.arm_near_lo += 19.0 * recoil
+			else:
+				var crouch := 1.0 - smoothstep(0.0, 0.85, u)
+				pose.hip -= 0.21 * crouch
+				pose.torso += 17.0 * crouch
 		"stand":
 			# 笔直站姿：腿伸直、并脚，其余关节归零，只用来跟设定图比比例
 			pose = {}
@@ -755,7 +800,8 @@ func _update_trail() -> void:
 		_trail.width_curve = c
 		add_child(_trail)
 	# 只在起手到打中那一段记；打中以后剑停着，刀光在 TRAIL_TIME 里自己淡掉
-	var swinging: bool = _action == "attack" and _action_t > 0.3 and _action_t < 0.45 and freeze_t < 0.0
+	var windup_end: float = _attack[_strike_from][0]
+	var swinging: bool = _action == "attack" and _action_t >= windup_end and _action_t <= attack_hit_time() + TRAIL_TIME and freeze_t < 0.0
 	if swinging:
 		var w: Node2D = _bones.weapon
 		var tip := (_v(rig.parts.weapon.tip) - _v(rig.parts.weapon.pivot)) * _s("weapon")
@@ -783,7 +829,8 @@ func _update_trail() -> void:
 
 
 func _follow(key: String, target: float, dt: float) -> float:
-	if _action == "stand":
+	if _action == "stand" or (_action == "attack" and (key.begins_with("arm_") or key == "blade")):
+		_spring[key] = [target, 0.0]
 		return target
 	if not _spring.has(key):
 		_spring[key] = [target, 0.0]
@@ -808,16 +855,19 @@ func _follow(key: String, target: float, dt: float) -> float:
 
 ## 两节骨头的 IK：胯在 hip、脚底要踩到 target，膝盖朝前弯。返回 [大腿转角, 小腿转角]（弧度，小腿相对大腿）。
 ## heel：脚跟抬起的角度（弧度），脚绕前脚掌（boot 的 ball）转，脚踝跟着往上、往前抬，前脚掌不动。
-func _leg_ik(hip: Vector2, target: Vector2, heel := 0.0) -> Array:
-	var v1 := _at("thigh", "end")
-	var v2 := _at("shin", "sole")
+func _leg_ik(hip: Vector2, target: Vector2, heel := 0.0, softness := 0.0, side := "near") -> Array:
+	var p_th := _leg_part("thigh", side)
+	var p_sh := _leg_part("shin", side)
+	var v1 := _at(p_th, "end")
+	var v2 := _at(p_sh, "sole")
 	# 脚踝分开时对准脚踝：脚放平后，脚踝在脚底正上方（脚底 → 脚踝那段，按脚的缩放）
-	if _bones.has("foot_near") and rig.parts.shin.has("ankle"):
-		var fs: float = rig.parts.boot.get("foot_scale", 1.0)
-		var ankle := _at("shin", "ankle")
-		var ball := _at("boot", "ball") if rig.parts.boot.has("ball") else _at("shin", "sole")
+	if _bones.has("foot_near") and rig.parts[p_sh].has("ankle"):
+		var footwear: Dictionary = rig.parts.get("boot", rig.parts[p_sh])
+		var fs: float = footwear.get("foot_scale", 1.0)
+		var ankle := _at(p_sh, "ankle")
+		var ball := _at("boot", "ball") if _has("boot") and rig.parts.boot.has("ball") else _at(p_sh, "sole")
 		# 前脚掌在脚底点前面多远（脚绕脚踝缩放，所以前脚掌到脚踝那段也乘 fs）
-		var ball_at := target + (ball - _at("shin", "sole")) * fs
+		var ball_at := target + (ball - _at(p_sh, "sole")) * fs
 		target = ball_at + ((ankle - ball) * fs).rotated(heel)
 		v2 = ankle
 	var l1 := v1.length()
@@ -827,9 +877,9 @@ func _leg_ik(hip: Vector2, target: Vector2, heel := 0.0) -> Array:
 	# 距离超过腿长的 (1 - SOFT_IK) 以后按指数慢慢逼近腿长，膝盖永远留一点弯，变化是平滑的
 	var full := l1 + l2
 	var d := to.length()
-	var knee_start := full * (1.0 - _soft)
-	if _soft > 0.001 and d > knee_start:
-		d = knee_start + full * _soft * (1.0 - exp(-(d - knee_start) / (full * _soft)))
+	var knee_start := full * (1.0 - softness)
+	if softness > 0.001 and d > knee_start:
+		d = knee_start + full * softness * (1.0 - exp(-(d - knee_start) / (full * softness)))
 	d = clampf(d, absf(l1 - l2) + 1.0, full - 0.01)
 	var a := acos(clampf((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d), -1.0, 1.0))
 	var thigh_dir := to.angle() - a  # 往前（画面 +x）那边偏，膝盖就朝前
@@ -879,19 +929,27 @@ func _apply(pose: Dictionary, dt: float) -> void:
 		hips = Vector2(0.0, -lowest - pose.hop * _leg) - hip_at
 	_bones.hips.position = hips
 	var thigh_fwd := []
+	var one_piece: bool = rig.parts.torso.has("far_hip")
 	for side in ["near", "far"]:
 		var off := FAR_SHIFT if side == "far" else Vector2.ZERO
+		var root := hip_at + off
+		if one_piece:
+			# 躯干连着臀胯：胯上的铆钉跟着躯干转，腿的挂点每帧挪过去；远侧脚不另外错开
+			root = _leg_root(side, _bones.torso.rotation)
+			_bones["leg_%s_up" % side].position = root
+			off = Vector2.ZERO
 		var foot := Vector2(pose["foot_%s_x" % side] * _leg, -pose["foot_%s_y" % side] * _leg) + Vector2(off.x, 0)
 		var heel := deg_to_rad(pose.get("foot_%s_heel" % side, 0.0))
 		var r: Array = [deg_to_rad(-pose["thigh_%s" % side]), deg_to_rad(pose["shin_%s" % side])] if swinging \
-			else _leg_ik(hips + hip_at + off, foot, heel)
-		r[0] = deg_to_rad(_follow("leg_%s_up" % side, rad_to_deg(r[0]), dt))
-		r[1] = deg_to_rad(_follow("leg_%s_lo" % side, rad_to_deg(r[1]), dt))
+			else _leg_ik(hips + root, foot, heel, _soft * smoothstep(0.0, 0.06, pose["foot_%s_y" % side]), side)
+		if _action not in ["walk", "run"]:
+			r[0] = deg_to_rad(_follow("leg_%s_up" % side, rad_to_deg(r[0]), dt))
+			r[1] = deg_to_rad(_follow("leg_%s_lo" % side, rad_to_deg(r[1]), dt))
 		_bones["leg_%s_up" % side].rotation = r[0]
 		_bones["leg_%s_lo" % side].rotation = r[1]
 		# 脚：踩在地上时整只脚放平（抵消大腿加小腿的转角）再按 heel 踮起脚跟，抬起来时跟着小腿自然垂；按抬脚高度过渡
 		if _bones.has("foot_" + side):
-			var roll_height := maxf(0.001, float(rig.parts.boot.get("foot_roll_height", 0.04)))
+			var roll_height := maxf(0.001, float(rig.parts.get("boot", rig.parts.shin).get("foot_roll_height", 0.04)))
 			var flat := 1.0 - clampf(pose["foot_%s_y" % side] / roll_height, 0.0, 1.0)
 			# 大小腿的弹簧角可能相差整圈，先把脚踝目标折回最短角度再做过渡。
 			var ankle_rotation := wrapf(heel - r[0] - r[1], -PI, PI)

@@ -1,4 +1,6 @@
-"""把 AI 出的皮影拆件图按网格切成单个部件，自动估出各件的关节点，写出 rig.json。
+"""历史透明分件图兼容工具。V6 独立原稿与配准请运行 art/ui-icons/slice.py。
+
+把 AI 出的皮影拆件图按网格切成单个部件，自动估出各件的关节点，写出 rig.json。
 
     cd piying   # 在角色目录里运行
     python3 ../cut_grid.py source/parts-2.png parts --rows 3 --cols 4 \
@@ -21,18 +23,11 @@ ALPHA = 24  # 不透明度低于它算透明
 DILATE = 6  # 把镂空碎块连成一件时膨胀几像素
 
 
-def to_alpha(img):
-    """有真透明就直接用；否则白底转透明（离白越近越透明）"""
-    a = np.asarray(img.convert("RGBA")).copy()
-    if a[..., 3].min() < 250:
-        return a
-    rgb = a[..., :3].astype(np.float32)
-    low = rgb.min(-1)
-    alpha = np.clip((248 - low) / (248 - 225), 0, 1)
-    k = np.maximum(alpha, 1e-3)[..., None]
-    a[..., :3] = np.clip((rgb - 255 * (1 - k)) / k, 0, 255)
-    a[..., 3] = alpha * 255
-    return a
+def to_alpha(image):
+    """Consume native transparent PNG. Opaque sources must be regenerated."""
+    if image.mode != "RGBA" or image.getchannel("A").getextrema()[0] != 0:
+        raise ValueError("Expected an independent PNG with a transparent background")
+    return np.asarray(image).copy()
 
 
 def dilate(m, n):

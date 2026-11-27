@@ -13,6 +13,7 @@ const SideArt = preload("res://scripts/side_art.gd")
 const Motion = preload("res://scripts/motion.gd")
 const Roster = preload("res://scripts/roster.gd")
 const Gear = preload("res://scripts/gear.gd")
+const GearStyles = preload("res://scripts/gear_styles.gd")
 const Combat = preload("res://scripts/combat.gd")
 const MonsterArt = preload("res://scripts/monster_art.gd")
 const Places = preload("res://scripts/rules/places.gd")
@@ -375,7 +376,8 @@ func _test_appearance() -> bool:
 	for slot in ["weapon", "armor", "gloves", "greaves", "boots"]:
 		entries[slot] = Derive.derive({"slot": slot, "materials": {"bing": 6}, "process": ["forge_fine"]}, 3)
 	var fire := Appearance.build(entries, {"yiqi": ["huo"]}, "sword")
-	_check(fire.dressed and fire.cape and fire.armor_types.size() == 4 and fire.pieces.size() == 5, "五件装备分别传到外观")
+	_check(fire.dressed and fire.cape and fire.tints.size() == 4 and fire.pieces.size() == 5 and fire.styles.is_empty(),
+		"五件装备分别传到外观（没选款式就不带款式名）")
 	_check(fire.robe.is_equal_approx(Appearance.ROBE_TINTS.huo), "护甲主导火行时染火色袍")
 	_check(fire.weapon.is_equal_approx(Appearance.EDGE_TINTS.huo), "兵器主导火行时刃光为火色")
 	_check(fire.polarity > 0.9 and fire.rim.is_equal_approx(Appearance.YANG_TRIM), "纯阳装备配阳边光")
@@ -393,7 +395,7 @@ func _test_appearance() -> bool:
 	for slot in Gear.ARMOR_TYPE_SLOTS:
 		_check(fire.tints.has(slot) and fire.tints[slot].is_equal_approx(Appearance.garment_tint(slot, entries[slot])),
 			"%s：模型和装备格图标用同一个颜色" % slot)
-		for kind in Gear.ARMOR_TYPES:
+		for kind in ["cloth", "leather", "chain"]:
 			var icon := ForgeArt.garment_icon(Gear.SLOTS.find(slot) - 1, kind)
 			_check(Rect2(Vector2.ZERO, icon.atlas.get_size()).encloses(icon.region), "%s %s 皮影护具图标" % [kind, slot])
 	var figure := ArmoryFigure.new()
@@ -454,9 +456,24 @@ func _test_cutout_hero() -> bool:
 			_check(at.y >= last.y - 0.0001, "皮影劈砍：同一刀里时刻不倒退（进度 %.2f）" % (step / 100.0))
 		last = at
 	_check(is_equal_approx(CutoutHero.PuppetHero.attack_time(1.0, cues, hit, end).y, end), "皮影劈砍：最后一刀收到整段结束")
-	var look := Appearance.build({"armor": {"armor_type": "leather"}, "boots": {"armor_type": "chain"}}, {}, "sword")
-	_check(look.armor_types.get("armor") == "leather" and look.armor_types.get("boots") == "chain"
-		and not look.armor_types.has("gloves"), "外观带上护甲类别")
+	var look := Appearance.build({"armor": {"style": "青布短打"}, "boots": {"style": "云头靴"}, "gloves": {}}, {}, "sword")
+	_check(look.styles.get("armor") == "青布短打" and look.styles.get("boots") == "云头靴"
+		and not look.styles.has("gloves"), "外观带上各槽的款式名，没选款式的槽不写")
+	_check(GearStyles.who_for("female") == "nvjiang" and GearStyles.who_for("male") == "piying", "男女主各用自己那套皮影")
+	_check(GearStyles.outfit("piying", {"armor": "没画过的款式", "greaves": ""}).is_empty(), "没画过的款式、空款式都不换图")
+	# 骨骼的换装槽名要和游戏的装备槽一致，换装才对得上
+	for who in ["piying", "nvjiang", "body_f"]:
+		var cfg: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://prototype/cutout/%s/rig.json" % who))
+		for slot in cfg.get("slots", {}):
+			_check(slot in Gear.ARMOR_TYPE_SLOTS, "%s 的换装槽 %s 是游戏里的装备槽" % [who, slot])
+	var rig := CutoutHero.PuppetHero.Rig.new()
+	rig.setup("res://prototype/cutout/body_f/rig.json", "res://prototype/cutout/body_f/parts")
+	var outfit := {"greaves": "res://prototype/cutout/body_f/gear/greaves/某款"}
+	_check(rig._dir_for("far_thigh", outfit) == outfit.greaves and rig._dir_for("shin", outfit) == outfit.greaves,
+		"护腿款式换左右大腿、小腿")
+	_check(rig._dir_for("torso", outfit) == rig.rig.base_dir and rig._dir_for("foot", outfit) == rig.rig.base_dir,
+		"别的槽没穿就用光身原图")
+	rig.free()
 	return true
 
 func _test_blade_flurry() -> bool:
@@ -546,6 +563,13 @@ func _test_weapon_migration() -> bool:
 	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	_check(saved.items[entry.uid] == migrated, "磁盘已保存迁移后的兵形、装备名和来源")
 	Gear.delete_slot(0, path)
+	# 装备不再分布衣、皮甲、链甲：旧存档的甲型去掉，款式空着（不换图）
+	var old := {"slot": "armor", "armor_type": "leather"}
+	_check(Gear._migrate_item(old) and not old.has("armor_type") and old.get("style", "") == "", "旧存档的甲型去掉，款式空着")
+	var styled := Derive.derive({"slot": "greaves", "style": "青布绑腿", "materials": {"bing": 6}, "process": ["forge_fine"]}, 3)
+	var plain := Derive.derive({"slot": "greaves", "materials": {"bing": 6}, "process": ["forge_fine"]}, 3)
+	_check(styled.style == "青布绑腿" and styled.name.contains("青布绑腿"), "有款式名的装备用款式名当叫法")
+	_check(plain.name.contains("护腿"), "没选款式的装备叫槽名")
 
 	return true
 

@@ -1,3 +1,13 @@
+# V6 独立素材
+
+逐项英文提示词见 `raw/v6/prompts.json`。内置图像工具每次生成一个元素，将 prefix、对应描述和 transparent_suffix 依次拼接，开启 transparent_background。若有 exact_prompt_overrides 条目，使用该条目的完整提示词。标题横竖幕布省略透明后缀并关闭透明参数。角色拆件参考旧部件的姿态、铆钉和轮廓。
+
+运行 `python mobile/art/ui-icons/slice.py` 从独立 PNG 重建游戏贴图，依赖 Pillow、NumPy 和 SciPy。按 alpha 包围框裁切，等比生成显示尺寸，完全透明像素填入最近可见边缘色，保留直通 alpha。人物按 registration.json 配准回关节画布。动画以脚底为轴合成，图标之间留透明间距。运行 `python mobile/art/ui-icons/check_edges.py` 生成黑底、品红底与局部 4 倍放大检查图。
+
+按钮两端纹饰约占各自宽度的 13%，标题牌约占 18%。面板在横向 7%、纵向 9% 处切入平直边线。`art_plate.gd` 用原纹理像素给 StyleBoxTexture 定切线，同时按控件高度或角饰尺寸换算画布比例。前景石路的上方 40% 可站立，放置时同时检查前后走位范围。
+
+## 历史出图记录
+
 # 月夜皮影 · 第二版出图记录
 
 以下 9 张原稿均由内置图像生成工具生成，每次均传入 `mobile/art/piying/style-ref.webp`。三张整幅布景采用不透明背景，其余六张图集启用透明背景。`raw/night-*.png` 保存原图，运行 `python mobile/art/ui-icons/slice.py` 可重建运行时使用的纹理。
@@ -49,3 +59,12 @@ Generate six shadow puppet weapons in a 3-column, 2-row atlas. Top row: three cu
 - `ref-settings.webp` → Remove entire UI including panel title controls and all text, leave a clean landscape illustration of the teal moonlit river bridge, moon upper left, foreground willow / reeds, a warm red paper lantern hanging at far right, same painted folk art cloth texture and muted values. Landscape wide 16:9.
 - `ref-armory.webp` → Create a character dressing-room painted backdrop, using ONLY the LEFT landscape half of the armory reference as composition. Remove boy, all UI, all text. Square 1:1 closely framed stage: willow sprigs and bright warm full moon upper left, broad stone arched bridge spanning across CENTER at 50 percent image height, lantern reflections in water lower middle. Flat broad grassy rock ledge forming continuous ground centered across bottom 10 percent specifically for a character sprite to stand on. Cool teal and gray mist, hand painted Chinese shadow puppet cloth with warm golden highlights on reeds and water, dark foreground reeds at extreme sides. The bridge should be clearly visible, no big empty sky.
 - `ref-weapons.webp` → Two empty gauze banners side by side on one gold rod above the moonlit river. Leave space above for the heading and below for the two buttons.
+
+## FIX-V7 河岸和如意牌
+
+内置 ImageGen 分两次生成，均使用 `transparent_background=true`、PNG、独立元素。原稿保存在 `raw/v7/`。提示词如下。
+
+- 河岸：Landscape game sprite, a single long continuous narrow riverbank walkway for a Chinese shadow puppet side-scroller. 1536x1024 transparent PNG. Across the entire canvas width running off left and right edges exactly horizontally, in middle of transparent canvas a long straight narrow 6:1 strip. Top 78 percent of strip is solid muted petrol jade dyed translucent hide, sparse diagonal hand-incised plank lines, horizontal perspective walkable surface, fine amber lit rim. Bottom 22 percent is thin dark oxblood carved leather fascia with restrained irregular small cutout Chinese meanders, low contrast. Both ends same elevation, no endcaps, no posts, no above-surface objects. Flat handcut folk shadow theater prop, no photograph, subdued relative to hero. isolated on fully transparent background, no backdrop, no ground shadow, no text.
+- 如意牌：Single Chinese shadow puppet game primary button plaque, no text. Landscape 1536x1024 native transparent PNG. Center one horizontal low long plaque, width 1400 height 320. 82% of width is completely clear flat deep cinnabar oxblood red leather, fine continuous double antique-gold hairline border. Tiny elegant Chinese ruyi carved gold corner curves confined to outermost 8% of each end. Symmetrical shallow scalloped ends. Readable restrained silhouette, rich warm translucent leather pigmentation, sharply incised foil lines. Front elevation, isolated on fully transparent background, no backdrop, no shadow, no glow, no writing, no flowers, no medallions.
+
+运行 `python mobile/art/ui-icons/raw/v7/prepare.py` 可复现裁边、透明像素邻色填充及边缘检查。两张原稿实际为 1536×1024 和 2172×724，裁边后为 1536×121 和 2103×357，全程保持原生像素比例。河岸交替镜像铺排，共享接边；按钮使用九宫格，两端各占源宽的 8.5%，四种按钮状态共用同一轮廓。

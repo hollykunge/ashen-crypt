@@ -15,7 +15,7 @@ const FORTUNES := {
 	"旺": Color("#b29251"), "相": Color("#557447"), "休": Color("#515b5a"),
 	"囚": Color("#71362e"), "死": Color("#282a2c")
 }
-static var _tile: StyleBoxTexture
+static var _tile: ArtPlate
 var occupied := false
 var simple := false
 var highlighted := false
@@ -68,8 +68,9 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		if occupied:
 			_fabric_tint = _tint.lerp(Color.WHITE, 0.65)
 	else:
-		var kind: String = derived.get("armor_type", "cloth") if occupied else "cloth"
-		_icon = ForgeArt.garment_icon(index - 1, kind)
+		# 不再分布衣、皮甲、链甲：图标的三种样子按这件装备轮换（跟兵器图标一样），空槽用第一种
+		var variant := posmod(String(derived.get("uid", "")).hash(), 3) if occupied else 0
+		_icon = ForgeArt.garment_icon(index - 1, ["cloth", "leather", "chain"][variant])
 		if occupied:
 			_fabric_tint = Appearance.garment_tint(slot, derived).lerp(Color.WHITE, 0.5)
 	tooltip_text = title
@@ -151,9 +152,9 @@ func _plate(fill: Color, radius: int, edge: Color = Color.TRANSPARENT, width: in
 	style.set_corner_radius_all(radius)
 	return style
 
-static func tile_plate() -> StyleBoxTexture:
+static func tile_plate() -> ArtPlate:
 	if _tile == null:
-		_tile = StyleBoxTexture.new()
+		_tile = ArtPlate.new()
 		_tile.texture = preload("res://art/piying/v4/panel.png")
-		_tile.set_texture_margin_all(6)
+		_tile.corner_limit = 6
 	return _tile

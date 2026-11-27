@@ -1,6 +1,6 @@
-"""把 AI 出的皮影特效图（2×3：团花爆点、火焰星芒、月牙刀光、花瓣、火苗、纸屑）打成游戏的击打特效帧图。
+"""把各自独立的皮影特效图打成游戏的击打特效帧图。
 
-    python3 mobile/prototype/cutout/pack_puppet_fx.py <特效图.png> <输出目录> [--preview 预览.png]
+    python3 mobile/prototype/cutout/pack_puppet_fx.py <独立透明特效目录> <输出目录> [--preview 预览.png]
 
 和 scripts/fx_art.gd 的 SHEETS 同规格：一行一个五行（金木水火土、空手），一列一帧。
 命中（hit）：镂空团花从小炸开、转一点、淡掉，几片花瓣往前飞；暴击（crit）：火焰星芒叠团花一起炸开。
@@ -14,7 +14,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cut_grid import ALPHA, DILATE, dilate, label, to_alpha  # noqa: E402
+from cut_grid import to_alpha
 
 ROWS = ["jin", "mu", "shui", "huo", "tu", "none"]
 # 五行的颜色：原图是红金两色，直接相乘蓝色会发褐，所以先取明暗再上色（空手保持原色）
@@ -29,30 +29,6 @@ for _s in SHEETS.values():
     _s["cell"] = tuple(v * TEXEL for v in _s["cell"])
     _s["center"] = tuple(v * TEXEL for v in _s["center"])
     _s["size"] *= TEXEL
-
-
-def pieces(path):
-    """按 2×3 切出六件，每件裁到自己的外框"""
-    rgba = to_alpha(Image.open(path))
-    H, W = rgba.shape[:2]
-    solid = rgba[..., 3] > ALPHA
-    lab = label(dilate(solid, DILATE))
-    lab[~solid] = 0
-    ys, xs = np.nonzero(lab)
-    ids = lab[ys, xs]
-    owner = {}
-    for i in np.unique(ids):
-        sel = ids == i
-        q = min(int(ys[sel].mean() * 2 / H), 1) * 3 + min(int(xs[sel].mean() * 3 / W), 2)
-        owner.setdefault(q, []).append(i)
-    out = []
-    for q in range(6):
-        m = np.isin(lab, owner.get(q, []))
-        ys, xs = np.nonzero(m)
-        p = rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1].copy()
-        p[..., 3][~m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]] = 0
-        out.append(Image.fromarray(p))
-    return out
 
 
 def tinted(img, tint, alpha):
@@ -78,7 +54,7 @@ def build(kind, parts, rng):
     spec = SHEETS[kind]
     cw, ch = spec["cell"]
     n = spec["frames"]
-    burst, star, _slash, petal, ember, _ash = parts
+    burst, star, petal, ember = parts
     sheet = Image.new("RGBA", (cw * n, ch * len(ROWS)), (0, 0, 0, 0))
     # 几片花瓣、火苗的飞行路线：从爆点往前、往上飞散（每个五行同一套，只换颜色）
     flyers = [(rng.uniform(-0.6, 0.9), rng.uniform(0.5, 1.0), rng.choice([petal, ember]), rng.uniform(0, 360)) for _ in range(5 if kind == "hit" else 9)]
@@ -105,11 +81,12 @@ def build(kind, parts, rng):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("sheet"); ap.add_argument("out"); ap.add_argument("--preview")
+    ap.add_argument("source_dir", type=Path); ap.add_argument("out"); ap.add_argument("--preview")
     a = ap.parse_args()
     import random
     rng = random.Random(7)
-    parts = pieces(a.sheet)
+    parts = [Image.fromarray(to_alpha(Image.open(a.source_dir / (name + ".png"))))
+             for name in ("hit", "crit", "petal", "ember")]
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     sheets = {k: build(k, parts, rng) for k in SHEETS}
     for k, s in sheets.items():

@@ -9,6 +9,7 @@ const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Roster = preload("res://scripts/roster.gd")
 const EquipmentSlot = preload("res://scripts/equipment_slot.gd")
 const Armory = preload("res://scripts/armory.gd")
+const GearStyles = preload("res://scripts/gear_styles.gd")
 const GOOD := EquipmentSlot.GOOD
 const BAD := EquipmentSlot.BAD
 
@@ -37,6 +38,7 @@ var status: Label
 var notice: Label
 var notice_panel: PanelContainer
 var confirm: Button
+var smith_body := BoxContainer.new()
 var smith_options: VBoxContainer
 var forge_scroll: ScrollContainer
 var details_button: Button
@@ -55,7 +57,7 @@ var parts_grid: GridContainer
 var parts_toggle: Button
 var extras: VBoxContainer
 var forms: Button
-# 护甲、护手、鞋子的甲型：布衣、皮甲、链甲（女角色的护甲叫丝衣、皮衣、盔甲）。只改样子。
+# 上衣、护腕、护腿、靴子的款式（gear_styles.gd）：只列这个角色画了的款式，没有就不显示。只改样子。
 var types: OptionButton
 var socket_controls: HBoxContainer
 var preview_ling := ""
@@ -88,11 +90,16 @@ func _ready() -> void:
 		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		header.add_child(button)
 	header.add_child(ui._sound_button())
+	smith_body.vertical = true
+	smith_body.size_flags_vertical = SIZE_EXPAND_FILL
+	smith_body.add_theme_constant_override("separation", 8)
+	add_child(smith_body)
 	_build_preview()
 
 	smith_options = ui._vbox(5)
 	smith_options.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(smith_options)
+	smith_options.size_flags_horizontal = SIZE_EXPAND_FILL
+	smith_body.add_child(smith_options)
 	_build_inputs()
 	armory = Armory.new()
 	armory.forge = self
@@ -118,7 +125,7 @@ func _forge_for_slot(slot: String) -> void:
 	forge_scroll.scroll_vertical = 0
 
 func _build_preview() -> void:
-	preview = _card(self, 9)
+	preview = _card(smith_body, 9)
 	var top: HBoxContainer = ui._hbox(12)
 	preview.add_child(top)
 	var visual: VBoxContainer = ui._vbox(0)
@@ -204,11 +211,8 @@ func _build_inputs() -> void:
 	forms = _button("兵器形制", 38, _open_weapons)
 	caption.add_child(forms)
 	types = _option()
-	for id in Gear.ARMOR_TYPES:
-		types.add_item({"cloth": "布甲", "leather": "皮甲", "chain": "链甲"}[id])
-		types.set_item_metadata(types.item_count - 1, id)
 	types.item_selected.connect(func(index: int) -> void:
-		draft.armor_type = types.get_item_metadata(index)
+		draft.style = types.get_item_metadata(index)
 		_changed())
 	extras.add_child(types)
 	var processes := _chip_row(extras)
@@ -238,8 +242,7 @@ func _select_tab(show_gear: bool) -> void:
 	ui.portrait_back(back, str(profile.character().get("gender", "")))
 	pending = false
 	notice_panel.hide()
-	preview.get_parent().visible = not inventory
-	smith_options.visible = not inventory
+	smith_body.visible = not inventory
 	armory.visible = inventory
 	tab_forge.visible = inventory
 	tab_gear.visible = not inventory
@@ -347,16 +350,17 @@ func _refresh() -> void:
 		process_buttons[id].set_pressed_no_signal(draft.process.has(id))
 	forms.visible = draft.slot == "weapon"
 	forms.text = "兵器 · " + str(Rules.NAME_PARTS.weapons[draft.weapon_form])
-	types.visible = draft.slot in Gear.ARMOR_TYPE_SLOTS
+	var who := GearStyles.who_for(profile.character().get("gender", ""))
+	var styles: Array = GearStyles.names(who, draft.slot) if draft.slot in Gear.ARMOR_TYPE_SLOTS else []
+	types.visible = not styles.is_empty()
 	if types.visible:
-		var female: bool = profile.character().get("gender") == "female"
-		for index in range(types.item_count):
-			var id: String = types.get_item_metadata(index)
-			var label: String = Rules.NAME_PARTS.gear_types[id] + _slot_label(draft.slot)
-			if draft.slot == "armor":
-				label = (Rules.NAME_PARTS.armor_types_female if female else Rules.NAME_PARTS.armor_types)[id]
-			types.set_item_text(index, label)
-		types.select(maxi(0, Gear.ARMOR_TYPES.find(draft.get("armor_type", "cloth"))))
+		types.clear()
+		types.add_item("不选款式")
+		types.set_item_metadata(0, "")
+		for style in styles:
+			types.add_item(style)
+			types.set_item_metadata(types.item_count - 1, style)
+		types.select(maxi(0, styles.find(draft.get("style", "")) + 1))
 	_refresh_sockets()
 	_refresh_preview(result, count)
 	var error := profile.craft_error(draft)
@@ -588,7 +592,8 @@ func _craft() -> void:
 		return
 	armory.reset(draft.slot, draft.uid)
 	draft = Gear.new_draft()
-	types.select(0)
+	if types.item_count > 0:
+		types.select(0)  # 新草稿不选款式
 	_select_tab(true)
 	_message("打造完成，已放入背包")
 
@@ -703,7 +708,7 @@ func _chip(title: String, callback: Callable) -> Button:
 	button.remove_meta(&"brush_fills")  # 标签自己画：没选中只有字，选中显示皮牌
 	for style in ["normal", "hover", "pressed", "hover_pressed"]:
 		var filled: bool = style in ["pressed", "hover_pressed"]
-		var shape: StyleBoxTexture = ui._brush(ui.WASH if filled else Color.TRANSPARENT)
+		var shape: ArtPlate = ui._brush(ui.WASH if filled else Color.TRANSPARENT)
 		shape.set_content_margin(SIDE_LEFT, 9)
 		shape.set_content_margin(SIDE_RIGHT, 9)
 		shape.set_content_margin(SIDE_TOP, 0)

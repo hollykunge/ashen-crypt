@@ -61,6 +61,7 @@ var preferences := ConfigFile.new()
 var settings_path := "user://settings.cfg"
 
 var safe: MarginContainer
+var title_crop := AtlasTexture.new()
 var armory_river := AtlasTexture.new()
 var armory_stage: TextureRect
 var camp: TextureRect
@@ -124,7 +125,7 @@ func _ready() -> void:
 	if OS.is_debug_build() and not OS.has_environment("UI_CAPTURE"):  # 调试版显示帧率，真机测性能用
 		add_child(preload("res://scripts/perf_overlay.gd").new())
 	original_design_size = get_window().content_scale_size
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var ui_style := Theme.new()
 	ui_style.default_font = FONT
 	ui_style.default_font_size = 16
@@ -161,6 +162,7 @@ func _build_view() -> void:
 	_fill(camp)
 	add_child(camp)
 	armory_stage = _image(preload("res://art/piying/v4/armory-stage.webp"))
+	armory_stage.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	armory_stage.hide()
 	add_child(armory_stage)
 	field = Arena.new()
@@ -170,6 +172,7 @@ func _build_view() -> void:
 	add_child(field)
 	_fill(field)
 	battle_shade = _image(_battle_gradient())
+	battle_shade.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(battle_shade)
 	_fill(battle_shade)
 
@@ -1106,6 +1109,11 @@ func _close_settings() -> void:
 	settings = null
 	_fit_forge()
 
+func safe_content_rect() -> Rect2:
+	var start := Vector2(safe.get_theme_constant("margin_left"), safe.get_theme_constant("margin_top"))
+	var end := Vector2(safe.get_theme_constant("margin_right"), safe.get_theme_constant("margin_bottom"))
+	return Rect2(start, size - start - end)
+
 func _adapt_safe_area() -> void:
 	var top := 12
 	var bottom := 12
@@ -1132,9 +1140,8 @@ func _adapt_safe_area() -> void:
 	skill_row.custom_minimum_size.x = minf(355.0, size.x * 0.33) if wide else minf(size.x * 0.72, 270.0)
 	battle_portrait.custom_minimum_size.x = 58.0 if wide else 43.0
 	_update_retinue()
-	for page in [selection, roster_page]:
-		page.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
-		page.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
+	selection.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
+	selection.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
 	_fit_forge()
 
 # 顶栏左边只有袋子或三波记号，都很窄，横竖屏都和右边的按钮并排。
@@ -1148,16 +1155,22 @@ func _fit_forge() -> void:
 	var wide := window.size.x >= window.size.y * 1.17
 	camp.texture = preload("res://art/piying/v4/river.webp") if wide else preload("res://art/piying/stage/river-portrait.webp")
 	if state == &"title":
-		camp.texture = preload("res://art/piying/v4/title.webp") if wide else preload("res://art/piying/v4/title-tall.webp")
+		title_crop.atlas = preload("res://art/piying/v4/title.webp") if wide else preload("res://art/piying/v4/title-tall.webp")
+		var source := title_crop.atlas.get_size()
+		var visible_size := size / maxf(size.x / source.x, size.y / source.y)
+		title_crop.region = Rect2((source - visible_size) * Vector2(0.94, 0.52), visible_size)
+		camp.texture = title_crop
 	var armory_open := state == &"forge" and forge.inventory
 	armory_stage.visible = armory_open
 	if armory_open:
 		camp.texture = armory_river
-	var design := Vector2i(original_design_size.y, original_design_size.x) if wide and (is_instance_valid(weapon_gallery) or is_instance_valid(settings) or state == &"title" or armory_open or state in [&"farm", &"boss", &"place_notice", &"jie_notice", &"next_layer"]) else original_design_size
+	var design := Vector2i(original_design_size.y, original_design_size.x) if wide and (is_instance_valid(weapon_gallery) or is_instance_valid(settings) or state == &"title" or state == &"forge" or state in [&"roster", &"farm", &"boss", &"place_notice", &"jie_notice", &"next_layer"]) else original_design_size
 	if window.content_scale_size != design:
 		window.content_scale_size = design
-	forge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide and not armory_open else Control.SIZE_FILL
-	forge.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide and not armory_open else 0.0
+	forge.smith_body.vertical = not wide
+	forge.preview.get_parent().custom_minimum_size.x = minf(size.x * 0.38, 370.0) if wide else 0.0
+	forge.size_flags_horizontal = Control.SIZE_FILL
+	forge.custom_minimum_size.x = 0.0
 
 func _held(action: StringName) -> bool:
 	return touches.values().has(action)
@@ -1331,27 +1344,24 @@ func _fit_brush(button: Button) -> void:
 			plate = _box(fills[i], GOLD if selected else BORDER.darkened(0.25), 2 if selected else 1, 3)
 			(plate as StyleBoxFlat).set_corner_radius_all(4)
 		else:
-			plate = _brush(fills[i])
+			plate = _brush(fills[i], (fills[0] as Color).is_equal_approx(CRIMSON))
 			if compact:
 				for side in [SIDE_LEFT, SIDE_RIGHT]:
 					plate.set_content_margin(side, 8)
-				(plate as StyleBoxTexture).texture_margin_left = 12
-				(plate as StyleBoxTexture).texture_margin_right = 12
 		button.add_theme_stylebox_override(["normal", "hover", "pressed", "disabled"][i], plate)
 
-func _brush(fill: Color) -> StyleBoxTexture:
-	var box := StyleBoxTexture.new()
-	box.texture = preload("res://art/piying/v4/active.png") if fill.r >= CRIMSON.r - 0.02 else preload("res://art/piying/v4/button.png")
+func _brush(fill: Color, primary := false) -> ArtPlate:
+	var box := ArtPlate.new()
+	if primary:
+		box.texture = preload("res://art/piying/v4/ruyi.png")
+	else:
+		box.texture = preload("res://art/piying/v4/active.png") if fill.r >= CRIMSON.r - 0.02 else preload("res://art/piying/v4/button.png")
 	var exposure := 1.0 + fill.get_luminance() - WASH.get_luminance()
 	if fill.r < CRIMSON.r - 0.02:
 		exposure *= 0.74
 	box.modulate_color = Color(exposure, exposure, exposure, fill.a)
-	box.texture_margin_left = 12
-	box.texture_margin_right = 12
-	box.texture_margin_top = 5
-	box.texture_margin_bottom = 5
-	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	box.full_height = true
+	box.end_fraction = Vector2(0.085 if primary else 0.13, 0.45)
 	# 文字避开端饰。
 	box.set_content_margin(SIDE_TOP, 6)
 	box.set_content_margin(SIDE_BOTTOM, 6)
@@ -1366,19 +1376,20 @@ const PAPER = preload("res://art/piying/v4/panel.png")
 
 
 ## 战场边缘的小面板使用窄边幕布框。
-func wash_box(opacity := 0.9, padding := 6) -> StyleBoxTexture:
+func wash_box(opacity := 0.9, padding := 6) -> ArtPlate:
 	var wash := paper_box(opacity, padding)
-	wash.set_texture_margin_all(20)
+	wash.corner_limit = 20
 	wash.content_margin_left = padding + 14
 	wash.content_margin_right = padding + 20
 	wash.content_margin_top = padding + 2
 	wash.content_margin_bottom = padding + 2
 	return wash
 
-func paper_box(opacity := 1.0, padding := 14) -> StyleBoxTexture:
-	var paper := StyleBoxTexture.new()
+func paper_box(opacity := 1.0, padding := 14) -> ArtPlate:
+	var paper := ArtPlate.new()
 	paper.texture = PAPER
-	paper.set_texture_margin_all(20)
+	paper.backing = Color("#142e30", opacity * 0.83)
+	paper.corner_limit = 20
 	paper.modulate_color = Color(1, 1, 1, opacity * 0.90)
 	var inset := maxi(padding, 6)
 	paper.content_margin_left = inset + 2
@@ -1440,10 +1451,10 @@ func _fill(control: Control) -> void:
 
 
 func heading_plate(label: Label) -> void:
-	var plate := StyleBoxTexture.new()
+	var plate := ArtPlate.new()
 	plate.texture = preload("res://art/piying/v4/heading.png")
-	plate.texture_margin_left = 32
-	plate.texture_margin_right = 32
+	plate.full_height = true
+	plate.end_fraction = Vector2(0.18, 0.45)
 	plate.set_content_margin_all(0)
 	label.add_theme_stylebox_override("normal", plate)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

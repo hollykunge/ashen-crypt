@@ -42,7 +42,7 @@ var bag_grid: GridContainer
 var bag_scroll: ScrollContainer
 var empty_hint: Label
 var craft_button: Button
-var empty_plate: StyleBoxTexture
+var empty_plate: ArtPlate
 var detail_scroll: ScrollContainer
 var detail_body: VBoxContainer
 var detail_title: Label
@@ -226,6 +226,8 @@ func _fit_backdrop() -> void:
 	ui.armory_stage.size = Vector2(ui.size.x, edge.y + 3) if vertical else Vector2(edge.x + 10, ui.size.y)
 
 func _adapt() -> void:
+	if not is_inside_tree():
+		return
 	var view := get_viewport_rect().size
 	var room: float = view.x - ui.safe.get_theme_constant("margin_left") - ui.safe.get_theme_constant("margin_right")
 	vertical = room < 640.0 or view.x < view.y * 1.17
@@ -403,11 +405,9 @@ func _pad_grid() -> void:
 func _kind(input: Dictionary) -> String:
 	if input.slot == "weapon":
 		return Gear.Rules.NAME_PARTS.weapons.get(input.get("weapon_form", "sword"), "武器")
-	var style: String = input.get("armor_type", "cloth")
-	if input.slot == "armor":
-		var names: Dictionary = Gear.Rules.NAME_PARTS.armor_types_female if profile.character().get("gender") == "female" else Gear.Rules.NAME_PARTS.armor_types
-		return names.get(style, "上衣")
-	return Gear.Rules.NAME_PARTS.gear_types.get(style, "布") + _slot_name(input.slot)
+	# 上衣、护腕、护腿、靴子：有款式名就叫款式名，没有就叫槽名
+	var style: String = input.get("style", "")
+	return style if not style.is_empty() else _slot_name(input.slot)
 
 func _combat_values(config: Dictionary, form: String) -> Dictionary:
 	var bonuses := Loadout.bonuses(config, profile.character(), profile.layer())

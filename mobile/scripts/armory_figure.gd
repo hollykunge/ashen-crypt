@@ -4,7 +4,7 @@ const Roster = preload("res://scripts/roster.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
 const Appearance = preload("res://scripts/appearance.gd")
 const CutoutHero = preload("res://scripts/cutout_hero.gd")
-const MARGIN := 0.03
+const LEDGE = preload("res://art/piying/stage/title-ledge.png")
 
 var actor := CutoutHero.new()
 var stature := 1.0
@@ -13,6 +13,7 @@ var trying_label: Label
 
 
 func _init() -> void:
+	clip_contents = true
 	add_child(actor)
 	trying_label = Label.new()
 	trying_label.text = "试穿"
@@ -47,5 +48,7 @@ func _draw() -> void:
 		height = minf(height, size.x * 1.10)
 		feet_x = size.x * 0.30
 		feet_y = size.y * 0.90
+	var ledge_size := LEDGE.get_size() * (minf(size.x * 0.95, height * 1.2) / LEDGE.get_width())
+	draw_texture_rect(LEDGE, Rect2(Vector2(feet_x, feet_y) - ledge_size * Vector2(0.48, 0.52), ledge_size), false)
 	actor.fit(height / CutoutHero.SPRITE_HEIGHT, get_viewport().get_final_transform().get_scale().x)
 	actor.draw(self, Vector2(feet_x, feet_y), 1.0, tint)

@@ -31,8 +31,8 @@ const WEAPON_FORMS := {
 	"sword": {"interval": 0.33, "reach": 104.0},
 	"jian": {"interval": 0.28, "reach": 116.0},
 }
-# 甲型：上衣、护腕、护腿、靴子在炉坊里选布衣、皮甲或链甲，只改样子，数值仍由五行与材料决定。
-const ARMOR_TYPES := ["cloth", "leather", "chain"]
+# 款式：上衣、护腕、护腿、靴子在炉坊里选款式（item.style，款式名随意，见 gear_styles.gd），只改样子，
+# 数值仍由五行与材料决定。不再分布衣、皮甲、链甲。
 const ARMOR_TYPE_SLOTS := ["armor", "gloves", "greaves", "boots"]
 const RENAMED_FORMS := {"long_blade": "sword", "dual_blades": "sword", "hammer": "sword", "spear": "sword",
 	"staff": "jian", "wand": "jian", "bow": "jian"}
@@ -108,8 +108,13 @@ static func _migrate_item(item: Variant) -> bool:
 	if item.get("slot") in ["charm", "ring"]:
 		item.slot = "greaves"
 		changed = true
-		if item.get("armor_type", "") not in ARMOR_TYPES:
-			item.armor_type = "cloth"
+	# 旧存档的甲型（布衣、皮甲、链甲）不用了，换成款式名（空 = 还没选款式）
+	if item.has("armor_type"):
+		item.erase("armor_type")
+		changed = true
+	if not item.get("style", "") is String:
+		item.style = ""
+		changed = true
 	if RENAMED_FORMS.has(item.get("weapon_form", "")):
 		changed = true
 		item.weapon_form = RENAMED_FORMS[item.weapon_form]
@@ -527,7 +532,7 @@ static func _quantity(value: Variant) -> int:
 static func new_draft() -> Dictionary:
 	return {"uid": Crypto.new().generate_random_bytes(8).hex_encode(), "slot": "weapon", "process": ["forge_rough"],
 		"materials": {}, "sockets": [], "rotation": 0, "wear": 0, "name": "", "weapon_form": "sword",
-		"armor_type": "cloth"}
+		"style": ""}
 
 func item(uid: String) -> Dictionary:
 	return state.items.get(uid, {})
@@ -624,7 +629,7 @@ func merge_draft(first_uid: String, second_uid: String, sockets: Array = []) -> 
 	var draft := new_draft()
 	draft.slot = combined.slot
 	draft.weapon_form = combined.weapon_form
-	draft.armor_type = combined.get("armor_type", "cloth")
+	draft.style = combined.get("style", "")
 	draft.process = []
 	draft.forge_level = furnace_level()
 	draft.sockets = combined.sockets

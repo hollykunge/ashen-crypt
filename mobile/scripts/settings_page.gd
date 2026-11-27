@@ -9,8 +9,11 @@ var categories: BoxContainer
 var content: VBoxContainer
 var buttons: Array[Button] = []
 var backdrop: TextureRect
+var thumb: ImageTexture
 
 func _ready() -> void:
+	thumb = ImageTexture.create_from_image(preload("res://art/piying/v4/knob.png").get_image())
+	thumb.set_size_override(Vector2i(22, 22))
 	mouse_filter = MOUSE_FILTER_STOP
 	backdrop = ui._image(preload("res://art/piying/v4/river.webp"))
 	add_child(backdrop)
@@ -25,9 +28,9 @@ func _ready() -> void:
 	outer.add_child(heading)
 	var panel := PanelContainer.new()
 	panel.size_flags_vertical = SIZE_EXPAND_FILL
-	var frame: StyleBoxTexture = ui.paper_box(0.96, 16)
+	var frame: ArtPlate = ui.paper_box(0.96, 16)
 	frame.texture = preload("res://art/piying/v4/settings-panel.png")
-	frame.set_texture_margin_all(28)
+	frame.corner_limit = 28
 	panel.add_theme_stylebox_override("panel", frame)
 	outer.add_child(panel)
 	var stack: VBoxContainer = ui._vbox(10)
@@ -64,8 +67,10 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var wide := size.x > size.y
-	var room := Vector2(size.x * (0.76 if wide else 0.94), size.y * (0.83 if wide else 0.60))
-	outer.position = (size - room) * 0.5
+	var usable: Rect2 = ui.safe_content_rect()
+	var room := Vector2(usable.size.x * (0.76 if wide else 0.94), usable.size.y * (0.83 if wide else 0.60))
+	room.x = maxf(room.x, minf(usable.size.x, outer.get_combined_minimum_size().x))
+	outer.position = usable.position + (usable.size - room) * 0.5
 	outer.size = room
 	for b in buttons:
 		b.custom_minimum_size.x = minf(140, room.x * 0.23) if wide else 88
@@ -100,7 +105,7 @@ func show_tab(index: int) -> void:
 				rail.set_corner_radius_all(4)
 				slider.add_theme_stylebox_override(style, rail)
 			for icon in ["grabber", "grabber_highlight"]:
-				slider.add_theme_icon_override(icon, preload("res://art/piying/v4/knob.png"))
+				slider.add_theme_icon_override(icon, thumb)
 			slider.value_changed.connect(_volume.bind(bus))
 			row.add_theme_constant_override("separation", 0)
 			row.add_child(_terminal(preload("res://art/piying/v4/rail-left.png")))

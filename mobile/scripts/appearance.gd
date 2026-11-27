@@ -52,8 +52,8 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 		"boots": NEUTRAL, "boots_amount": 0.0,
 		"halo": 0, "halo_color": NEUTRAL,
 		"marks": [],
-		# 上衣、护腕、护腿、靴子各是哪一类（布衣、皮甲、链甲），皮影主角按它换整套部件图
-		"dyes": {}, "armor_types": {},
+		# 上衣、护腕、护腿、靴子各是哪一款（款式名，空的不写），皮影主角按它换这一槽的部件图（gear_styles.gd）
+		"dyes": {}, "styles": {},
 		# 护甲四槽在模型上乘的颜色（garment_tint），没穿的槽不写，模型按原色
 		"tints": {}
 	}
@@ -65,8 +65,9 @@ static func build(entries: Dictionary, patterns: Dictionary, weapon_form: String
 			var dye_id: String = entry.get("dye", "本色")
 			if dye_id != "本色" and Pigments.GARMENT_DYES.has(dye_id):
 				look.dyes[slot] = Pigments.GARMENT_DYES[dye_id]
-			var style: String = entry.get("armor_type", "cloth")
-			look.armor_types[slot] = style if style in ["leather", "chain"] else "cloth"
+			var style: String = entry.get("style", "")
+			if not style.is_empty():
+				look.styles[slot] = style
 			look.tints[slot] = garment_tint(slot, entry)
 		var element := element_of(entry)
 		if element.is_empty():

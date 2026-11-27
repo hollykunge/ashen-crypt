@@ -312,7 +312,7 @@ class PortraitFrame extends Control:
 func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bool = true, back: bool = false) -> void:
 	var row: HBoxContainer = ui._hbox(6)
 	var panel := PanelContainer.new()
-	var backing: StyleBoxTexture = ui.paper_box(0.98, 0)
+	var backing: ArtPlate = ui.paper_box(0.98, 0)
 	backing.set_content_margin_all(4)
 	panel.add_theme_stylebox_override("panel", backing)
 	parent.add_child(panel)

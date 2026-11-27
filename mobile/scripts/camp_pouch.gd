@@ -20,13 +20,13 @@ var health := 1.0
 var relief := false
 var _bump := 0.0
 # 与装备条共用薄边云纹幕框。
-var _plate := StyleBoxTexture.new()
+var _plate := ArtPlate.new()
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_PASS
 	custom_minimum_size = Vector2(124.0, 54.0)
 	_plate.texture = preload("res://art/ui-icons/paper-card.png")
-	_plate.set_texture_margin_all(20)
+	_plate.corner_limit = 20
 	_plate.modulate_color = Color(1, 1, 1, 0.91)
 
 func show_state(material_id: String, next_stock: int, current: int, total: int, shaded: bool) -> void:

@@ -5,6 +5,8 @@ const SCENE = preload("res://art/piying/v4/banners.webp")
 const IDS := ["sword", "jian"]
 var forge
 var selected: String
+var back: Button
+var settings: Button
 var heading: Label
 var cards: Array[Button] = []
 var footer: HBoxContainer
@@ -13,12 +15,12 @@ func _ready() -> void:
 	var ui = forge.ui
 	selected = forge.draft.weapon_form
 	mouse_filter = MOUSE_FILTER_STOP
-	var back: Button = ui._icon_button(&"back", "返回锻造", false, Vector2(44, 44))
+	back = ui._icon_button(&"back", "返回锻造", false, Vector2(44, 44))
 	ui.portrait_back(back, str(forge.profile.character().get("gender", "")))
 	back.pressed.connect(_finish.bind(false))
 	add_child(back)
 	back.position = Vector2(8, 5)
-	var settings: Button = ui._sound_button()
+	settings = ui._sound_button()
 	add_child(settings)
 	settings.set_anchors_preset(PRESET_TOP_RIGHT)
 	settings.offset_left = -50
@@ -69,16 +71,17 @@ func _finish(apply: bool) -> void:
 
 func _layout() -> void:
 	var wide := size.x > size.y
+	var usable: Rect2 = forge.ui.safe_content_rect()
+	back.position = usable.position
+	settings.position = Vector2(usable.end.x - settings.size.x, usable.position.y)
 	heading.size = Vector2(180, 36)
-	heading.position = Vector2((size.x - heading.size.x) / 2, size.y * 0.008)
+	heading.position = Vector2((size.x - heading.size.x) / 2, usable.position.y)
 	for i in cards.size():
 		var card := cards[i]
-		if wide:
-			card.position = size * Vector2(0.23 + 0.30 * i, 0.236)
-			card.size = size * Vector2(0.253, 0.54)
-		else:
-			card.position = size * Vector2(0.17 + 0.403 * i, 0.262)
-			card.size = size * Vector2(0.26, 0.40)
+		var art_rect := _scene_rect()
+		var bounds := Rect2(0.32 + 0.23 * i, 0.26, 0.13, 0.47) if wide else Rect2(0.165 + 0.38 * i, 0.325, 0.28, 0.295)
+		card.position = art_rect.position + art_rect.size * bounds.position
+		card.size = art_rect.size * bounds.size
 		var label: Label = card.get_child(0)
 		label.size = Vector2(minf(card.size.x, 110), 30)
 		label.position = Vector2((card.size.x - label.size.x) * 0.5, 0)
@@ -89,15 +92,20 @@ func _layout() -> void:
 		item.rotation = -0.55
 		item.scale = Vector2.ONE * 1.13
 	footer.alignment = BoxContainer.ALIGNMENT_END if wide else BoxContainer.ALIGNMENT_CENTER
-	footer.size = Vector2(size.x - (16 if wide else 0), 40)
-	footer.position = Vector2(0, size.y - 49)
+	footer.size = Vector2(usable.size.x, 40)
+	footer.position = Vector2(usable.position.x, usable.end.y - 40)
 	queue_redraw()
 
+func _texture() -> Texture2D:
+	return SCENE if size.x > size.y else preload("res://art/piying/v4/banners-tall.webp")
+
+func _scene_rect() -> Rect2:
+	var source := _texture().get_size()
+	var extent := source * maxf(size.x / source.x, size.y / source.y)
+	return Rect2((size - extent) * 0.5, extent)
+
 func _draw() -> void:
-	if size.x > size.y:
-		draw_texture_rect(SCENE, Rect2(Vector2.ZERO, size), false)
-	else:
-		draw_texture_rect(preload("res://art/piying/v4/banners-tall.webp"), Rect2(Vector2.ZERO, size), false)
+	draw_texture_rect(_texture(), _scene_rect(), false)
 	if cards.size() == IDS.size():
 		var c := cards[IDS.find(selected)]
 		var frame := Rect2(c.position, c.size)

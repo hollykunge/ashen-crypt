@@ -1,7 +1,5 @@
 extends RefCounted
 
-const CELL := Vector2(128, 128)
-
 const WEAPONS = preload("res://art/piying/v4/weapons.png")
 const GARMENTS = preload("res://art/piying/v4/garments.png")
 const WEAPON_GRID := Vector2(3, 2)
@@ -23,7 +21,8 @@ static func garment_icon(slot_index: int, kind: String) -> AtlasTexture:
 	var row := maxi(0, ["cloth", "leather", "chain"].find(kind))
 	var item := AtlasTexture.new()
 	item.atlas = GARMENTS
-	item.region = Rect2(Vector2(slot_index, row) * CELL, CELL)
+	var cell := GARMENTS.get_size() / Vector2(4, 3)
+	item.region = Rect2(Vector2(slot_index, row) * cell, cell)
 	item.filter_clip = true
 	return item
 
@@ -35,4 +34,5 @@ static func material_region(id: String) -> Rect2:
 	var index := MATERIAL_IDS.find(id)
 	if index < 0:
 		index = MATERIAL_IDS.size() - 1
-	return Rect2(Vector2(index % 4, floori(index / 4.0)) * CELL, CELL)
+	var cell := MATERIALS.get_size() / 4.0
+	return Rect2(Vector2(index % 4, floori(index / 4.0)) * cell, cell)

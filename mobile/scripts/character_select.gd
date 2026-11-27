@@ -13,7 +13,8 @@ const WuXing = preload("res://scripts/rules/wuxing.gd")
 
 var ui
 var save_base := Gear.SAVE_PATH
-var list: VBoxContainer
+var list: GridContainer
+var wide := false
 var notice: Label
 # 删人要按两下：第一下把按钮换成「确认删除」，再按才删。
 var armed_delete := -1
@@ -23,8 +24,8 @@ func build(main) -> void:
 	add_theme_constant_override("separation", 10)
 	var row: HBoxContainer = ui._hbox(10)
 	var panel := PanelContainer.new()
-	var backing: StyleBoxTexture = ui.paper_box(0.98, 0)
-	backing.set_content_margin_all(4)
+	var backing: ArtPlate = ui.paper_box(0.98, 0)
+	backing.set_content_margin_all(8)
 	panel.add_theme_stylebox_override("panel", backing)
 	add_child(panel)
 	panel.add_child(row)
@@ -32,17 +33,19 @@ func build(main) -> void:
 	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void: back_requested.emit())
 	row.add_child(back)
-	var stack: VBoxContainer = ui._vbox(0)
+	var stack: VBoxContainer = ui._vbox(2)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(stack)
-	stack.add_child(ui._label("择一人入山 · 最多 %d 位" % Gear.MAX_CHARACTERS, 12, ui.GOLD))
-	var nameplate: Label = ui._label("列仙图录", 34, ui.INK)
-	nameplate.add_theme_constant_override("outline_size", 6)
-	nameplate.add_theme_color_override("font_outline_color", ui.NIGHT)
+	var nameplate: Label = ui._label("列仙图录", 22, ui.INK)
 	ui.heading_plate(nameplate)
-	nameplate.add_theme_constant_override("outline_size", 1)
+	nameplate.custom_minimum_size = Vector2(150, 35)
+	nameplate.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	stack.add_child(nameplate)
+	var subtitle: Label = ui._label("择一人入山 · 最多 %d 位" % Gear.MAX_CHARACTERS, 12, ui.GOLD)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stack.add_child(subtitle)
 	var sound: Button = ui._sound_button()
+	sound.custom_minimum_size = back.custom_minimum_size
 	sound.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(sound)
 
@@ -50,13 +53,28 @@ func build(main) -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(scroll)
-	list = ui._vbox(10)
+	list = GridContainer.new()
+	list.add_theme_constant_override("h_separation", 10)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 	notice = ui._label("", 12, Color("#ff9a79"))
 	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notice.hide()
 	add_child(notice)
+	resized.connect(_fit_cards)
+
+func _fit_cards() -> void:
+	var landscape := size.x >= size.y * 1.17
+	if landscape != wide:
+		wide = landscape
+		list.columns = 3 if wide else 1
+		refresh()
+	list.add_theme_constant_override("v_separation", clampi(roundi(size.y * 0.025), 8, 24))
+	for card in list.get_children():
+		card.custom_minimum_size.y = _card_height()
+
+func _card_height() -> float:
+	return minf(228, size.y * 0.58) if wide else clampf(size.y * 0.194, 126, 200)
 
 func refresh() -> void:
 	for child in list.get_children():
@@ -85,26 +103,31 @@ func show_error(text: String) -> void:
 # 每一格使用云头框，空位降低透明度。
 
 
-func _frame(faint := false) -> HBoxContainer:
+func _frame(faint := false) -> BoxContainer:
 	var panel := PanelContainer.new()
-	var paper: StyleBoxTexture = ui.paper_box(0.62 if faint else 1.0, 8)
+	var paper: ArtPlate = ui.paper_box(0.62 if faint else 1.0, 8)
 	panel.add_theme_stylebox_override("panel", paper)
-	panel.custom_minimum_size.y = 136.0 if not faint else 104.0
+	panel.custom_minimum_size.y = _card_height()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_child(panel)
-	var row: HBoxContainer = ui._hbox(10)
+	var row: BoxContainer = ui._vbox(8) if wide else ui._hbox(7)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	panel.add_child(row)
 	return row
 
 func _person_card(slot: int, profile) -> void:
 	var row := _frame()
+	var identity: BoxContainer = ui._hbox(6) if wide else row
+	if wide:
+		row.add_child(identity)
 	var person: Dictionary = profile.character()
 	var female: bool = person.get("gender") == "female"
 	var stem := String(person.get("day_stem", "geng"))
 	var element := WuXing.stem_element(stem)
 	# 头像垫一圈镂空皮饰。
 	var holder := Control.new()
-	holder.custom_minimum_size = Vector2(84, 104)
-	row.add_child(holder)
+	holder.custom_minimum_size = Vector2(54, 74) if wide else Vector2(64, 90)
+	identity.add_child(holder)
 	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -114,10 +137,10 @@ func _person_card(slot: int, profile) -> void:
 	var facts: VBoxContainer = ui._vbox(3)
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_child(facts)
+	identity.add_child(facts)
 	var title: HBoxContainer = ui._hbox(8)
 	facts.add_child(title)
-	title.add_child(ui._label(profile.display_name(), 22, ui.INK))
+	title.add_child(ui._label(profile.display_name(), 18, ui.INK))
 	var seal := Seal.new()
 	seal.text = Gear.stem_name(stem)
 	seal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -133,8 +156,9 @@ func _person_card(slot: int, profile) -> void:
 	var actions: VBoxContainer = ui._vbox(4)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(actions)
-	var play: Button = ui._button("入山", true, 46)
-	play.custom_minimum_size.x = 76.0
+	var play: Button = ui._button("入山", true, 37)
+	play.custom_minimum_size.x = 96.0
+	play.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	play.add_theme_font_size_override("font_size", 18)
 	play.pressed.connect(_play.bind(slot))
 	actions.add_child(play)
@@ -148,8 +172,9 @@ func _empty_card(slot: int) -> void:
 	row.add_child(facts)
 	facts.add_child(ui._label("虚位以待 · 第 %d 格" % (slot + 1), 17, ui.MUTED))
 	facts.add_child(_line("择性别、日干、月令、时辰与出身，立一位新人。", Color(ui.MUTED, 0.85)))
-	var create: Button = ui._button("创建角色", false, 44)
+	var create: Button = ui._button("创建角色", true, 37)
 	create.custom_minimum_size.x = 100.0
+	create.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	create.add_theme_font_size_override("font_size", 16)
 	create.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	create.pressed.connect(_create.bind(slot))

@@ -14,7 +14,7 @@ static func derive(item: Dictionary, forge_level: int,
 	var result := {
 		"stats": {}, "triggers": [], "clash": {}, "wuxing": {}, "yin_yang": 0.0, "purity": 0.0,
 		"budget": 0.0, "jingyu": {}, "q": 1.0, "shi": 1.0, "f": 1.0, "name": item.get("name", ""), "steps": [],
-		"dye": item.get("dye", "本色"), "uid": item.get("uid", ""), "armor_type": item.get("armor_type", "")
+		"dye": item.get("dye", "本色"), "uid": item.get("uid", ""), "style": item.get("style", "")
 	}
 	if not Forge.FORM_MATRIX.has(slot) or not Forge.FORGE_TIERS.has(forge_level):
 		return result
@@ -286,14 +286,14 @@ static func _stats(slot: String, weights: Dictionary, y: float, scaled_budget: f
 	return stats
 
 static func _name(item: Dictionary, slot: String, weights: Dictionary, dominant: String, purity: float,
-		y: float, chain: int, zhou: bool, clash: Dictionary, triggers: Array[Dictionary], female := false) -> String:
+		y: float, chain: int, zhou: bool, clash: Dictionary, triggers: Array[Dictionary], _female := false) -> String:
 	var parts := Forge.NAME_PARTS
 	var form: String = parts.slots[slot]
 	if slot == "weapon":
 		form = parts.weapons.get(item.get("weapon_form", ""), form)
-	elif slot == "armor":
-		var names: Dictionary = parts.armor_types_female if female else parts.armor_types
-		form = names.get(item.get("armor_type", ""), form)
+	elif not str(item.get("style", "")).is_empty():
+		# 上衣、护腕、护腿、靴子有款式名就用款式名当叫法（比如「青布绑腿」），没有就叫槽名
+		form = item.style
 	var prefix := ""
 	if zhou:
 		prefix = parts.zhoutian + "·"
@@ -344,7 +344,7 @@ static func merge_items(a: Dictionary, b: Dictionary, forge_level: int, sockets:
 			if trigger.stem == socket:
 				retained.append(socket)
 				break
-	return {"slot": a.get("slot", "weapon"), "weapon_form": a.get("weapon_form", ""), "armor_type": a.get("armor_type", ""),
+	return {"slot": a.get("slot", "weapon"), "weapon_form": a.get("weapon_form", ""), "style": a.get("style", ""),
 		"wear": wear + int(process.wear),
 		"sockets": retained, "merged": {"purity": budget, "wuxing": _normalize(energy),
 			"yin_yang": (float(first.yin_yang) * float(first.budget) + float(second.yin_yang) * float(second.budget)) / total}}

@@ -56,6 +56,12 @@ func _init(character := "piying") -> void:
 	texture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
+## 换装：{槽: 款式图目录}（gear_styles.gd 的 outfit），没写的槽、没画的部件用光身原图。
+## 空字典就是全身换回原图。
+func wear(outfit: Dictionary) -> void:
+	rig.set_outfit(outfit)
+
+
 ## 停画（角色不可见时）
 func set_active(on: bool) -> void:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
@@ -76,10 +82,15 @@ func drive(motion: StringName, phase: float, walked: float, running: bool, cues:
 		_slash = -1
 		if walked > 0.0:
 			rig.play("run" if running else "walk")
-			rig.drive_t = rig.gait_time(walked / maxf(rig.leg_length() * holder.scale.y, 0.001))
+			rig.drive_t = rig.gait_time(walked / maxf(rig.leg_length() * holder.scale.y / _density, 0.001))
 		else:
 			rig.play("ready")
 			rig.drive_t = -1.0
+		return
+	if motion in [&"hurt", &"revive"]:
+		_slash = -1
+		rig.play(motion)
+		rig.drive_t = clampf(phase, 0.0, 1.0)
 		return
 	if not motion in [&"attack", &"cleave"]:
 		present()
@@ -130,14 +141,4 @@ func fit(pixels: float, density: float) -> void:
 func draw(canvas: CanvasItem, feet: Vector2, facing: float, ink: Color, offset := Vector2.ZERO) -> void:
 	canvas.draw_set_transform(feet, 0.0, Vector2(facing, 1.0))
 	canvas.draw_texture_rect(texture, Rect2(offset - FEET * _height, Vector2(viewport.size) / _density), false, ink * Color(1.09, 1.045, 1.0))
-	if offset == Vector2.ZERO:
-		for bone in ["arm_near_lo", "leg_near_lo", "arm_near_up"]:
-			var joint := _joint(bone)
-			var radius := clampf(_height * 0.011, 1.2, 3.4)
-			canvas.draw_circle(joint, radius, Color("#573518"), true, -1, true)
-			canvas.draw_circle(joint - Vector2.ONE * radius * 0.22, radius * 0.58, Color("#ddb669"), true, -1, true)
 	canvas.draw_set_transform(Vector2.ZERO)
-
-func _joint(bone: String) -> Vector2:
-	var node: Node2D = rig._bones[bone]
-	return holder.to_local(node.global_position) * _height / _height_local

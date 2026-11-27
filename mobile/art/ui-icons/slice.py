@@ -1,87 +1,146 @@
-"""Pack the reference-guided night theatre artwork into Godot textures."""
+"""Pack independent straight-alpha PNG sources. Run from any directory."""
+import argparse
+import json
+import random
+import sys
 from pathlib import Path
+
+import numpy as np
 from PIL import Image, ImageOps
+from scipy import ndimage
 
 HERE = Path(__file__).resolve().parent
-STAGE = HERE.parent / "piying/stage"
-FX = HERE.parent / "piying/fx"
-GLYPHS = "dao jian - - slash sigil retreat portal pause march pack notice back forward leave sound mute manual assist auto".split()
+MOBILE = HERE.parents[1]
+ART = MOBILE / "art/piying"
+SOURCE = HERE / "raw/v6"
+CUTOUT = MOBILE / "prototype/cutout"
+sys.path.insert(0, str(CUTOUT))
+import pack_puppet_fx as effects
+import pack_puppet_monsters as monsters
 
 
-def source(name):
-    with Image.open(HERE / "raw" / f"night-{name}.png") as image:
-        return image.copy()
+def bleed(image):
+    pixels = np.array(image.convert("RGBA"))
+    outside = pixels[:, :, 3] == 0
+    if outside.any() and not outside.all():
+        y, x = ndimage.distance_transform_edt(outside, return_distances=False, return_indices=True)
+        pixels[outside, :3] = pixels[y[outside], x[outside], :3]
+    return Image.fromarray(pixels)
 
 
-def cut(image, box, limit, threshold=18):
-    tile = image.crop(box)
-    bounds = tile.getchannel("A").point(lambda a: 255 if a > threshold else 0).getbbox()
-    if bounds is None:
-        raise ValueError(f"Empty cell at {box}")
-    tile = tile.crop(bounds)
-    tile.thumbnail(limit, Image.Resampling.LANCZOS)
-    return tile
+def prepare_native(path):
+    """Clear sub-visible alpha dust in empty margins without eroding the silhouette."""
+    with Image.open(path) as original:
+        im = original.copy()
+    if im.mode != "RGBA":
+        raise ValueError(f"{path}: opaque element must be regenerated")
+    alpha = np.array(im.getchannel("A"))
+    if alpha.min() != 0 or alpha.max() < 128:
+        raise ValueError(f"{path}: invalid coverage")
+    dust = (alpha > 0) & ((alpha <= 3) | (ndimage.maximum_filter(alpha, size=7) < 16))
+    if dust.any():
+        alpha[dust] = 0
+        im.putalpha(Image.fromarray(alpha))
+        im.save(path, compress_level=4)
+    if alpha[0, 0] or alpha[-1, 0] or alpha[0, -1] or alpha[-1, -1]:
+        raise ValueError(f"{path}: element touches a corner")
 
 
-def grid(name, columns, rows, limit, edges=None):
-    sheet = source(name)
-    xs = edges or [i / columns for i in range(columns + 1)]
-    for y in range(rows):
-        for x in range(columns):
-            if name == "glyphs" and GLYPHS[y * columns + x] == "-":
-                yield None
-                continue
-            yield cut(sheet, (round(xs[x] * sheet.width), round(y * sheet.height / rows),
-                              round(xs[x + 1] * sheet.width), round((y + 1) * sheet.height / rows)), limit)
+def source(key):
+    with Image.open(SOURCE / (key + ".png")) as original:
+        if original.mode != "RGBA":
+            raise ValueError(f"{key}: expected RGBA")
+        alpha = original.getchannel("A")
+        # Ignore sub-visible specks when locating the object, retain its soft edge.
+        bounds = alpha.point(lambda a: 255 if a >= 16 else 0).getbbox()
+        if not bounds or alpha.getextrema()[0] != 0:
+            raise ValueError(f"{key}: missing transparent background")
+        left, top, right, bottom = bounds
+        tile = original.crop((left - 4, top - 4, right + 4, bottom + 4))
+        tile.putalpha(tile.getchannel("A").point(lambda a: 0 if a <= 2 else a))
+        return tile
 
 
-def atlas(name, raw_name, rows, edges=None):
-    sheet = Image.new("RGBA", (512, 128 * rows))
-    for i, cell in enumerate(grid(raw_name, 4, rows, (120, 120), edges)):
-        sheet.paste(cell, (128 * (i % 4) + (128 - cell.width) // 2,
-                           128 * (i // 4) + (128 - cell.height) // 2))
-    sheet.save(HERE / f"{name}.png")
+def save(im, path, limit=None):
+    if limit:
+        im.thumbnail(limit, Image.Resampling.LANCZOS)
+    bleed(im).save(path)
+
+
+def pack_grid(group, count, columns, cell_size, destination):
+    # Each density variant retains its aspect ratio and a four-pixel gutter on all sides.
+    sheet = Image.new("RGBA", (columns * cell_size, (count // columns) * cell_size))
+    for index in range(count):
+        item = source(f"{group}/{index}")
+        item.thumbnail((cell_size - 8, cell_size - 8), Image.Resampling.LANCZOS)
+        x = (index % columns) * cell_size + (cell_size - item.width) // 2
+        y = (index // columns) * cell_size + (cell_size - item.height) // 2
+        sheet.paste(item, (x, y))
+    save(sheet, destination)
+
+
+def pack_rig(key):
+    directory, name = key.split("/")
+    box = json.loads((SOURCE / "registration.json").read_text())[key]
+    left, top, right, bottom = box["bounds"]
+    part = ImageOps.contain(source(key), (right-left, bottom-top), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", tuple(box["canvas"]))
+    canvas.paste(part, ((left+right-part.width)//2, (top+bottom-part.height)//2))
+    save(canvas, CUTOUT / directory / "parts" / (name + ".png"))
+
+
+def pack(key):
+    group, name = key.split("/")
+    if group in ("nvjiang", "piying"):
+        pack_rig(key)
+    elif group == "title":
+        if name == "hero":
+            save(source(key), ART / "v4/title-hero.png", (1400, 1700))
+        else:
+            path = "title.webp" if name == "wide" else "title-tall.webp"
+            Image.open(SOURCE / (key + ".png")).convert("RGB").save(ART / "v4" / path, quality=94)
+    elif group == "monsters":
+        item = source(key)
+        item = item.crop(item.getchannel("A").point(lambda a: 255 if a > monsters.ALPHA else 0).getbbox())
+        item.thumbnail((monsters.MAX_W, monsters.HEIGHT), Image.Resampling.LANCZOS)
+        width, height = monsters.CELL
+        atlas = Image.new("RGBA", (width * 4, height * 3))
+        for index, pose in enumerate(monsters.FRAMES):
+            atlas.paste(monsters.frame(item, index, *pose), ((index%4)*width, (index//4)*height))
+        save(atlas, ART / "monsters" / (name + ".png"))
+    elif group in ("ui", "v4", "stage") or key == "fx/slash":
+        item = source(key)
+        if key == "stage/bank":
+            # Cut a repeatable interior strip. Mirroring the adjoining tile matches both edges.
+            item = item.crop((item.width//8, 0, item.width*7//8, item.height))
+            pair = Image.new("RGBA", (item.width*2, item.height))
+            pair.paste(item)
+            pair.paste(ImageOps.mirror(item), (item.width, 0))
+            item = pair
+        dest = HERE if group == "ui" else ART / group
+        limit = (512, 512) if group == "ui" and name != "paper-card" else (2400, 1600)
+        save(item, dest / (name + ".png"), (192, 192) if key == "v4/knob" else limit)
+        if key == "v4/button":
+            save(item, HERE / "plaque.png")
 
 
 def main():
-    river = source("river")
-    river.save(HERE / "stage.webp", quality=91)
-    scroll = Image.new("RGB", (river.width * 2, river.height))
-    scroll.paste(river)
-    scroll.paste(ImageOps.mirror(river), (river.width, 0))
-    scroll.save(STAGE / "river-scroll.webp", quality=90)
-    source("river-portrait").save(STAGE / "river-portrait.webp", quality=92)
-    source("title").save(HERE / "stage-portrait.webp", quality=91)
-
-    scenery = source("scenery")
-    for name, box in {
-        "moon": (0, 0, 468, 512), "mountains": (488, 0, 1008, 512), "bridge": (1009, 0, 1536, 512),
-        "pavilion": (0, 512, 512, 1024), "willow": (512, 512, 1024, 1024), "reeds": (1024, 512, 1536, 1024)
-    }.items():
-        cut(scenery, box, (540, 512), 12).save(STAGE / f"{name}.png")
-
-    fittings = source("fittings")
-    for path, box, limit in [
-        (HERE / "badge.png", (0, 0, 386, 512), (160, 160)),
-        (HERE / "paper-card.png", (1040, 0, 1536, 512), (180, 100)),
-        (HERE / "lamp.png", (0, 512, 416, 1024), (112, 112)),
-        (FX / "slash.png", (420, 512, 1040, 1024), (512, 512)),
-        (HERE / "portrait.png", (1040, 512, 1536, 1024), (256, 256))
-    ]:
-        cut(fittings, box, limit).save(path)
-    plaque = cut(fittings, (397, 0, 1031, 512), (324, 62))
-    plaque.resize((180, 33), Image.Resampling.LANCZOS).save(HERE / "plaque.png")
-
-    for name, cell in zip(GLYPHS, grid("glyphs", 5, 4, (128, 128)), strict=True):
-        if name != "-":
-            cell.save(HERE / f"{name}.png")
-    faces = source("faces")
-    cut(faces, (0, 0, 512, 512), (256, 256)).save(HERE / "portrait-female.png")
-    for x in range(3):
-        cut(faces, (512*x, 512, 512*(x+1), 1024), (128, 128)).save(HERE / f"speed{x+1}.png")
-    for i, cell in enumerate(grid("gallery", 3, 2, (256, 256))):
-        cell.save(HERE / f"immortal-{i}.png")
-    atlas("materials", "materials", 4)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("keys", nargs="*")
+    args = parser.parse_args()
+    spec = json.loads((SOURCE / "prompts.json").read_text(encoding="utf-8-sig"))
+    for key in args.keys or spec["assets"]:
+        if key not in ("title/wide", "title/tall"):
+            prepare_native(SOURCE / (key + ".png"))
+        pack(key)
+    if not args.keys:
+        pack_grid("materials", 16, 4, 256, HERE / "materials.png")
+        pack_grid("garments", 12, 4, 384, ART / "v4/garments.png")
+        pack_grid("weapons", 6, 3, 512, ART / "v4/weapons.png")
+        parts = [source("fx/" + n) for n in ("hit", "crit", "petal", "ember")]
+        for name in effects.SHEETS:
+            sheet = effects.build(name, parts, random.Random(7))
+            save(sheet, ART / "fx" / (name + ".png"))
 
 
 if __name__ == "__main__":

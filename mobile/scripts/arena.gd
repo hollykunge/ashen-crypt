@@ -41,6 +41,8 @@ const VIGNETTE := 0.7
 ## 月夜布幕，四边压暗，保留河面和山脊的青灰层次。
 const PIYING_SCREEN := 1.0
 const PORTRAIT_RIVER = preload("res://art/piying/stage/river-portrait.webp")
+const ROAD_SURFACE := 0.70
+const BANK = preload("res://art/piying/stage/bank.png")
 const MOON = preload("res://art/piying/stage/moon.png")
 const WILLOW = preload("res://art/piying/stage/willow.png")
 const REEDS = preload("res://art/piying/stage/reeds.png")
@@ -125,7 +127,7 @@ func _ready() -> void:
 	spark_rng.randomize()
 	backdrop.texture = SideArt.FALLBACK_PLATE.texture
 	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	backdrop.texture_filter = TEXTURE_FILTER_LINEAR
+	backdrop.texture_filter = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	backdrop.show_behind_parent = true
 	backdrop.mouse_filter = MOUSE_FILTER_IGNORE
 	haze.shader = SNOW_HAZE
@@ -168,7 +170,6 @@ func set_camp_view(active: bool) -> void:
 	haze.set_shader_parameter("desaturate", 0.24 * depth)
 	haze.set_shader_parameter("screen", PIYING_SCREEN)
 	street_floor = plate.floor
-	lane_depth = 0.30 if route_view else SIDE_DEPTH
 	follow = Vector2.ZERO
 	shake = 0.0
 	kick = Vector2.ZERO
@@ -382,16 +383,55 @@ func _draw_scenery() -> void:
 	var drift := follow.x * scale_to_screen
 	var side := minf(size.x * 0.23, size.y * 0.17)
 	var moon_pos := Vector2(size.x * 0.17 - sin(drift * 0.001) * 5.0, size.y * 0.20)
-	draw_texture_rect(MOON, Rect2(moon_pos, Vector2.ONE * side), false, Color(1, 0.94, 0.83, 0.90))
-	var bank := backdrop.position.y + backdrop.size.y * 0.78
+	draw_texture_rect(MOON, Rect2(moon_pos, MOON.get_size() * (side / MOON.get_width())), false, Color(1, 0.94, 0.83, 0.90))
+	var bank := _road_top() + jitter.y + 3.0
 	var shift := sin(drift * 0.0017) * size.x * 0.12
 	if plate.key in ["mine", "war"]:
-		draw_texture_rect(MOUNTAINS, Rect2(shift - size.x * 0.1, bank - size.y * 0.14, size.x * 1.3, size.y * 0.14), false, Color(0.64, 0.75, 0.74, 0.75))
+		var extent := MOUNTAINS.get_size() * (size.x * 1.3 / MOUNTAINS.get_width())
+		draw_texture_rect(MOUNTAINS, Rect2(Vector2(shift - size.x * 0.1, bank - extent.y), extent), false, Color(0.64, 0.75, 0.74, 0.75))
 	elif plate.key in ["flood", "court"]:
-		draw_texture_rect(BRIDGE, Rect2(size.x * 0.55 - shift, bank - size.y * 0.065, size.y * 0.28, size.y * 0.065), false)
+		var extent := BRIDGE.get_size() * (size.y * 0.065 / BRIDGE.get_height())
+		draw_texture_rect(BRIDGE, Rect2(Vector2(size.x * 0.55 - shift, bank - extent.y), extent), false)
 	else:
 		var height := size.y * 0.045
-		draw_texture_rect(PAVILION, Rect2(size.x * 0.85 - shift, bank - height, height, height), false, Color(0.73, 0.80, 0.78, 0.83))
+		draw_texture_rect(PAVILION, Rect2(size.x * 0.85 - shift, bank - height, height * PAVILION.get_width() / PAVILION.get_height(), height), false, Color(0.73, 0.80, 0.78, 0.83))
+
+# The back edge clears the deepest playable lane, including camera shake.
+func _road_top() -> float:
+	var back_lane := Combat.HOME.y - minf(Combat.FOOTWORK.position.y, Combat.ENEMY_FOOTWORK.position.y)
+	return floor_height - maxf(size.y * 0.018, back_lane * lane_depth * scale_to_screen + 5.0)
+
+func _road_tile() -> Rect2:
+	var top := _road_top() + jitter.y
+	var front_lane := maxf(Combat.FOOTWORK.end.y, Combat.ENEMY_FOOTWORK.end.y) - Combat.HOME.y
+	var front := floor_height + jitter.y + front_lane * lane_depth * scale_to_screen + 4.0
+	# The carved fascia begins just below the jade walking surface.
+	var height := (front - top) / ROAD_SURFACE
+	var tile_size := BANK.get_size() * (height / BANK.get_height())
+	var offset := fposmod(follow.x * scale_to_screen - jitter.x, 2.0 * tile_size.x)
+	return Rect2(Vector2(-offset, top), tile_size)
+
+func _draw_road() -> void:
+	var tile := _road_tile()
+	# Continue the painted water below the platform, preserving its native aspect.
+	var water := Rect2(0, tile.position.y, size.x, size.y - tile.position.y)
+	var river := PORTRAIT_RIVER.get_size()
+	var scale_factor := maxf(water.size.x / river.x, water.size.y / (river.y * 0.18))
+	var region := water.size / scale_factor
+	var source := Rect2((river.x - region.x) * 0.5, river.y - region.y, region.x, region.y)
+	draw_texture_rect_region(PORTRAIT_RIVER, water, source)
+	var deep := Color("#082426dd")
+	var shallow := Color("#173b3977")
+	draw_polygon(PackedVector2Array([water.position, Vector2(size.x, water.position.y),
+		water.end, Vector2(0, size.y)]), PackedColorArray([shallow, shallow, deep, deep]))
+	var mirrored := false
+	while tile.position.x < size.x:
+		var rect := tile
+		if mirrored:
+			rect.size.x = -rect.size.x
+		draw_texture_rect(BANK, rect, false)
+		tile.position.x += tile.size.x
+		mirrored = not mirrored
 
 func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -400,6 +440,9 @@ func _fit_stage() -> void:
 	var stage_height := 435.0 if route_view else (590.0 if camp_view else 510.0)
 	var zoom := (LANDSCAPE_BATTLE_ZOOM if wide else PORTRAIT_BATTLE_ZOOM) if route_view else 1.0
 	scale_to_screen = minf(size.x / (445.0 if camp_view else 414.0), size.y / stage_height) * zoom
+	# Preserve combat distances in world space while keeping the projected lanes narrow.
+	var lanes := maxf(Combat.FOOTWORK.end.y, Combat.ENEMY_FOOTWORK.end.y) - minf(Combat.FOOTWORK.position.y, Combat.ENEMY_FOOTWORK.position.y)
+	lane_depth = minf(0.30 if route_view else SIDE_DEPTH, size.y * 0.052 / (lanes * scale_to_screen))
 	# 取景按原来的地面线算，推近后再把地面线挪到新位置。
 	var framing_floor := size.y * ((0.79 if wide else 0.72) if route_view else (0.755 if wide else 0.70))
 	var portrait_battle := route_view and not wide
@@ -417,7 +460,7 @@ func _fit_stage() -> void:
 	if wide:
 		art_scale *= LANDSCAPE_ACTOR_MAGNIFICATION
 	hero_pixels = minf(street_size.y * art_scale, size.x / (2.0 * SideArt.CELL.x) * zoom)
-	hero_pixels *= art_review_scale
+	hero_pixels *= art_review_scale * (1.0 + 0.23 * smoothstep(1.75, 2.20, size.y / size.x))
 	actor_zoom = hero_pixels / (HERO_SCALE * scale_to_screen)
 	# 地面和脚底共用同一段镜头位移，图片边缘同时限制镜头的行程。
 	var overflow := street_size.x - size.x
@@ -440,11 +483,11 @@ func _fit_stage() -> void:
 	# Keep the bridge distant when the combat camera moves in on the puppets.
 	backdrop.texture = plate.texture if wide else PORTRAIT_RIVER
 	var scenic := backdrop.texture.get_size()
-	var scenic_scale := maxf(size.y / scenic.y, size.x / scenic.x)
+	var scenic_scale := maxf((_road_top() + 4.0) / scenic.y, size.x / scenic.x)
 	backdrop.size = scenic * scenic_scale
 	var travel := maxf(0.0, backdrop.size.x - size.x)
 	var scenic_left := travel * lerpf(0.20 if wide else 0.40, 0.72, progress)
-	backdrop.position = Vector2(-clampf(scenic_left + follow.x * scale_to_screen * 0.16, 0.0, travel), size.y - backdrop.size.y)
+	backdrop.position = Vector2(-clampf(scenic_left + follow.x * scale_to_screen * 0.16, 0.0, travel), _road_top() + 4.0 - backdrop.size.y)
 	queue_redraw()
 
 # 交手时停住镜头。换波跑图或主角靠近画面边缘时才移动。
@@ -476,6 +519,7 @@ func _draw() -> void:
 	if not camp_view:
 		_draw_mist()
 	_draw_scenery()
+	_draw_road()
 	_world_transform()
 	_draw_telegraphs()
 	_draw_drops()
@@ -653,11 +697,12 @@ func _draw_near() -> void:
 		return
 	var sway := sin(follow.x * scale_to_screen * 0.004) * size.x * 0.07
 	var leaves := minf(size.x * 0.30, size.y * 0.32)
-	near.draw_texture_rect(WILLOW, Rect2(-leaves * 0.26 + sway, -leaves * 0.14, leaves, leaves * 1.15), false)
-	var reeds := minf(size.x * 0.37, size.y * 0.35)
-	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.31 + sway, size.y - reeds * 0.79, reeds, reeds), false)
+	near.draw_texture_rect(WILLOW, Rect2(-leaves * 0.26 + sway, -leaves * 0.14, leaves, leaves * WILLOW.get_height() / WILLOW.get_width()), false)
+	var reeds := minf(size.x * 0.30, (size.y - floor_height) * 0.70 * REEDS.get_width() / REEDS.get_height())
+	var reeds_top := size.y - reeds * REEDS.get_height() / REEDS.get_width()
+	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.31 + sway, reeds_top, reeds, reeds * REEDS.get_height() / REEDS.get_width()), false)
 	near.draw_set_transform(Vector2(size.x, 0), 0, Vector2(-1, 1))
-	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.44 - sway, size.y - reeds * 0.93, reeds, reeds), false)
+	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.44 - sway, reeds_top, reeds, reeds * REEDS.get_height() / REEDS.get_width()), false)
 	near.draw_set_transform(Vector2.ZERO)
 
 func _hash(n: int) -> float:
@@ -885,10 +930,8 @@ func _draw_effect(effect: Dictionary) -> void:
 			_square(origin + mark - Vector2(0, progress * 10.0), 3.0 if i % 2 else 5.0, ink)
 
 # 影子画三层：外圈最虚，内圈最实，免得脚下像破了个洞。
-# 皮影戏：影人贴着幕布演，台口上没有落地的影子，不画
+# A shallow contact shadow locates the planted foot on the stone surface.
 func _shadow(point: Vector2, radius: Vector2, color: Color) -> void:
-	if PIYING_SCREEN > 0.0:
-		return
 	for layer in range(3):
 		var spread := radius * (1.22 - layer * 0.26)
 		var points := PackedVector2Array()

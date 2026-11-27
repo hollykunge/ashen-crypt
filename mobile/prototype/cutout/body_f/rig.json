@@ -1,0 +1,410 @@
+{
+ "base_dir": "res://prototype/cutout/body_f/parts",
+ "scale": 0.3,
+ "parts": {
+  "weapon": {
+   "pivot": [
+    91,
+    68
+   ],
+   "tip": [
+    448,
+    12
+   ],
+   "scale": 1.2,
+   "src": "res://prototype/cutout/piying/parts/weapon.png"
+  },
+  "head": {
+   "pivot": [
+    91.2,
+    225.1
+   ],
+   "behind": true,
+   "file": "head"
+  },
+  "torso": {
+   "pivot": [
+    114.2,
+    457.3
+   ],
+   "neck": [
+    94.9,
+    28.5
+   ],
+   "shoulder": [
+    38.6,
+    89.2
+   ],
+   "far_shoulder": [
+    172.6,
+    89.0
+   ],
+   "hip": [
+    45.4,
+    457.5
+   ],
+   "far_hip": [
+    183.0,
+    457.1
+   ],
+   "file": "torso"
+  },
+  "upper_arm": {
+   "pivot": [
+    41.0,
+    30.0
+   ],
+   "end": [
+    41.0,
+    242.0
+   ],
+   "file": "upper_arm_right"
+  },
+  "far_upper_arm": {
+   "pivot": [
+    47.0,
+    28.0
+   ],
+   "end": [
+    47.0,
+    240.1
+   ],
+   "file": "upper_arm_left"
+  },
+  "forearm": {
+   "pivot": [
+    39.0,
+    28.0
+   ],
+   "wrist": [
+    39.0,
+    199.6
+   ],
+   "split": 199.6,
+   "split_x": 39.0,
+   "cleaned": true,
+   "file": "forearm_right"
+  },
+  "far_forearm": {
+   "pivot": [
+    39.0,
+    27.0
+   ],
+   "wrist": [
+    39.0,
+    196.5
+   ],
+   "file": "forearm_left"
+  },
+  "hand": {
+   "pivot": [
+    27.0,
+    24.0
+   ],
+   "grip": [
+    72.0,
+    88.0
+   ],
+   "grip_angle": 30.0,
+   "file": "fist_right"
+  },
+  "far_hand": {
+   "pivot": [
+    35.0,
+    28.0
+   ],
+   "file": "hand_left"
+  },
+  "thigh": {
+   "pivot": [
+    68.0,
+    31.0
+   ],
+   "end": [
+    68.0,
+    303.6
+   ],
+   "file": "thigh_right"
+  },
+  "shin": {
+   "pivot": [
+    57.0,
+    30.0
+   ],
+   "ankle": [
+    57.0,
+    287.1
+   ],
+   "sole": [
+    57.0,
+    371.4
+   ],
+   "file": "shin_right"
+  },
+  "foot": {
+   "pivot": [
+    52.8,
+    26.7
+   ],
+   "sole": [
+    52.8,
+    111.0
+   ],
+   "file": "foot_right"
+  },
+  "far_thigh": {
+   "pivot": [
+    77.0,
+    30.0
+   ],
+   "end": [
+    77.0,
+    306.7
+   ],
+   "file": "thigh_left"
+  },
+  "far_shin": {
+   "pivot": [
+    60.0,
+    29.0
+   ],
+   "ankle": [
+    60.0,
+    283.9
+   ],
+   "sole": [
+    60.0,
+    367.1
+   ],
+   "file": "shin_left"
+  },
+  "far_foot": {
+   "pivot": [
+    51.1,
+    27.8
+   ],
+   "sole": [
+    51.1,
+    111.0
+   ],
+   "file": "foot_left"
+  }
+ },
+ "idle": {
+  "torso": 1.0,
+  "neck": -1.0,
+  "arm_near_up": 12.0,
+  "arm_near_lo": 72.0,
+  "blade": 4.0,
+  "arm_far_up": 1.5,
+  "arm_far_lo": 18.0,
+  "hip": 0.96,
+  "foot_near_x": 0.133,
+  "foot_far_x": -0.098
+ },
+ "ready": {
+  "torso": 5,
+  "neck": -3.5,
+  "hip": 0.92,
+  "dx": 0.012,
+  "foot_near_x": 0.24,
+  "foot_far_x": -0.22,
+  "foot_far_heel": 4.0,
+  "arm_near_up": 12.0,
+  "arm_near_lo": 72.0,
+  "blade": 4.0,
+  "arm_far_up": 11,
+  "arm_far_lo": 47
+ },
+ "walk": {
+  "lean": 3.0,
+  "stride": 0.55,
+  "lift": 0.11,
+  "bob": 0.014,
+  "arm": 24,
+  "elbow": 12.0,
+  "period": 0.9,
+  "duty": 0.61,
+  "hip": 0.898,
+  "near_arm": 0.6,
+  "near_up": 10.0,
+  "near_lo": 70.0,
+  "near_blade": 6.0,
+  "head": 0.14,
+  "reach": 0.354,
+  "push": 0.305,
+  "knee": 0.14,
+  "heel": 20.5,
+  "heel_from": 0.552
+ },
+ "run": {
+  "lean": 10.0,
+  "head": 0.2,
+  "reach": 0.321,
+  "push": 0.437,
+  "kick": 0.285,
+  "knee": 0.33,
+  "lift": 0.34,
+  "bob": 0.026,
+  "hip": 0.86,
+  "duty": 0.414,
+  "period": 0.6,
+  "arm": 37,
+  "elbow": 24.0,
+  "pump": 12.0,
+  "near_arm": 0.6,
+  "near_up": 0.0,
+  "near_lo": 72.0,
+  "near_blade": 22.0,
+  "hold": 0.0,
+  "drag": 34.0,
+  "heel": 20.0
+ },
+ "attack": [
+  [
+   0.0,
+   {}
+  ],
+  [
+   0.22,
+   {
+    "torso": 1.0,
+    "neck": -1.0,
+    "arm_near_up": 93.0,
+    "arm_near_lo": 67.0,
+    "blade": -8.0,
+    "arm_far_up": 31.0,
+    "arm_far_lo": 57.0,
+    "dx": -0.095,
+    "hip": 0.87,
+    "step": 0.0
+   }
+  ],
+  [
+   0.34,
+   {
+    "torso": -4.0,
+    "neck": -1.0,
+    "arm_near_up": 101.0,
+    "arm_near_lo": 67.0,
+    "blade": -8.0,
+    "arm_far_up": 31.0,
+    "arm_far_lo": 57.0,
+    "dx": -0.095,
+    "hip": 0.86,
+    "step": 0.0
+   }
+  ],
+  [
+   0.38,
+   {
+    "torso": 12.0,
+    "neck": -5.5,
+    "arm_near_up": 95.0,
+    "arm_near_lo": 24.0,
+    "blade": 24.0,
+    "arm_far_up": 11.0,
+    "arm_far_lo": 55.0,
+    "dx": 0.075,
+    "hip": 0.845,
+    "step": 0.105
+   }
+  ],
+  [
+   0.42,
+   {
+    "torso": 21.0,
+    "neck": -9.0,
+    "arm_near_up": 36.5,
+    "arm_near_lo": 5.5,
+    "blade": 35.0,
+    "arm_far_up": -32.0,
+    "arm_far_lo": 45.0,
+    "dx": 0.13,
+    "hip": 0.83,
+    "step": 0.15
+   }
+  ],
+  [
+   0.47,
+   {
+    "torso": 21.0,
+    "neck": -9.0,
+    "arm_near_up": 36.5,
+    "arm_near_lo": 5.5,
+    "blade": 35.0,
+    "arm_far_up": -32.0,
+    "arm_far_lo": 45.0,
+    "dx": 0.13,
+    "hip": 0.83,
+    "step": 0.15
+   }
+  ],
+  [
+   0.55,
+   {
+    "torso": 21.0,
+    "neck": -9.0,
+    "arm_near_up": 36.5,
+    "arm_near_lo": 5.5,
+    "blade": 35.0,
+    "arm_far_up": -32.0,
+    "arm_far_lo": 45.0,
+    "dx": 0.13,
+    "hip": 0.83,
+    "step": 0.15
+   }
+  ],
+  [
+   0.7,
+   {
+    "torso": 15.0,
+    "neck": -6.5,
+    "arm_near_up": 7.5,
+    "arm_near_lo": 16.0,
+    "blade": 29.0,
+    "arm_far_up": -23.0,
+    "arm_far_lo": 36.0,
+    "dx": 0.115,
+    "hip": 0.85,
+    "step": 0.15
+   }
+  ],
+  [
+   1.1,
+   {}
+  ]
+ ],
+ "far_tint": 0.77,
+ "attack_wrist": 40.0,
+ "attack_strike": 2,
+ "trail_color": [
+  0.62,
+  0.1,
+  0.05,
+  0.55
+ ],
+ "slots": {
+  "armor": [
+   "torso",
+   "upper_arm",
+   "far_upper_arm"
+  ],
+  "gloves": [
+   "forearm",
+   "far_forearm",
+   "hand",
+   "far_hand"
+  ],
+  "greaves": [
+   "thigh",
+   "far_thigh",
+   "shin",
+   "far_shin"
+  ],
+  "boots": [
+   "foot",
+   "far_foot"
+  ]
+ }
+}

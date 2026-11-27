@@ -1,6 +1,6 @@
-"""把 AI 出的一张皮影精怪图（2×2 四只）切开，每只按皮影戏的挑签子动法摆成游戏用的 4×3 帧图。
+"""读取四张独立透明精怪图，每只按皮影戏的挑签子动法摆成游戏用的 4×3 帧图。
 
-    python3 mobile/prototype/cutout/pack_puppet_monsters.py <精怪图.png> <输出目录> [--preview 预览.png]
+    python3 mobile/prototype/cutout/pack_puppet_monsters.py <独立精怪图目录> <输出目录> [--preview 预览.png]
 
 皮影里的妖怪多是一整块皮子，艺人挑着签子演：走起来整块一颠一摇，蓄力往后一仰，出击往前一扑，
 被打死往后翻倒。所以每只只要一张图，12 帧都是同一张图转一转、挪一挪：
@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cut_grid import ALPHA, DILATE, dilate, label, to_alpha  # noqa: E402
+from cut_grid import ALPHA, to_alpha
 
 TEXEL = 3
 CELL = (160 * TEXEL, 96 * TEXEL)
@@ -32,29 +32,6 @@ FRAMES = [
     (0, 0.0, 0.0, 1),  # 待机
     (-22, -0.02, 0.0, 1), (-50, -0.06, 0.0, 1), (-78, -0.1, -0.02, 0.8), (-90, -0.12, -0.05, 0.45),  # 往后翻倒、淡掉
 ]
-
-
-def split_sheet(path):
-    rgba = to_alpha(Image.open(path))
-    H, W = rgba.shape[:2]
-    solid = rgba[..., 3] > ALPHA
-    lab = label(dilate(solid, DILATE))
-    lab[~solid] = 0
-    ys, xs = np.nonzero(lab)
-    ids = lab[ys, xs]
-    owner = {}
-    for i in np.unique(ids):
-        sel = ids == i
-        q = min(int(ys[sel].mean() * 2 / H), 1) * 2 + min(int(xs[sel].mean() * 2 / W), 1)
-        owner.setdefault(q, []).append(i)
-    out = []
-    for q in range(4):
-        m = np.isin(lab, owner.get(q, []))
-        ys, xs = np.nonzero(m)
-        piece = rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1].copy()
-        piece[..., 3][~m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]] = 0
-        out.append(Image.fromarray(piece))
-    return out
 
 
 def feet_x(img):
@@ -89,17 +66,19 @@ def frame(img, k, tilt, dx, up, alpha):
     bx = np.nonzero((np.asarray(rot)[..., 3] > ALPHA).any(0))[0]
     if len(bx):
         ox = min(max(ox, 6 - bx.min()), CELL[0] - 6 - bx.max())
-    cell.paste(rot, (int(round(ox)), int(round(oy))), rot)
+    cell.paste(rot, (int(round(ox)), int(round(oy))))
     return cell
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("sheet"); ap.add_argument("out"); ap.add_argument("--preview")
+    ap.add_argument("source_dir", type=Path); ap.add_argument("out"); ap.add_argument("--preview")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     previews = []
-    for name, img in zip(NAMES, split_sheet(a.sheet)):
+    for name in NAMES:
+        raw = Image.fromarray(to_alpha(Image.open(a.source_dir / (name + ".png"))))
+        img = raw.crop(raw.getchannel("A").point(lambda a: 255 if a > ALPHA else 0).getbbox())
         w, h = img.size
         s = min(HEIGHT / h, MAX_W / w)
         img = img.resize((max(int(w * s), 1), max(int(h * s), 1)), Image.LANCZOS)

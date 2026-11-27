@@ -53,14 +53,7 @@ static func death_frame(age: float) -> int:
 
 static func draw_frame(canvas: CanvasItem, art: int, frame: int, height: float, ink: Color) -> void:
 	var pixels := height / STANDING_HEIGHT
-	var pivot := Vector2(-0.06, -0.53 + 0.016 * sin(frame * 1.5)) * height
 	var body := Rect2(-PIVOT * pixels, CELL * pixels)
 	var region := frame_region(frame)
 	var texture := atlas(art)
-	var rim := body
-	rim.position += Vector2(-0.48, -0.55) * pixels
-	canvas.draw_texture_rect_region(texture, rim, region, Color(1.45, 1.05, 0.50, ink.a * 0.36))
 	canvas.draw_texture_rect_region(texture, body, region, ink * Color(1.18, 1.12, 1.04))
-	if frame < 8:
-		canvas.draw_circle(pivot, pixels * 1.05, Color("#694621"), true, -1, true)
-		canvas.draw_circle(pivot - Vector2.ONE * pixels * 0.23, pixels * 0.63, Color("#d2aa62"), true, -1, true)

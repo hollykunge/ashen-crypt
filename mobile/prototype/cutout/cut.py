@@ -1,11 +1,13 @@
-"""把 AI 出的拆件图切成单个部件，并检查能不能跟光身版对上。
+"""历史透明分件图兼容工具。V6 独立原稿与配准请运行 art/ui-icons/slice.py。
+
+把 AI 出的拆件图切成单个部件，并检查能不能跟光身版对上。
 
     cd piying   # 在角色目录里运行
     python3 ../cut.py source/parts.png parts --names head,torso,upper_arm,forearm,thigh,shin
     python3 ../cut.py source/armor-1.png armor-1 --like parts --may-grow torso   # 切护甲版，逐件对齐到光身版
                                                     # --may-grow：提示词里允许伸出轮廓的件（护肩那件）
 
-白底转透明 → 按连通块分件 → 太小的碎屑丢掉。--like 时每个护甲件找光身版里位置最近的那件，
+读取透明底 → 按连通块分件 → 太小的碎屑丢掉。--like 时每个护甲件找光身版里位置最近的那件，
 挪到跟光身件的轮廓重合最多的位置，再打印重合度：低于 0.85 的件说明 AI 改了形状，要重出。
 """
 import json
@@ -18,28 +20,16 @@ from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
 MIN_AREA = 2500  # 小于这个像素数的连通块当碎屑
-ERODE = 2  # 轮廓往里收几像素
 MARGIN = 80  # 换装件四周多留的画布，放得下冒出身体轮廓的护甲
 SEARCH = 24  # 对齐时上下左右最多挪几像素
 GROW = 0.06  # 不该长的件伸出原轮廓超过这个比例就提示
-SOFT = (225, 248)  # 亮度在这两值之间的白底像素做半透明过渡，边缘不发白
 
 
-def to_alpha(sheet):
-    rgb = np.asarray(sheet.convert("RGB")).astype(np.float32)
-    if sheet.mode == "RGBA" and np.asarray(sheet)[..., 3].min() < 250:
-        return np.asarray(sheet.convert("RGBA")).copy()
-    # 离白色越近越透明；用最暗通道判断，免得浅色毛尖被当成底色
-    low = rgb.min(-1)
-    alpha = np.clip((SOFT[1] - low) / (SOFT[1] - SOFT[0]), 0, 1)
-    # 半透明边缘把白底混进来的那部分去掉，免得部件描上一圈白边
-    a = np.maximum(alpha, 1e-3)[..., None]
-    rgb = np.clip((rgb - 255 * (1 - a)) / a, 0, 255)
-    # 出图工具常在轮廓外描一圈浅色细线，往里收两像素把它削掉
-    for _ in range(ERODE):
-        p = np.pad(alpha, 1, mode="constant")
-        alpha = np.minimum.reduce([p[1:-1, 1:-1], p[:-2, 1:-1], p[2:, 1:-1], p[1:-1, :-2], p[1:-1, 2:]])
-    return np.dstack([rgb, alpha * 255]).astype(np.uint8)
+def to_alpha(image):
+    """Consume native transparent PNG. Opaque sources must be regenerated."""
+    if image.mode != "RGBA" or image.getchannel("A").getextrema()[0] != 0:
+        raise ValueError("Expected an independent PNG with a transparent background")
+    return np.asarray(image).copy()
 
 
 def components(mask):
