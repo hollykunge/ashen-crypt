@@ -19,6 +19,7 @@ var inventory := false
 var armory: Armory
 var tab_forge: Button
 var tab_gear: Button
+var back: Button
 var heading: Label
 var context: Label
 var preview: VBoxContainer
@@ -53,7 +54,7 @@ var minus_buttons := {}
 var parts_grid: GridContainer
 var parts_toggle: Button
 var extras: VBoxContainer
-var forms: OptionButton
+var forms: Button
 # 护甲、护手、鞋子的甲型：布衣、皮甲、链甲（女角色的护甲叫丝衣、皮衣、盔甲）。只改样子。
 var types: OptionButton
 var socket_controls: HBoxContainer
@@ -63,8 +64,9 @@ var pending := false
 func _ready() -> void:
 	add_theme_constant_override("separation", 8)
 	var header: HBoxContainer = ui._hbox(8)
-	_surface(self, 7, false).add_child(header)
-	var back: Button = ui._icon_button(&"back", "返回战场", false, Vector2(43, 43))
+	add_child(header)
+	back = ui._icon_button(&"back", "返回战场", false, Vector2(43, 43))
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_style_secondary(back)
 	back.pressed.connect(func() -> void: close_requested.emit())
 	header.add_child(back)
@@ -73,6 +75,9 @@ func _ready() -> void:
 	header.add_child(headers)
 	heading = _text("兜率炉坊", 29, ui.INK)
 	heading.add_theme_font_override("font", ui.HEADING_FONT)
+	ui.heading_plate(heading)
+	heading.custom_minimum_size = Vector2(152, 36)
+	heading.size_flags_horizontal = SIZE_SHRINK_CENTER
 	headers.add_child(heading)
 	context = _text("", 12, ui.GOLD)
 	headers.add_child(context)
@@ -80,7 +85,9 @@ func _ready() -> void:
 	tab_gear = _button("装备行囊", 44, func() -> void: _select_tab(true))
 	for button in [tab_forge, tab_gear]:
 		button.size_flags_horizontal = Control.SIZE_SHRINK_END
+		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		header.add_child(button)
+	header.add_child(ui._sound_button())
 	_build_preview()
 
 	smith_options = ui._vbox(5)
@@ -132,7 +139,7 @@ func _build_preview() -> void:
 	polarity_bar = ProgressBar.new()
 	polarity_bar.show_percentage = false
 	polarity_bar.custom_minimum_size.y = 3
-	polarity_bar.add_theme_stylebox_override("background", ui._box(Color("#568895"), ui.NIGHT, 0, 0))
+	polarity_bar.add_theme_stylebox_override("background", ui._box(Color("#2f4f6a"), ui.NIGHT, 0, 0))
 	polarity_bar.add_theme_stylebox_override("fill", ui._box(ui.GOLD, ui.NIGHT, 0, 0))
 	report.add_child(polarity_bar)
 	preview_stats = _text("", 12, ui.INK)
@@ -194,14 +201,8 @@ func _build_inputs() -> void:
 	switches.add_child(details_button)
 	extras = ui._vbox(5)
 	work.add_child(extras)
-	forms = _option()
-	for id in Gear.WEAPON_FORMS:
-		forms.add_item(Rules.NAME_PARTS.weapons[id])
-		forms.set_item_metadata(forms.item_count - 1, id)
-	forms.item_selected.connect(func(index: int) -> void:
-		draft.weapon_form = forms.get_item_metadata(index)
-		_changed())
-	extras.add_child(forms)
+	forms = _button("兵器形制", 38, _open_weapons)
+	caption.add_child(forms)
 	types = _option()
 	for id in Gear.ARMOR_TYPES:
 		types.add_item({"cloth": "布甲", "leather": "皮甲", "chain": "链甲"}[id])
@@ -234,6 +235,7 @@ func _build_inputs() -> void:
 
 func _select_tab(show_gear: bool) -> void:
 	inventory = show_gear
+	ui.portrait_back(back, str(profile.character().get("gender", "")))
 	pending = false
 	notice_panel.hide()
 	preview.get_parent().visible = not inventory
@@ -241,7 +243,7 @@ func _select_tab(show_gear: bool) -> void:
 	armory.visible = inventory
 	tab_forge.visible = inventory
 	tab_gear.visible = not inventory
-	heading.text = "角色装备" if inventory else "兜率炉坊"
+	heading.text = "行装" if inventory else "兜率炉坊"
 	heading.add_theme_font_size_override("font_size", 25 if inventory else 29)
 	ui._fit_forge()
 	_refresh()
@@ -278,7 +280,7 @@ func _add_material(grid: GridContainer, id: String) -> void:
 	minus.custom_minimum_size.x = 33
 	minus.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	row.add_child(minus)
-	var label := _text("", 11, Gear.material(id).tint)
+	var label := _text("", 11, Color(Gear.material(id).tint).lerp(ui.INK, 0.58))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
@@ -291,7 +293,7 @@ func _add_material(grid: GridContainer, id: String) -> void:
 	plus_buttons[id] = plus
 	minus_buttons[id] = minus
 
-# 加减料的 ± 太小，刷墨只剩一团糊影：不刷墨，只写一个大号墨字，能按时浓、不能按时淡
+# 加减料按钮保留简洁的大字号符号。
 func _plain_step(button: Button) -> void:
 	button.remove_meta(&"brush_fills")
 	var clear := StyleBoxEmpty.new()
@@ -325,6 +327,7 @@ func _context_text() -> String:
 
 func _refresh() -> void:
 	context.text = _context_text()
+	context.visible = not inventory
 	if inventory:
 		armory.refresh()
 		return
@@ -343,6 +346,7 @@ func _refresh() -> void:
 	for id in process_buttons:
 		process_buttons[id].set_pressed_no_signal(draft.process.has(id))
 	forms.visible = draft.slot == "weapon"
+	forms.text = "兵器 · " + str(Rules.NAME_PARTS.weapons[draft.weapon_form])
 	types.visible = draft.slot in Gear.ARMOR_TYPE_SLOTS
 	if types.visible:
 		var female: bool = profile.character().get("gender") == "female"
@@ -584,7 +588,6 @@ func _craft() -> void:
 		return
 	armory.reset(draft.slot, draft.uid)
 	draft = Gear.new_draft()
-	forms.select(0)
 	types.select(0)
 	_select_tab(true)
 	_message("打造完成，已放入背包")
@@ -628,14 +631,15 @@ func _effect_text(result: Dictionary) -> String:
 
 func _message(message: String) -> void:
 	if inventory:
-		context.text = _context_text() if message.is_empty() else message
+		context.text = message
+		context.visible = not message.is_empty()
 	else:
 		notice.text = message
 		notice_panel.visible = not message.is_empty()
 
 func _surface(parent: Node, padding: int, outlined: bool = true) -> PanelContainer:
 	var panel := PanelContainer.new()
-	# 一张宣纸签；不描框的（页头、提示条）纸淡一点
+	# 皮框幕布，次要区域降低透明度。
 	panel.add_theme_stylebox_override("panel", ui.paper_box(1.0 if outlined else 0.85, padding))
 	parent.add_child(panel)
 	return panel
@@ -685,48 +689,37 @@ func _button(title: String, height: int, callback: Callable) -> Button:
 	button.pressed.connect(callback)
 	return button
 
-# 次要按钮：和主按钮一样是一笔浓墨，墨稍淡一点
+# 次要操作使用深褐皮牌。
 func _style_secondary(button: Button) -> void:
 	ui.brush_button(button, [Color(ui.WASH, 0.82), ui.WASH.lightened(0.12), ui.WASH.darkened(0.25), Color(ui.WASH, 0.3)])
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(color_name, ui.NIGHT)
-	button.add_theme_color_override("font_disabled_color", Color(ui.NIGHT, 0.6))
+		button.add_theme_color_override(color_name, ui.INK)
+	button.add_theme_color_override("font_disabled_color", Color(ui.INK, 0.6))
 
 func _chip(title: String, callback: Callable) -> Button:
 	var button := _button(title, 28, callback)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	button.toggle_mode = true
-	button.remove_meta(&"brush_fills")  # 标签自己画：没选中只有字，选中刷一笔
+	button.remove_meta(&"brush_fills")  # 标签自己画：没选中只有字，选中显示皮牌
 	for style in ["normal", "hover", "pressed", "hover_pressed"]:
 		var filled: bool = style in ["pressed", "hover_pressed"]
-		var shape: StyleBoxTexture = ui._brush(ui.WASH if filled else Color.TRANSPARENT, true)
+		var shape: StyleBoxTexture = ui._brush(ui.WASH if filled else Color.TRANSPARENT)
 		shape.set_content_margin(SIDE_LEFT, 9)
 		shape.set_content_margin(SIDE_RIGHT, 9)
 		shape.set_content_margin(SIDE_TOP, 0)
 		shape.set_content_margin(SIDE_BOTTOM, 0)
 		button.add_theme_stylebox_override(style, shape)
-	# 没选中的只是字，选中的刷一笔墨、字转纸色
+	# 已选标签显示皮牌底色。
 	button.add_theme_color_override("font_color", ui.MUTED)
 	button.add_theme_color_override("font_hover_color", ui.INK)
-	button.add_theme_color_override("font_pressed_color", ui.NIGHT)
-	button.add_theme_color_override("font_hover_pressed_color", ui.NIGHT)
+	button.add_theme_color_override("font_pressed_color", ui.INK)
+	button.add_theme_color_override("font_hover_pressed_color", ui.INK)
 	return button
 
 func _primary(title: String, callback: Callable) -> Button:
 	var button := _button(title, 56, callback)
 	button.add_theme_font_size_override("font_size", 17)
-	for style in ["normal", "hover", "pressed"]:
-		var fill: Color = ui.GOLD
-		if style == "hover":
-			fill = fill.lightened(0.12)
-		elif style == "pressed":
-			fill = fill.darkened(0.12)
-		button.add_theme_stylebox_override(style, ui._box(fill, fill, 0, 6))
-	for color in ["font_color", "font_hover_color", "font_pressed_color"]:
-		button.add_theme_color_override(color, ui.NIGHT)
-	var inactive: Color = ui.GOLD.darkened(0.31)
-	button.add_theme_stylebox_override("disabled", ui._box(inactive, inactive, 0, 6))
-	button.add_theme_color_override("font_disabled_color", ui.NIGHT)
+	ui._restyle(button, true)
 	return button
 
 func _option() -> OptionButton:
@@ -777,7 +770,7 @@ class Compass extends Control:
 		for i in range(ORDER.size()):
 			var element: String = ORDER[i]
 			var label_pos := rim[i] + (rim[i] - pivot).normalized() * 10.0 + Vector2(-6.0, 4.0)
-			draw_string(font, label_pos, WuXing.ELEMENT_NAMES[element], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Roster.ELEMENT_TINTS[element])
+			draw_string(font, label_pos, WuXing.ELEMENT_NAMES[element], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Roster.ELEMENT_GLOW[element])
 			for relation in [WuXing.SHENG, WuXing.KE]:
 				var j := ORDER.find(relation[element])
 				if minf(ingredients.get(element, 0.0), ingredients.get(ORDER[j], 0.0)) >= Rules.SHENG_KE_PARAMS.pair_min:
@@ -789,3 +782,13 @@ class Compass extends Control:
 		draw_line(from, head, ink, 1.15, true)
 		draw_line(head, head - direction.rotated(0.55) * 6, ink, 1.15, true)
 		draw_line(head, head - direction.rotated(-0.55) * 6, ink, 1.15, true)
+
+func _open_weapons() -> void:
+	if is_instance_valid(ui.weapon_gallery):
+		return
+	var gallery := preload("res://scripts/weapon_gallery.gd").new()
+	gallery.forge = self
+	ui.weapon_gallery = gallery
+	ui._fit_forge()
+	ui.add_child(gallery)
+	ui._fill(gallery)

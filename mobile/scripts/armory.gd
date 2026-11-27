@@ -22,12 +22,18 @@ var merging := false
 var merge_armed := false
 var merge_partner := ""
 var merge_sockets: Array[String] = []
+var inventory_stack: VBoxContainer
+var board: GridContainer
+var overview: BoxContainer
+var change_button: Button
+var preview_delta: Label
 var worn: VBoxContainer
 var bag: VBoxContainer
 var sheet: VBoxContainer
 var outfit_slots := {}
 var stage: DisplayFigure
 var worn_count: Label
+var patterns: Button
 var vitals: Label
 var bag_count: Label
 var category: OptionButton
@@ -36,7 +42,7 @@ var bag_grid: GridContainer
 var bag_scroll: ScrollContainer
 var empty_hint: Label
 var craft_button: Button
-var empty_plate: StyleBoxFlat
+var empty_plate: StyleBoxTexture
 var detail_scroll: ScrollContainer
 var detail_body: VBoxContainer
 var detail_title: Label
@@ -52,6 +58,17 @@ func _ready() -> void:
 	ui = forge.ui
 	profile = forge.profile
 	add_theme_constant_override("separation", 8)
+	stage = DisplayFigure.new()
+	stage.mouse_filter = MOUSE_FILTER_IGNORE
+	stage.size_flags_horizontal = SIZE_EXPAND_FILL
+	stage.size_flags_vertical = SIZE_EXPAND_FILL
+	stage.clip_contents = true
+	add_child(stage)
+	stage.item_rect_changed.connect(_fit_backdrop)
+	inventory_stack = ui._vbox(4)
+	inventory_stack.size_flags_horizontal = SIZE_EXPAND_FILL
+	inventory_stack.size_flags_vertical = SIZE_EXPAND_FILL
+	add_child(inventory_stack)
 	worn = _pane()
 	bag = _pane()
 	sheet = _pane()
@@ -63,7 +80,7 @@ func _ready() -> void:
 	_adapt()
 
 func _pane() -> VBoxContainer:
-	var stack: VBoxContainer = forge._card(self, 10)
+	var stack: VBoxContainer = forge._card(inventory_stack, 6)
 	stack.add_theme_constant_override("separation", 6)
 	var panel: PanelContainer = stack.get_parent()
 	panel.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -82,31 +99,34 @@ func _build_outfit() -> void:
 	worn.add_child(header)
 	worn_count = _line(header, "", 15, ui.INK)
 	worn_count.size_flags_horizontal = SIZE_EXPAND_FILL
-	var patterns: Button = forge._button("五行格局", 36, _show_patterns)
-	patterns.size_flags_horizontal = SIZE_SHRINK_END
-	header.add_child(patterns)
-	var board: HBoxContainer = ui._hbox(5)
-	board.alignment = BoxContainer.ALIGNMENT_CENTER
-	board.size_flags_vertical = SIZE_EXPAND_FILL
-	worn.add_child(board)
-	for side in [["weapon", "armor", "gloves"], ["greaves", "boots"]]:
-		if side[0] == "greaves":
-			stage = DisplayFigure.new()
-			stage.mouse_filter = MOUSE_FILTER_IGNORE
-			stage.custom_minimum_size.x = 148
-			stage.clip_contents = true
-			board.add_child(stage)
-		var column: VBoxContainer = ui._vbox(4)
-		column.alignment = BoxContainer.ALIGNMENT_CENTER
-		board.add_child(column)
-		for slot in side:
-			var cell := Slot.new(WORN_SLOT_WIDTH)
-			cell.simple = true
-			cell.caption = _slot_name(slot)
-			cell.pressed.connect(_open_slot.bind(slot))
-			column.add_child(cell)
-			outfit_slots[slot] = cell
-	vitals = _line(worn, "", 13, ui.INK)
+	patterns = forge._button("五行格局", 36, _show_patterns)
+	patterns.size_flags_horizontal = SIZE_SHRINK_CENTER
+	patterns.size_flags_vertical = SIZE_SHRINK_CENTER
+	patterns.custom_minimum_size.x = 76
+	header.hide()
+	overview = BoxContainer.new()
+	overview.add_theme_constant_override("separation", 5)
+	worn.add_child(overview)
+	board = forge._grid(overview, 3, 3)
+	board.size_flags_horizontal = SIZE_EXPAND_FILL
+	for slot in Gear.SLOTS:
+		var cell := Slot.new(50)
+		cell.simple = true
+		cell.caption = _slot_name(slot)
+		cell.size_flags_horizontal = SIZE_EXPAND_FILL
+		cell.pressed.connect(_open_slot.bind(slot))
+		board.add_child(cell)
+		outfit_slots[slot] = cell
+	board.add_child(patterns)
+	var summary: VBoxContainer = ui._vbox(2)
+	overview.add_child(summary)
+	summary.alignment = BoxContainer.ALIGNMENT_CENTER
+	vitals = _line(summary, "", 13, ui.INK)
+	preview_delta = _line(summary, "", 12, Slot.GOOD)
+	preview_delta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	preview_delta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vitals.autowrap_mode = TextServer.AUTOWRAP_OFF
+	vitals.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	vitals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func _build_bag() -> void:
@@ -138,7 +158,7 @@ func _build_bag() -> void:
 	var content: VBoxContainer = ui._vbox(9)
 	content.size_flags_horizontal = SIZE_EXPAND_FILL
 	bag_scroll.add_child(content)
-	empty_plate = ui._box(Color("#e5d2b0"), Color("#9b7955"), 1)
+	empty_plate = Slot.tile_plate()
 	bag_grid = forge._grid(content, 4, BAG_GAP)
 	bag_grid.size_flags_horizontal = SIZE_SHRINK_CENTER
 	bag_scroll.resized.connect(_fit_grid)
@@ -147,12 +167,20 @@ func _build_bag() -> void:
 	empty_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	craft_button = forge._button("", 44, func() -> void: forge._forge_for_slot(filter_slot))
 	content.add_child(craft_button)
+	change_button = forge._button("换装", 34, _choose_backup)
+	change_button.custom_minimum_size.x = 120
+	change_button.size_flags_horizontal = SIZE_SHRINK_CENTER
+	bag.add_child(change_button)
+
+func _choose_backup() -> void:
+	if not bag_items.is_empty():
+		inspect(str(bag_items.keys()[0]))
 
 func _fit_grid() -> void:
 	var width := bag_scroll.size.x
 	if bag_scroll.get_v_scroll_bar().visible:
 		width -= bag_scroll.get_v_scroll_bar().size.x
-	var columns := clampi(floori((width + BAG_GAP) / (BAG_SLOT_SIZE + BAG_GAP)), 1, 8)
+	var columns := clampi(floori((width + BAG_GAP) / ((BAG_SLOT_SIZE if vertical else 54) + BAG_GAP)), 1, 8)
 	if bag_grid.columns != columns:
 		bag_grid.columns = columns
 		_pad_grid()
@@ -191,17 +219,37 @@ func _build_detail() -> void:
 	equip_button.pressed.connect(_toggle_equipped)
 	actions.add_child(equip_button)
 
+func _fit_backdrop() -> void:
+	if not is_visible_in_tree():
+		return
+	var edge: Vector2 = stage.get_global_rect().end - ui.global_position
+	ui.armory_stage.size = Vector2(ui.size.x, edge.y + 3) if vertical else Vector2(edge.x + 10, ui.size.y)
+
 func _adapt() -> void:
 	var view := get_viewport_rect().size
 	var room: float = view.x - ui.safe.get_theme_constant("margin_left") - ui.safe.get_theme_constant("margin_right")
 	vertical = room < 640.0 or view.x < view.y * 1.17
 	var inspecting := not selected_uid.is_empty()
-	worn.get_parent().visible = not (vertical and inspecting)
-	worn.get_parent().size_flags_vertical = SIZE_FILL if vertical else SIZE_EXPAND_FILL
+	overview.vertical = vertical
+	board.columns = 5 if vertical else 3
+	var patterns_parent: Container = worn_count.get_parent() if vertical else board
+	if patterns.get_parent() != patterns_parent:
+		patterns.reparent(patterns_parent)
+	worn_count.get_parent().visible = vertical
+	stage.size_flags_stretch_ratio = 0.83
+	inventory_stack.size_flags_stretch_ratio = 1.26
+	stage.custom_minimum_size = Vector2(0, 135 if vertical else 0)
+	worn.get_parent().visible = not inspecting
+	worn.get_parent().size_flags_vertical = SIZE_FILL
+	worn.get_parent().size_flags_horizontal = SIZE_FILL
 	for cell: Slot in outfit_slots.values():
-		cell.custom_minimum_size = Vector2(WORN_SLOT_WIDTH, WORN_SLOT_WIDTH if vertical else 58)
+		cell.custom_minimum_size = Vector2(43, 74 if vertical else 60)
 	bag.get_parent().visible = not inspecting
 	sheet.get_parent().visible = inspecting
+	_fit_backdrop.call_deferred()
+	_show_vitals()
+	for cell in bag_grid.get_children():
+		cell.custom_minimum_size = Vector2.ONE * (BAG_SLOT_SIZE if vertical else 54)
 
 func reset(slot: String, uid: String) -> void:
 	filter_slot = slot
@@ -264,14 +312,21 @@ func refresh() -> void:
 	current_stats = _combat_values(config, form)
 	for slot in Gear.SLOTS:
 		var cell: Slot = outfit_slots[slot]
-		cell.highlighted = slot == input.get("slot", filter_slot)
+		cell.highlighted = slot == input.get("slot", "weapon" if filter_slot.is_empty() else filter_slot)
 		cell.display(slot, config.entries.get(slot, {}), person, form)
 	worn_count.text = "已穿戴   %d / %d" % [config.entries.size(), Gear.SLOTS.size()]
-	vitals.text = "攻击  %d      生命  %d      减伤  %s%%" % [current_stats.attack, current_stats.hp, String.num(current_stats.armor, 1)]
+	_show_vitals()
 	if selected_uid.is_empty():
 		_refresh_bag()
 	else:
 		_refresh_detail(input, config, form)
+
+func _show_vitals() -> void:
+	if current_stats.is_empty():
+		return
+	var gap := "    " if vertical else "\n"
+	vitals.text = gap.join(["攻击  %d" % current_stats.attack, "生命  %d" % current_stats.hp,
+		"减伤  %s%%" % String.num(current_stats.armor, 1)])
 
 func _refresh_bag() -> void:
 	forge._clear(bag_grid)
@@ -293,7 +348,7 @@ func _refresh_bag() -> void:
 	bag_count.text = "背包  %d" % total
 	for entry in visible_items:
 		var input: Dictionary = entry.item
-		var cell := Slot.new(BAG_SLOT_SIZE)
+		var cell := Slot.new(BAG_SLOT_SIZE if vertical else 54)
 		cell.simple = true
 		var item_name: String = entry.live.name
 		cell.caption = item_name.get_slice("·", 1) if input.name.is_empty() and item_name.count("·") == 1 and item_name.get_slice("·", 0).length() == 1 else item_name
@@ -304,6 +359,30 @@ func _refresh_bag() -> void:
 	_pad_grid()
 	empty_hint.visible = visible_items.is_empty()
 	empty_hint.text = "背包里还没有备用装备" if total == 0 else "没有符合筛选条件的装备"
+	preview_delta.hide()
+	if not visible_items.is_empty():
+		var candidate: Dictionary = visible_items[0].item
+		var baseline := profile.item(profile.equipped("weapon"))
+		var form: String = baseline.get("weapon_form", "sword")
+		if candidate.slot == "weapon":
+			form = candidate.get("weapon_form", form)
+		var projected := _combat_values(profile.loadout(candidate, true, preview_ling), form)
+		for stat in ["attack", "hp", "armor", "reach"]:
+			var old := _value_points(current_stats[stat])
+			var next := _value_points(projected[stat])
+			if old == next:
+				continue
+			var caption: String = {"attack":"攻击", "hp":"生命", "armor":"减伤", "reach":"距离"}[stat]
+			var delta := _value_points(absf(projected[stat] - current_stats[stat]))
+			var sign_text := "+" if projected[stat] > current_stats[stat] else "−"
+			preview_delta.text = ("%s %s%s   %s → %s" if vertical else "%s %s%s\n%s → %s") % [caption, sign_text, delta, old, next]
+			preview_delta.add_theme_color_override("font_color", Slot.GOOD if projected[stat] > current_stats[stat] else Slot.BAD)
+			preview_delta.show()
+			break
+		var first_cell: Slot = bag_items[candidate.uid]
+		first_cell.highlighted = true
+		first_cell.queue_redraw()
+	change_button.visible = not visible_items.is_empty()
 	craft_button.visible = visible_items.is_empty()
 	craft_button.text = "打造" + ("第一件装备" if profile.items().is_empty() and filter_slot.is_empty() else ("装备" if filter_slot.is_empty() else _slot_name(filter_slot)))
 
@@ -317,7 +396,7 @@ func _pad_grid() -> void:
 	while bag_grid.get_child_count() < target:
 		var empty := Panel.new()
 		empty.mouse_filter = MOUSE_FILTER_IGNORE
-		empty.custom_minimum_size = Vector2.ONE * BAG_SLOT_SIZE
+		empty.custom_minimum_size = Vector2.ONE * (BAG_SLOT_SIZE if vertical else 54)
 		empty.add_theme_stylebox_override("panel", empty_plate)
 		bag_grid.add_child(empty)
 
@@ -353,7 +432,7 @@ func _refresh_detail(input: Dictionary, config: Dictionary, form: String) -> voi
 	detail_icon.display(input.slot, live, profile.character(), input.get("weapon_form", ""))
 	detail_title.text = live.name
 	var tint: Color = Gear.MATERIAL_COLORS.get(element, ui.GOLD)
-	detail_title.add_theme_color_override("font_color", tint)
+	detail_title.add_theme_color_override("font_color", tint.lerp(ui.INK, 0.72))
 	detail_meta.text = "%s  ·  %s行  ·  %s" % [_kind(input), WuXing.ELEMENT_NAMES.get(element, "无"), "已穿戴" if active else "背包"]
 	equip_button.text = "卸下" if active else "装备"
 	breakdown.text = "返回属性" if advanced else "更多操作"
@@ -410,7 +489,7 @@ func _comparison(before: Dictionary, after: Dictionary) -> void:
 		var decrease := float(after[stat]) < float(before[stat])
 		var good := decrease if stat in ["interval", "retreat_seconds", "feed"] else not decrease
 		_table_cell(table, extra.get(stat, Loadout.STAT_NAMES.get(stat, stat)), ui.INK)
-		_table_cell(table, old, ui.MUTED)
+		_table_cell(table, old + " →", ui.MUTED)
 		_table_cell(table, next + (" ↓" if decrease else " ↑"), Slot.GOOD if good else Slot.BAD)
 	if changed == 0:
 		table.hide()

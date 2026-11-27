@@ -3,33 +3,27 @@ extends Button
 const Gear = preload("res://scripts/gear.gd")
 const Roster = preload("res://scripts/roster.gd")
 const ForgeArt = preload("res://scripts/forge_art.gd")
-const HeldWeapon = preload("res://scripts/held_weapon.gd")
-const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const Appearance = preload("res://scripts/appearance.gd")
-const GearDesign = preload("res://scripts/gear_design.gd")
+
+const WeaponDesign = preload("res://scripts/weapon_design.gd")
 const ModelHero = preload("res://scripts/model_hero.gd")
 
-const GOOD := Color("#4f7045")
-const BAD := Color("#a13f32")
-const INK := Color("#302820")
-const BORDER := Color("#9b7955")
-const PLATE := Color("#ecddbe")
+const GOOD := Color("#acc894")
+const BAD := Color("#ff9a79")
+const INK := Color("#f1dfb4")
+const BORDER := Color("#b99350")
+const PLATE := Color("#182a2c")
 const FORTUNES := {
 	"旺": Color("#b29251"), "相": Color("#557447"), "休": Color("#515b5a"),
 	"囚": Color("#71362e"), "死": Color("#282a2c")
 }
+static var _tile: StyleBoxTexture
 var occupied := false
 var simple := false
 var highlighted := false
 var caption := ""
 var _icon: Texture2D
 var _fabric_tint := Color.WHITE
-var _ink_icon: Texture2D
-static var _ink_icons := {}
-# 零件拼的兵器直接画在格子里；原画兵器仍用形制图标。
-var _design := {}
-var _gear := {}
-var _form := ""
 var _edge := BORDER
 var _tint := INK
 var _fortune := ""
@@ -54,9 +48,7 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 	var title: String = Gear.SLOT_NAMES[index]
 	var main := Gear.Loadout.dominant(derived.get("wuxing", {}))
 	occupied = not main.is_empty()
-	var icon_index: int = Gear.Equipment.EMPTY_ICONS[index]
 	if occupied:
-		icon_index = ForgeArt.item_index(index, main, person.get("gender") == "female")
 		_polarity = derived.yin_yang
 		_edge = Roster.ELEMENT_GLOW[main]
 		_tint = Roster.ELEMENT_TINTS[main]
@@ -69,48 +61,20 @@ func display(slot: String, derived: Dictionary, person: Dictionary, form: String
 		title += " · %s · %s%s · 阴阳 %+.2f" % [derived.name, _fortune, _god, _polarity]
 	else:
 		title += " · 空槽"
-	# 兵器画零件拼成的那一件，其余四槽画按这件装备挑出的图标；空槽画同一套图的素样，淡淡一层。
-	_design = {}
-	_gear = {}
-	_form = form if ForgeArt.FORM_ICONS.has(form) else "sword"
-	_icon = ForgeArt.texture(icon_index)
-	_ink_icon = null
 	_fabric_tint = Color.WHITE
-	# 护甲四槽画主角模型渲出来的那件（art/model-hero/icons，由 tests/_gear_icons.gd 生成），
-	# 按甲型挑图、按身上同一个颜色染，图标和人物穿的对得上；兵器也画模型手里那一件
-	if slot in Gear.ARMOR_TYPE_SLOTS:
-		_ink_icon = garment_icon(slot, derived.get("armor_type", "cloth") if occupied else "cloth")
-		_fabric_tint = Appearance.garment_tint(slot, derived) if occupied else Color.WHITE
-	elif slot == "weapon":
-		_icon = ForgeArt.weapon_icon(_form)
-		var design := WeaponDesign.pick(derived, _form, Appearance.amount_of(derived)) if occupied \
-			else WeaponDesign.plain(_form)
-		# 画主角手里那一件 3D 兵器渲出来的图（art/model-hero/icons/weapon_*，由 tests/_weapon_icons.gd 生成），
-		# 挑法和 model_hero.gd 的 hold 一样，图标和人物拿的是同一把
-		_ink_icon = weapon_icon(ModelHero.weapon_part(_form, design))
-		if _ink_icon == null and not (WeaponDesign.painted_blade(design) and WeaponDesign.painted_head(design)):
-			_design = design
-	elif _ink_icon == null:
-		var female: bool = person.get("gender") == "female"
-		_gear = GearDesign.pick(derived, slot, female) if occupied else GearDesign.plain(slot, female)
+	if slot == "weapon":
+		if not ForgeArt.FORM_ICONS.has(form):
+			form = "sword"
+		var design := WeaponDesign.pick(derived, form, Appearance.amount_of(derived)) if occupied else WeaponDesign.plain(form)
+		_icon = ForgeArt.weapon_icon(form, ModelHero.weapon_part(form, design))
+	else:
+		var kind: String = derived.get("armor_type", "cloth") if occupied else "cloth"
+		_icon = ForgeArt.garment_icon(index - 1, kind)
+		if occupied:
+			_fabric_tint = Appearance.garment_tint(slot, derived).lerp(Color.WHITE, 0.5)
 	tooltip_text = title
 	accessibility_name = title
 	queue_redraw()
-
-static func weapon_icon(part: String) -> Texture2D:
-	var key := "weapon_" + part
-	if not _ink_icons.has(key):
-		var path := "res://art/model-hero/icons/%s.png" % key
-		_ink_icons[key] = load(path) if ResourceLoader.exists(path) else null
-	return _ink_icons[key]
-
-static func garment_icon(slot: String, armor_type: String) -> Texture2D:
-	if armor_type not in ["cloth", "leather", "chain"]:
-		armor_type = "cloth"
-	var key := slot + "_" + armor_type
-	if not _ink_icons.has(key):
-		_ink_icons[key] = load("res://art/model-hero/icons/%s.png" % key)
-	return _ink_icons[key]
 
 func _draw() -> void:
 	if simple:
@@ -118,7 +82,7 @@ func _draw() -> void:
 		return
 	var compact := size.x <= 44.0
 	var bounds := Rect2(Vector2.ZERO, size)
-	draw_style_box(_plate(PLATE.lightened(0.08) if is_hovered() else PLATE, 3), bounds)
+	draw_style_box(tile_plate(), bounds)
 	if _icon != null:
 		var inset := 2.0 if compact else 4.0
 		_draw_icon(bounds.grow(-inset), Color(1, 1, 1, 1.0 if occupied else 0.18))
@@ -154,40 +118,22 @@ func _draw() -> void:
 
 func _draw_item() -> void:
 	var bounds := Rect2(Vector2.ZERO, size)
-	var edge := _edge.darkened(0.30) if occupied else Color("#594b40")
-	if highlighted or has_focus():
-		edge = Color("#f0cf93")
-	var fill := Color("#dfc9a2") if is_hovered() or highlighted else Color("#ecddbe")
-	draw_rect(bounds, fill)
-	var caption_size := 13 if size.x >= 70 else 11
-	var art_height := size.y - (caption_size + 4.0 if not caption.is_empty() else 2.0)
-	var side := minf(art_height, size.x - 4)
+	draw_style_box(tile_plate(), bounds)
+	if highlighted or has_focus() or is_hovered():
+		for inset in [3, 2, 1]:
+			draw_rect(bounds.grow(-inset), Color(1, 0.66, 0.15, 0.8 / inset), false, inset, true)
+	var title_height := 17.0 if not caption.is_empty() else 0.0
+	var side := minf(size.y - title_height - 2, size.x - 6)
 	if _icon:
-		var rect := Rect2(Vector2((size.x - side) * 0.5, (art_height - side) * 0.5 + 1), Vector2.ONE * side)
-		_draw_icon(rect, Color.WHITE if occupied else Color(0.72, 0.68, 0.62, 0.34))
-	draw_rect(bounds.grow(-0.5), edge, false, 1)
-	if occupied:
-		draw_line(Vector2(2, 1.5), Vector2(size.x - 2, 1.5), _edge, 2)
-	if highlighted:
-		draw_rect(bounds.grow(-2.5), edge, false, 1)
+		var origin := Vector2((size.x - side) / 2, title_height + (size.y - title_height - side) / 2)
+		_draw_icon(Rect2(origin, Vector2.ONE * side), Color.WHITE if occupied else Color(0.76, 0.78, 0.73, 0.54))
 	if not caption.is_empty():
-		draw_string(get_theme_default_font(), Vector2(0, size.y - 3), (caption.left(4) + "…" if caption.length() > 5 else caption),
-			HORIZONTAL_ALIGNMENT_CENTER, size.x, caption_size, INK if occupied else Color("#b6a492"))
+		var tag := Rect2(1, 0, size.x - 2, title_height)
+		draw_texture_rect(preload("res://art/piying/v4/button.png"), tag, false)
+		draw_string(get_theme_default_font(), Vector2(0, 13), caption.left(5), HORIZONTAL_ALIGNMENT_CENTER, size.x, 11, INK)
 
 func _draw_icon(rect: Rect2, ink: Color) -> void:
-	if _ink_icon != null:
-		var factor := minf(rect.size.x / _ink_icon.get_width(), rect.size.y / _ink_icon.get_height()) * 0.90
-		var size := _ink_icon.get_size() * factor
-		draw_texture_rect(_ink_icon, Rect2(rect.get_center() - size * 0.5, size), false, ink * _fabric_tint)
-		return
-	if not _gear.is_empty():
-		GearDesign.draw(self, _gear, rect.grow(-rect.size.x * 0.04), ink)
-		return
-	# 兵器图标和装备图标一样提亮一点，做旧的铁在暗色格子里才看得清。
-	var lifted := Color(ink.r * GearDesign.LIFT, ink.g * GearDesign.LIFT, ink.b * GearDesign.LIFT, ink.a)
-	if not _design.is_empty() and HeldWeapon.draw_icon(self, _form, _design, rect.grow(-rect.size.x * 0.06), lifted):
-		return
-	draw_texture_rect(_icon, rect, false, ink)
+	draw_texture_rect(_icon, rect, false, ink * _fabric_tint)
 
 func _draw_tag(title: String, rect: Rect2, fill: Color, ink: Color, pixels: int) -> void:
 	if title.is_empty():
@@ -204,3 +150,10 @@ func _plate(fill: Color, radius: int, edge: Color = Color.TRANSPARENT, width: in
 	style.set_border_width_all(width)
 	style.set_corner_radius_all(radius)
 	return style
+
+static func tile_plate() -> StyleBoxTexture:
+	if _tile == null:
+		_tile = StyleBoxTexture.new()
+		_tile.texture = preload("res://art/piying/v4/panel.png")
+		_tile.set_texture_margin_all(6)
+	return _tile

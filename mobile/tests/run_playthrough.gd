@@ -11,6 +11,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var game = Main.instantiate()
+	game.settings_path = save_path + ".settings"
 	game.save_base = save_path
 	root.add_child(game)
 	game.set_physics_process(false)
@@ -22,12 +23,14 @@ func _run() -> void:
 	_check(_test_continuous_route() == true, "连战流程完整执行")
 	_check(_test_relief() == true, "驻留行善与抗敕流程完整执行")
 	_check(_test_roster(game) == true, "多角色、离线收益与角色信息流程完整执行")
+	_test_gallery(game)
+	_test_settings(game)
 	for slot in range(Gear.MAX_CHARACTERS):
 		var slot_file := Gear.slot_path(slot, save_path)
 		for path in [slot_file, slot_file + ".tmp"]:
 			if FileAccess.file_exists(path):
 				DirAccess.remove_absolute(path)
-	for path in [save_path, save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
+	for path in [save_path, save_path + ".settings", save_path + ".tmp", save_path + ".legacy", save_path + ".legacy.v3.bak",
 			save_path + ".armory", save_path + ".jie", save_path + ".jie.tmp", save_path + ".route", save_path + ".route.tmp",
 			save_path + ".relief", save_path + ".relief.tmp"]:
 		if FileAccess.file_exists(path):
@@ -156,6 +159,7 @@ func _play(game) -> bool:
 
 func _test_armory() -> bool:
 	var game = Main.instantiate()
+	game.settings_path = save_path + ".settings"
 	game.save_base = save_path + ".armory"
 	root.add_child(game)
 	game.set_physics_process(false)
@@ -208,6 +212,7 @@ func _test_armory() -> bool:
 
 func _test_tribulation() -> bool:
 	var game = Main.instantiate()
+	game.settings_path = save_path + ".settings"
 	game.save_base = save_path + ".jie"
 	root.add_child(game)
 	game.set_physics_process(false)
@@ -278,6 +283,7 @@ func _test_tribulation() -> bool:
 
 func _test_continuous_route() -> bool:
 	var game = Main.instantiate()
+	game.settings_path = save_path + ".settings"
 	game.save_base = save_path + ".route"
 	root.add_child(game)
 	game.set_physics_process(false)
@@ -289,7 +295,8 @@ func _test_continuous_route() -> bool:
 	game.challenge_button.pressed.emit()
 	_take_edict(game)
 	if not _check(game.state == &"boss" and game.run.continuous and game.run.wave_index == 0
-			and game.run.enemies.size() == game.Combat.WAVE_SIZES[0] and not game.run.enemies[0].boss
+			and game.run.enemies.size() == game.Combat.STAGE_CAP
+			and game.run.enemies.size() + game.run.wave_reserve == game.Combat.WAVE_SIZES[0] and not game.run.enemies[0].boss
 			and game.stop_route_button.visible, "点击开始连战进入精怪波次"):
 		return false
 	game.control_mode = game.Combat.ControlMode.MANUAL
@@ -303,7 +310,8 @@ func _test_continuous_route() -> bool:
 	_check(game.run.position.x > arrival_x and game.run.hp == game.run.max_hp - 10 and game.run.mana < game.run.max_mana,
 		"手动模式也会跑图，血量和灵力沿用同一场战斗")
 	_ticks(game, 48)
-	_check(game.run.wave_index == 1 and game.run.enemies.size() == game.Combat.WAVE_SIZES[1]
+	_check(game.run.wave_index == 1 and game.run.enemies.size() == game.Combat.STAGE_CAP
+			and game.run.enemies.size() + game.run.wave_reserve == game.Combat.WAVE_SIZES[1]
 		and not game.run.boss_wave(), "到达后刷新第二波")
 	_clear_wave(game)
 	_ticks(game, 53)
@@ -328,10 +336,15 @@ func _test_continuous_route() -> bool:
 	return true
 
 func _clear_wave(game) -> void:
-	for foe in game.run.enemies:
-		foe.spawn = 0.0
-		game.run._damage_enemy(foe, 100000, 0.0)
-	_ticks(game, 1)
+	for _frame in range(600):
+		var last_batch: bool = game.run.wave_reserve == 0
+		for foe in game.run.enemies:
+			foe.spawn = 0.0
+			game.run._damage_enemy(foe, 100000, 0.0)
+		_ticks(game, 1)
+		if last_batch:
+			return
+	_check(false, "候场精怪未能在时限内全部登场")
 
 func _ticks(game, count: int) -> void:
 	for _tick in range(count):
@@ -405,6 +418,7 @@ func _test_migration() -> bool:
 # 驻留行善、违规的代价、抗敕。对应 docs/story.md §1.2 与 §2.1。
 func _test_relief() -> bool:
 	var game = Main.instantiate()
+	game.settings_path = save_path + ".settings"
 	game.save_base = save_path + ".relief"
 	root.add_child(game)
 	game.set_physics_process(false)
@@ -606,3 +620,44 @@ func _check(condition: bool, message: String) -> bool:
 		failures += 1
 		printerr(message)
 	return condition
+
+func _test_settings(game) -> void:
+	game._open_settings()
+	var panel = game.settings
+	var sliders: Array[Node] = panel.find_children("*", "HSlider", true, false)
+	_check(sliders.size() == 3, "声音分类提供三条音量轨")
+	for i in sliders.size():
+		sliders[i].value = 0.35 + 0.1 * i
+	panel.show_tab(1)
+	_press(panel, "三倍")
+	panel.show_tab(2)
+	_press(panel, "手动")
+	_press(panel, "返回")
+	var restarted = Main.instantiate()
+	restarted.save_base = save_path
+	restarted.settings_path = game.settings_path
+	root.add_child(restarted)
+	_check(restarted.battle_speed == 3 and int(restarted.control_mode) == 0, "新场景载入倍速与手动操作")
+	for i in 3:
+		var bus_index := AudioServer.get_bus_index(["Master", "Music", "SFX"][i])
+		_check(is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(bus_index)), 0.35 + 0.1 * i), "重载音量总线 %d" % i)
+	_check(restarted.sounds.voices[0].bus == &"SFX" and restarted.sounds.enabled, "游戏音效走音效总线")
+	restarted._open_settings()
+	_press(restarted.settings, "恢复默认")
+	_check(restarted.battle_speed == 1 and int(restarted.control_mode) == 1 and not restarted.sounds.enabled, "恢复原有战斗和音效默认值")
+	restarted.queue_free()
+
+func _test_gallery(game) -> void:
+	var forge = game.forge
+	var original: String = forge.draft.weapon_form
+	forge._open_weapons()
+	var gallery = game.weapon_gallery
+	_check(gallery.cards.size() == 4, "四个兵器挂幡")
+	gallery.cards[3].pressed.emit()
+	_press(gallery, "返回")
+	_check(forge.draft.weapon_form == original, "取消兵器预选保留原草案")
+	forge._open_weapons()
+	gallery = game.weapon_gallery
+	gallery.cards[3].pressed.emit()
+	_press(gallery, "选用")
+	_check(forge.draft.weapon_form == "bow", "选用弓写入实际锻造草案")

@@ -2,8 +2,8 @@ extends Control
 
 const Gear = preload("res://scripts/gear.gd")
 const Roster = preload("res://scripts/roster.gd")
-const HIGHER := Color("#bde6a8")
-const LOWER := Color("#ffab9c")
+const HIGHER := Color("#acc894")
+const LOWER := Color("#ff9a79")
 
 var ui
 var animation: Tween
@@ -29,6 +29,7 @@ func _ready() -> void:
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(content)
 	heading = _label("", 23, ui.INK)
+	ui.heading_plate(heading)
 	heading.add_theme_font_override("font", ui.HEADING_FONT)
 	content.add_child(heading)
 	flow = ui._hbox(12)
@@ -68,8 +69,8 @@ func play(from: String, to: String, before: Dictionary, after: Dictionary, layer
 	heading.text = "踏入第 %d 层" % layer if breakthrough.is_empty() else "破境 · " + breakthrough
 	outgoing.text = Gear.ling_caption(from)
 	incoming.text = Gear.ling_caption(to)
-	outgoing.add_theme_color_override("font_color", Roster.ELEMENT_GLOW[Gear.WuXing.stem_element(from)])
-	incoming.add_theme_color_override("font_color", Roster.ELEMENT_GLOW[Gear.WuXing.stem_element(to)])
+	outgoing.add_theme_color_override("font_color", Roster.ELEMENT_TINTS[Gear.WuXing.stem_element(from)].lerp(ui.INK, 0.35))
+	incoming.add_theme_color_override("font_color", Roster.ELEMENT_TINTS[Gear.WuXing.stem_element(to)].lerp(ui.INK, 0.35))
 	modulate.a = 0.0
 	show()
 	animation = create_tween().set_parallel(true)

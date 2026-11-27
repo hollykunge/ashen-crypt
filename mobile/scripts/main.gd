@@ -21,20 +21,20 @@ const TitlePage = preload("res://scripts/title_page.gd")
 const CharacterSelect = preload("res://scripts/character_select.gd")
 const HeroSheet = preload("res://scripts/hero_sheet.gd")
 const OfflineCard = preload("res://scripts/offline_card.gd")
-const CAMP = preload("res://art/ink/mountain-road.png")
-const FORGE_BG = preload("res://art/ink/mountain-road.png")
+const CAMP = preload("res://art/ui-icons/stage-portrait.webp")
+const WIDE_STAGE = preload("res://art/ui-icons/stage.webp")
 const SPELL_ATLAS = preload("res://art/immortals/spells.webp")
 const SPELL_GRADE = preload("res://art/gothic_grade.gdshader")
 const FONT = preload("res://art/fonts/body.ttf")
 const HEADING_FONT = preload("res://art/fonts/heading.tres")
 
-const NIGHT := Color("#f0e0bf")
-const INK := Color("#302820")
-const GOLD := Color("#785b3e")
-const MUTED := Color("#766858")
-const IRON := Color("#e4d1ac")
-const BORDER := Color("#9b7955")
-const CRIMSON := Color("#8f3d32")
+const NIGHT := Color("#182a2c")
+const INK := Color("#f1dfb4")
+const GOLD := Color("#e0b76c")
+const MUTED := Color("#c7bc9f")
+const IRON := Color("#233638")
+const BORDER := Color("#b99350")
+const CRIMSON := Color("#92271b")
 const SPELL_CELL := Vector2(128, 128)
 const SPELL_INDEX := {
 	&"sword": 0, &"slash": 1, &"cleave": 2, &"retreat": 3,
@@ -63,14 +63,19 @@ var action_buttons: Dictionary = {}
 var action_glyphs: Dictionary = {}
 var cooldown_sweeps: Dictionary = {}
 var cooldown_totals: Dictionary = {}
-var sound_buttons: Array[Button] = []
+var settings: Control
+var weapon_gallery: Control
+var preferences := ConfigFile.new()
+var settings_path := "user://settings.cfg"
 var spell_textures: Dictionary = {}
 var spell_grade := ShaderMaterial.new()
 
 var safe: MarginContainer
+var armory_river := AtlasTexture.new()
+var armory_stage: TextureRect
 var camp: TextureRect
-var camp_shade: TextureRect
 var battle_shade: TextureRect
+var battle_identity: HBoxContainer
 var battle_portrait: TextureRect
 var retinue_faces: HBoxContainer
 var selection: CharacterPage
@@ -89,6 +94,7 @@ var challenge_sweep: Gothic.Sweep
 # 上一次报过地名的层；从炉坊、告示回到挂机不再报一遍。
 var announced_layer := 0
 var farm_actions: HBoxContainer
+var challenge_label: Label
 var challenge_button: Button
 var challenge_caption := ""
 var boss_controls: VBoxContainer
@@ -125,7 +131,7 @@ var hint_time := 0.0
 var boss_announced := false
 
 func _ready() -> void:
-	if OS.is_debug_build():  # 调试版显示帧率，真机测性能用
+	if OS.is_debug_build() and not OS.has_environment("UI_CAPTURE"):  # 调试版显示帧率，真机测性能用
 		add_child(preload("res://scripts/perf_overlay.gd").new())
 	original_design_size = get_window().content_scale_size
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
@@ -144,6 +150,8 @@ func _ready() -> void:
 	ui_style.set_stylebox("panel", "PopupMenu", _box(NIGHT, BORDER, 1, 6))
 	theme = ui_style
 	add_child(sounds)
+	preferences.load(settings_path)
+	_load_preferences()
 	run.feedback.connect(sounds.play)
 	silver_rng.randomize()
 	run.material_collected.connect(_stash_material)
@@ -159,13 +167,15 @@ func _build_view() -> void:
 	_fill(base)
 	add_child(base)
 
+	armory_river.atlas = preload("res://art/piying/v4/river.webp")
+	armory_river.region = Rect2(365, 0, 1307, 941)
 	camp = _image(CAMP)
 	camp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	_fill(camp)
 	add_child(camp)
-	camp_shade = _image(_camp_gradient())
-	_fill(camp_shade)
-	add_child(camp_shade)
+	armory_stage = _image(preload("res://art/piying/v4/armory-stage.webp"))
+	armory_stage.hide()
+	add_child(armory_stage)
 	field = Arena.new()
 	field.clip_contents = true
 	field.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -237,7 +247,7 @@ func _build_battle() -> void:
 	# 顶栏左边不写字：挂机时是头像和一只材料袋，连战时是日暮月三波。层数、地名在进层那一下用正中大字报。
 	var camp_row := _hbox(8)
 	stage_info.add_child(camp_row)
-	# 头像不刷墨块，垫一团淡墨晕（和列仙图录一样）
+	# 头像背后垫镂空皮环。
 	hero_chip = _button("", false, 56)
 	hero_chip.remove_meta(&"brush_fills")
 	for style in ["normal", "hover", "pressed", "disabled", "focus"]:
@@ -245,11 +255,6 @@ func _build_battle() -> void:
 	hero_chip.custom_minimum_size = Vector2(56, 56)
 	_describe(hero_chip, "角色信息")
 	hero_chip.pressed.connect(_open_hero_sheet)
-	var blot := _image(BLOT)
-	blot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	blot.modulate = Color(1, 1, 1, 0.75)
-	hero_chip.add_child(blot)
-	_fill(blot)
 	hero_face = _image(SideArt.PORTRAIT)
 	hero_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	hero_chip.add_child(hero_face)
@@ -261,7 +266,8 @@ func _build_battle() -> void:
 	strip = BattleStrip.new()
 	strip.waves = Combat.WAVE_SIZES.size()
 	strip.hide()
-	stage_info.add_child(strip)
+	battle.add_child(strip)
+	strip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 	var switches := _hbox(7)
 	switches.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -301,16 +307,19 @@ func _build_battle() -> void:
 	banner = _vbox(2)
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	banner.alignment = BoxContainer.ALIGNMENT_CENTER
-	banner_title = _label("", 40, Color("#3b3025"))
-	banner_sub = _label("", 20, GOLD)
+	banner_title = _label("", 25, Color("#f1dfb4"))
+	banner_title.custom_minimum_size.x = 155
+	banner_title.add_theme_stylebox_override("normal", _brush(CRIMSON))
+	banner_sub = _label("", 15, GOLD)
 	for line in [banner_title, banner_sub]:
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		line.add_theme_constant_override("outline_size", 8)
+		line.add_theme_constant_override("outline_size", 3)
 		line.add_theme_color_override("font_outline_color", Color(NIGHT, 0.85))
 		banner.add_child(line)
 	spring.add_child(banner)
 	banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	banner.offset_top = 28.0
+	banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	banner.offset_top = 6.0
 	banner.hide()
 	farm_actions = _hbox(7)
 	battle.add_child(farm_actions)
@@ -324,13 +333,21 @@ func _build_battle() -> void:
 	var push := Control.new()
 	push.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	farm_actions.add_child(push)
-	challenge_button = _icon_button(&"march", "", true, Vector2(96, 56))
+	challenge_button = _button("", true, 44)
+	challenge_button.custom_minimum_size.x = 124
+	challenge_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	challenge_label = _label("", 16, INK)
+	challenge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	challenge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	challenge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	challenge_button.add_child(challenge_label)
+	_fill(challenge_label)
 	challenge_button.pressed.connect(_challenge)
 	challenge_sweep = Gothic.Sweep.new()
 	challenge_button.add_child(challenge_sweep)
 	_fill(challenge_sweep)
 	farm_actions.add_child(challenge_button)
-	for tile in [forge_button, notice_button, challenge_button]:
+	for tile in [forge_button, notice_button]:
 		var glyph: Control = tile.get_node("Glyph")
 		glyph.offset_left = -18.0
 		glyph.offset_right = 18.0
@@ -347,13 +364,13 @@ func _build_battle() -> void:
 
 	var hud := _hbox(7)
 	boss_controls.add_child(hud)
-	var identity := _hud_card(hud, 6, 0.88)
-	# 生命、灵力平时只看两条，按住头像这一块才报数。
-	identity.get_parent().gui_input.connect(_hold_vitals)
-	var portrait_row := _hbox(6)
-	identity.add_child(portrait_row)
+	battle_identity = _hbox(5)
+	stage_info.add_child(battle_identity)
+	stage_info.move_child(battle_identity, 0)
+	battle_identity.gui_input.connect(_hold_vitals)
+	var portrait_row := battle_identity
 	battle_portrait = _image(SideArt.PORTRAIT)
-	battle_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	battle_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	battle_portrait.custom_minimum_size = Vector2(43, 56)
 	portrait_row.add_child(battle_portrait)
 	var vitals := _vbox(2)
@@ -363,7 +380,8 @@ func _build_battle() -> void:
 	life_value = _label("", 11, INK)
 	life_value.hide()
 	vitals.add_child(life_value)
-	life_meter = _meter(Color("#be6251"), 5)
+	life_meter = _meter(CRIMSON, 23)
+	life_meter.lamps = true
 	vitals.add_child(life_meter)
 	mana_value = _label("", 11, INK)
 	mana_value.hide()
@@ -393,10 +411,12 @@ func _build_battle() -> void:
 func _cycle_control_mode() -> void:
 	_clear_input()
 	control_mode = (int(control_mode) + 1) % Combat.ControlMode.size() as Combat.ControlMode
+	save_preference("battle", "mode", int(control_mode))
 	_update_control_labels()
 
 func _cycle_battle_speed() -> void:
 	battle_speed = battle_speed % 3 + 1
+	save_preference("battle", "speed", battle_speed)
 	_update_control_labels()
 
 # 按钮上不写字，名字留给读屏和长按提示。
@@ -421,6 +441,7 @@ func _hold_vitals(event: InputEvent) -> void:
 
 # 正中一行大字，淡入、停一下、淡出。只在过层、层主登场这种时刻用。
 func _announce(title: String, sub := "") -> void:
+	banner.reset_size()
 	banner_title.text = title
 	banner_title.visible = not title.is_empty()
 	banner_sub.text = sub
@@ -489,6 +510,8 @@ func _build_overlay() -> void:
 	offline_card.build(self)
 
 func _physics_process(delta: float) -> void:
+	if is_instance_valid(settings):
+		return
 	if active_slot >= 0 and state not in [&"title", &"roster", &"selection"]:
 		checkpoint_left -= delta
 		if checkpoint_left <= 0.0:
@@ -540,6 +563,16 @@ func _physics_process(delta: float) -> void:
 	_update_battle()
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(settings) or is_instance_valid(weapon_gallery):
+		if event.is_action_pressed("ui_cancel"):
+			if is_instance_valid(settings):
+				_close_settings()
+			else:
+				weapon_gallery.queue_free()
+				weapon_gallery = null
+				_fit_forge()
+			get_viewport().set_input_as_handled()
+		return
 	if forge.detail_cover != null and forge.detail_cover.visible:
 		if event is InputEventKey and event.pressed:
 			if event.keycode == KEY_ESCAPE:
@@ -652,11 +685,7 @@ func _show_camp_page(page: Control) -> void:
 	offline_card.hide()
 	banner.hide()
 	_fit_forge()
-	camp.texture = CAMP
-	camp.self_modulate = Color.WHITE
-	camp_shade.texture = _camp_gradient()
 	camp.show()
-	camp_shade.show()
 	for other in [title_page, roster_page, selection]:
 		other.visible = other == page
 
@@ -807,8 +836,9 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	_set_loadout_slots(outfit.entries, person, challenge)
 	farm_actions.visible = not challenge
 	challenge_caption = ("开始连战 · 第%d层" if layer_tribulation.is_empty() else "准备渡劫 · 第%d层") % profile.layer()
-	_set_icon(challenge_button, &"march" if layer_tribulation.is_empty() else &"jie")
+	challenge_label.text = "开始连战" if layer_tribulation.is_empty() else "准备渡劫"
 	boss_controls.visible = challenge
+	battle_identity.visible = challenge
 	battle_tools.visible = challenge
 	pouch.visible = not challenge
 	hero_chip.visible = not challenge
@@ -836,7 +866,6 @@ func _start_encounter(challenge: bool, continuous_route := false) -> void:
 	forge.hide()
 	_fit_forge()
 	camp.hide()
-	camp_shade.hide()
 	field.set_camp_view(not challenge)
 	field.show()
 	battle_shade.visible = not run.continuous
@@ -868,7 +897,7 @@ func _update_battle() -> void:
 		return
 	if state != &"boss":
 		var ling := profile.ling()
-		pouch.show_state(Gear.material(ling), profile.stock(ling), run.hp, run.max_hp, profile.relief_pending())
+		pouch.show_state(ling, profile.stock(ling), run.hp, run.max_hp, profile.relief_pending())
 		var wait := maxi(profile.challenge_wait(), ceili(retry_until - Time.get_unix_time_from_system()))
 		_describe(challenge_button, ("调息 %d 秒 · " % wait + challenge_caption) if wait > 0 else challenge_caption)
 		challenge_sweep.show_amount(wait, 30.0, false)
@@ -891,13 +920,17 @@ func _update_battle() -> void:
 	# 层主蓄力时不报字：地上有红圈，后撤键跟着一明一暗。
 	var preparing: bool = not enemy.is_empty() and enemy.windup > 0.0
 	strip.warning = preparing and boss_up
+	strip.boss_name = run.archetype.name if boss_up else ""
 	hint_time = fposmod(hint_time + get_physics_process_delta_time() * 7.0, TAU) if preparing else 0.0
 	action_buttons[&"retreat"].self_modulate = Color.WHITE.lerp(Color("#ff8f7a"), 0.5 + 0.5 * sin(hint_time)) if preparing else Color.WHITE
 	if run.boss_wave() and not boss_announced and not enemy.is_empty() and enemy.spawn > 0.0:
 		boss_announced = true
 		var tribulation := Gear.Realm.jie_ling_of(run.dungeon_layer)
-		_announce(run.archetype.name if tribulation.is_empty() else "%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(tribulation)],
-			"层主")
+		if tribulation.is_empty():
+			banner.hide()
+		else:
+			_announce("%s劫" % Gear.WuXing.ELEMENT_NAMES[Gear.WuXing.stem_element(tribulation)], "层主")
+
 	life_meter.set_amount(run.hp, run.max_hp)
 	mana_meter.set_amount(run.mana, run.max_mana)
 	life_value.text = "生命 %d" % run.hp
@@ -1011,10 +1044,6 @@ func _open_forge(slot: String = "") -> void:
 	field.hide()
 	battle_shade.hide()
 	stick.hide()
-	camp.texture = FORGE_BG
-	camp.self_modulate = Color(0.80, 0.77, 0.74)
-	camp_shade.texture = _forge_vignette()
-	camp_shade.show()
 	camp.show()
 	forge.show()
 	forge.open(preview_ling, slot)
@@ -1063,19 +1092,32 @@ func _finish_challenge(outcome: StringName) -> void:
 	turnover.play(from_stem, profile.ling(), old_entries, new_entries, profile.layer(),
 		String(profile.realm().name) if is_breakthrough else "")
 
-func _toggle_sound() -> void:
-	sounds.enabled = not sounds.enabled
-	for index in range(sound_buttons.size() - 1, -1, -1):
-		var button := sound_buttons[index]
-		if not is_instance_valid(button) or not button.is_inside_tree():
-			sound_buttons.remove_at(index)
-			continue
-		_set_icon(button, &"sound" if sounds.enabled else &"mute")
-		_describe(button, "关闭音效" if sounds.enabled else "开启音效")
-	if sounds.enabled:
-		sounds.play(&"pickup")
-	else:
-		sounds.mute_all()
+func _load_preferences() -> void:
+	battle_speed = clampi(int(preferences.get_value("battle", "speed", 1)), 1, 3)
+	control_mode = clampi(int(preferences.get_value("battle", "mode", Combat.ControlMode.ASSISTED)), 0, 2) as Combat.ControlMode
+	for bus in ["Master", "Music", "SFX"]:
+		sounds.set_volume(bus, float(preferences.get_value("audio", bus, 0.0 if bus == "SFX" else 1.0)))
+
+func save_preference(section: String, key: String, value: Variant) -> void:
+	preferences.set_value(section, key, value)
+	var error := preferences.save(settings_path)
+	if error != OK:
+		push_error("保存设置失败 %s" % error_string(error))
+
+func _open_settings() -> void:
+	if is_instance_valid(settings):
+		return
+	_clear_input()
+	settings = preload("res://scripts/settings_page.gd").new()
+	settings.ui = self
+	_fit_forge()
+	add_child(settings)
+	_fill(settings)
+
+func _close_settings() -> void:
+	settings.queue_free()
+	settings = null
+	_fit_forge()
 
 func _adapt_safe_area() -> void:
 	var top := 12
@@ -1100,10 +1142,10 @@ func _adapt_safe_area() -> void:
 	gear_card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
 	farm_actions.size_flags_horizontal = Control.SIZE_SHRINK_END if wide else Control.SIZE_FILL
 	farm_actions.custom_minimum_size.x = minf(320.0, size.x * 0.30) if wide else 0.0
-	skill_row.custom_minimum_size.x = minf(355.0, size.x * 0.31) if wide else 0.0
+	skill_row.custom_minimum_size.x = minf(355.0, size.x * 0.33) if wide else minf(size.x * 0.72, 270.0)
 	battle_portrait.custom_minimum_size.x = 58.0 if wide else 43.0
 	_update_retinue()
-	for page in [selection, roster_page, title_page]:
+	for page in [selection, roster_page]:
 		page.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide else Control.SIZE_FILL
 		page.custom_minimum_size.x = minf(620.0, size.x * 0.65) if wide else 0.0
 	_fit_forge()
@@ -1117,8 +1159,14 @@ func _fit_forge() -> void:
 		return
 	var window := get_window()
 	var wide := window.size.x >= window.size.y * 1.17
+	camp.texture = preload("res://art/piying/v4/river.webp") if wide else preload("res://art/piying/stage/river-portrait.webp")
+	if state == &"title":
+		camp.texture = preload("res://art/piying/v4/title.webp") if wide else preload("res://art/piying/v4/title-tall.webp")
 	var armory_open := state == &"forge" and forge.inventory
-	var design := Vector2i(original_design_size.y, original_design_size.x) if wide and armory_open else original_design_size
+	armory_stage.visible = armory_open
+	if armory_open:
+		camp.texture = armory_river
+	var design := Vector2i(original_design_size.y, original_design_size.x) if wide and (is_instance_valid(weapon_gallery) or is_instance_valid(settings) or state == &"title" or armory_open or state in [&"farm", &"boss", &"place_notice", &"jie_notice", &"next_layer"]) else original_design_size
 	if window.content_scale_size != design:
 		window.content_scale_size = design
 	forge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER if wide and not armory_open else Control.SIZE_FILL
@@ -1166,22 +1214,35 @@ func _add_action(row: HBoxContainer, action: StringName, title: String, primary:
 		_fill(sweep)
 		cooldown_sweeps[action] = sweep
 
+func portrait_back(button: Button, gender: String) -> void:
+	var glyph: Gothic.Glyph = button.get_node("Glyph")
+	glyph.art = SideArt.portrait(gender)
+	glyph.offset_left = -26
+	glyph.offset_top = -26
+	glyph.offset_right = 26
+	glyph.offset_bottom = 26
+	glyph.queue_redraw()
+
 func _sound_button() -> Button:
-	var tile := _icon_button(&"mute", "开启音效", false, Vector2(44, 44))
-	tile.pressed.connect(_toggle_sound)
-	sound_buttons.append(tile)
+	var tile := _icon_button(&"pause", "设置", false, Vector2(44, 44))
+	tile.pressed.connect(_open_settings)
 	return tile
 
 func _icon_button(symbol: StringName, title: String, accent: bool, minimum: Vector2) -> Button:
 	var tile := _button("", accent, minimum.y)
 	tile.custom_minimum_size = minimum
-	tile.set_meta(&"brush_square", true)
-	_restyle(tile, accent)
 	_describe(tile, title)
 	var glyph := Gothic.Glyph.new()
 	glyph.name = "Glyph"
-	glyph.ink = NIGHT  # 墨底上画纸色图标
+	glyph.ink = INK  # 皮牌上的镂刻图标
 	tile.add_child(glyph)
+	tile.draw.connect(func() -> void:
+		var diameter := minf(tile.size.x, tile.size.y)
+		var rect := Rect2((tile.size - Vector2.ONE * diameter) * 0.5, Vector2.ONE * diameter)
+		var tint := Color("#c9b58b") if tile.button_pressed else Color.WHITE
+		tile.draw_texture_rect(preload("res://art/ui-icons/badge.png"), rect, false, tint)
+	)
+	_restyle(tile, accent)
 	glyph.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	glyph.offset_left = -13.0
 	glyph.offset_right = 13.0
@@ -1210,7 +1271,7 @@ func _set_glyph(action: StringName, symbol: StringName) -> void:
 func _set_icon(button: Button, symbol: StringName) -> void:
 	var glyph: Gothic.Glyph = button.get_node("Glyph")
 	glyph.symbol = symbol
-	glyph.art = Gothic.Glyph.art_for(symbol) # 有出图的水墨图标就用图，没有画线条
+	glyph.art = Gothic.Glyph.art_for(symbol) # 有出图的皮影图标就用图，没有画线条
 	glyph.queue_redraw()
 
 func _spell_texture(symbol: StringName) -> Texture2D:
@@ -1243,27 +1304,35 @@ func _button(text: String, accent: bool, height: float) -> Button:
 	_restyle(button, accent)
 	return button
 
-# 按钮底子是毛笔一笔刷出来的浓墨（art/ui-icons/stroke-*.png，照 raw/stroke-reference.png 出图，切图见 slice.py），
-# 字和图标是纸色。文字按钮用长的一笔，图标按钮（meta brush_square）用短的一笔。普通按钮墨黑，主按钮朱红
-const STROKE_WIDE = preload("res://art/ui-icons/stroke-wide.png")
-const STROKE_SQUARE = preload("res://art/ui-icons/stroke-square.png")
-const WASH := Color("#2a2119")
+# 普通与主操作分别使用深褐和朱红皮牌。
+# 长牌承载文字，方牌承载图标。
+const WASH := Color("#362221")
 
 func _restyle(button: Button, accent: bool) -> void:
+	var glyph := button.get_node_or_null("Glyph") as Gothic.Glyph
+	if glyph != null:
+		glyph.queue_redraw()
 	var fill := CRIMSON if accent else WASH
 	brush_button(button, [fill, fill.lightened(0.12), fill.darkened(0.25), Color(WASH, 0.35)])
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(color_name, NIGHT)
-	button.add_theme_color_override("font_disabled_color", Color(NIGHT, 0.6))
+		button.add_theme_color_override(color_name, INK)
+	button.add_theme_color_override("font_disabled_color", Color(INK, 0.65))
+	var focus := StyleBoxFlat.new()
+	focus.draw_center = false
+	focus.border_color = BORDER
+	focus.set_border_width_all(2)
+	focus.set_corner_radius_all(4)
+	button.add_theme_stylebox_override("focus", focus)
 
-## 给按钮刷墨：fills 是常态、悬停、按下、禁用四种墨色。按钮宽度一变就重挑笔触：
-## 窄于 BRUSH_NARROW 的用短的一笔（长的一笔硬压进窄按钮，笔丝会挤成竖纹）
+## 按状态选择皮牌染色。
+## 窄按钮使用方牌，保留角钉比例。
 const BRUSH_NARROW := 110.0
 
 func brush_button(button: Button, fills: Array) -> void:
-	button.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # 笔触贴图压窄时不起毛
+	button.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS  # 小尺寸保留轮廓
 	button.set_meta(&"brush_fills", fills)
-	button.remove_meta(&"brush_shape")  # 换了墨色要重刷
+	if button.has_meta(&"brush_shape"):
+		button.remove_meta(&"brush_shape")  # 染色变化后刷新
 	_fit_brush(button)
 	if not button.has_meta(&"brush_watch"):
 		button.set_meta(&"brush_watch", true)
@@ -1273,46 +1342,59 @@ func _fit_brush(button: Button) -> void:
 	if not button.has_meta(&"brush_fills"):
 		return
 	var fills: Array = button.get_meta(&"brush_fills")
-	var square: bool = button.get_meta(&"brush_square", false) or button.text.length() == 1 		or (button.size.x > 0.0 and button.size.x < BRUSH_NARROW)
-	if button.get_meta(&"brush_shape", -1) == int(square):
+	var icon := button.get_node_or_null("Glyph") != null
+	var compact := button.size.x < BRUSH_NARROW or button.text.contains("\n")
+	var shape := 2 if icon else int(compact)
+	if button.get_meta(&"brush_shape", -1) == shape:
 		return
-	button.set_meta(&"brush_shape", int(square))
+	button.set_meta(&"brush_shape", shape)
 	for i in 4:
-		button.add_theme_stylebox_override(["normal", "hover", "pressed", "disabled"][i], _brush(fills[i], square))
+		var plate: StyleBox
+		if icon:
+			plate = StyleBoxEmpty.new()
+		elif compact and (button.text.contains("\n") or button.custom_minimum_size.y < 28):
+			var selected := (fills[0] as Color).is_equal_approx(CRIMSON)
+			plate = _box(fills[i], GOLD if selected else BORDER.darkened(0.25), 2 if selected else 1, 3)
+			(plate as StyleBoxFlat).set_corner_radius_all(4)
+		else:
+			plate = _brush(fills[i])
+			if compact:
+				for side in [SIDE_LEFT, SIDE_RIGHT]:
+					plate.set_content_margin(side, 8)
+				(plate as StyleBoxTexture).texture_margin_left = 12
+				(plate as StyleBoxTexture).texture_margin_right = 12
+		button.add_theme_stylebox_override(["normal", "hover", "pressed", "disabled"][i], plate)
 
-func _brush(fill: Color, square: bool) -> StyleBoxTexture:
+func _brush(fill: Color) -> StyleBoxTexture:
 	var box := StyleBoxTexture.new()
-	box.texture = STROKE_SQUARE if square else STROKE_WIDE
-	box.modulate_color = fill
-	# 九宫格：两头的毛边、飞白和上下毛边原样画，只拉中间（贴图切得小，边才不会把小按钮占满）
-	if square:
-		box.texture_margin_left = 10
-		box.texture_margin_right = 14
-		box.texture_margin_top = 10
-		box.texture_margin_bottom = 10
-	else:
-		box.texture_margin_left = 16
-		box.texture_margin_right = 26
-		box.texture_margin_top = 10
-		box.texture_margin_bottom = 10
+	box.texture = preload("res://art/piying/v4/active.png") if fill.r >= CRIMSON.r - 0.02 else preload("res://art/piying/v4/button.png")
+	var exposure := 1.0 + fill.get_luminance() - WASH.get_luminance()
+	if fill.r < CRIMSON.r - 0.02:
+		exposure *= 0.74
+	box.modulate_color = Color(exposure, exposure, exposure, fill.a)
+	box.texture_margin_left = 12
+	box.texture_margin_right = 12
+	box.texture_margin_top = 5
+	box.texture_margin_bottom = 5
 	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
-	# 字别压到两头的毛边和收笔的飞白上
+	# 文字避开端饰。
 	box.set_content_margin(SIDE_TOP, 6)
 	box.set_content_margin(SIDE_BOTTOM, 6)
-	box.set_content_margin(SIDE_LEFT, 12 if square else 14)
-	box.set_content_margin(SIDE_RIGHT, 14 if square else 20)
+	box.set_content_margin(SIDE_LEFT, 14)
+	box.set_content_margin(SIDE_RIGHT, 20)
 	return box
 
-# 面板底子：一张毛边宣纸签（art/ui-icons/paper-card.png，Codex 出图，九宫格拉伸），四边毛边和里面一圈墨框原样画。
-# opacity 越小纸越淡（次要的、空的格子）；padding 是字离墨框的距离，再小也不压到墨框上
-const PAPER = preload("res://art/ui-icons/paper-card.png")
+# 面板中央透光，四角保留刀刻云纹。
+# 透明度区分空格，内边距保证文字避开边框。
+const PAPER = preload("res://art/piying/v4/panel.png")
 
-const BLOT = preload("res://art/ui-icons/ink-blot.png")
 
-## 战场上的小块（装备条、血条块）：不铺整张纸，只刷一笔纸色的淡墨，压在天空上不显重
+
+## 战场边缘的小面板使用窄边幕布框。
 func wash_box(opacity := 0.9, padding := 6) -> StyleBoxTexture:
-	var wash := _brush(Color(NIGHT, 0.82 * opacity), false)
+	var wash := paper_box(opacity, padding)
+	wash.set_texture_margin_all(20)
 	wash.content_margin_left = padding + 14
 	wash.content_margin_right = padding + 20
 	wash.content_margin_top = padding + 2
@@ -1322,9 +1404,9 @@ func wash_box(opacity := 0.9, padding := 6) -> StyleBoxTexture:
 func paper_box(opacity := 1.0, padding := 14) -> StyleBoxTexture:
 	var paper := StyleBoxTexture.new()
 	paper.texture = PAPER
-	paper.set_texture_margin_all(24)
-	paper.modulate_color = Color(1, 1, 1, opacity)
-	var inset := maxi(padding, 8) + 10
+	paper.set_texture_margin_all(20)
+	paper.modulate_color = Color(1, 1, 1, opacity * 0.90)
+	var inset := maxi(padding, 6)
 	paper.content_margin_left = inset + 2
 	paper.content_margin_right = inset
 	paper.content_margin_top = inset
@@ -1351,35 +1433,10 @@ func _image(texture: Texture2D) -> TextureRect:
 	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return image
 
-func _camp_gradient() -> GradientTexture2D:
-	var shade := Gradient.new()
-	shade.offsets = PackedFloat32Array([0.0, 0.30, 0.75, 1.0])
-	shade.colors = PackedColorArray([Color("#f0e0bf60"), Color("#f0e0bf00"), Color("#f0e0bf18"), Color("#f0e0bf50")])
-	var texture := GradientTexture2D.new()
-	texture.gradient = shade
-	texture.width = 2
-	texture.height = 256
-	texture.fill_from = Vector2(0, 0)
-	texture.fill_to = Vector2(0, 1)
-	return texture
-
-func _forge_vignette() -> GradientTexture2D:
-	var shade := Gradient.new()
-	shade.offsets = PackedFloat32Array([0.0, 0.42, 1.0])
-	shade.colors = PackedColorArray([Color("#f0e0bf18"), Color("#f0e0bf50"), Color("#f0e0bfc0")])
-	var texture := GradientTexture2D.new()
-	texture.gradient = shade
-	texture.width = 128
-	texture.height = 256
-	texture.fill = GradientTexture2D.FILL_RADIAL
-	texture.fill_from = Vector2(0.5, 0.5)
-	texture.fill_to = Vector2(1.0, 1.0)
-	return texture
-
 func _battle_gradient() -> GradientTexture2D:
 	var shade := Gradient.new()
 	shade.offsets = PackedFloat32Array([0.0, 0.20, 0.74, 1.0])
-	shade.colors = PackedColorArray([Color("#f0e0bf50"), Color("#f0e0bf00"), Color("#f0e0bf00"), Color("#f0e0bf40")])
+	shade.colors = PackedColorArray([Color("#182a2c50"), Color("#182a2c00"), Color("#182a2c00"), Color("#182a2c40")])
 	var texture := GradientTexture2D.new()
 	texture.gradient = shade
 	texture.width = 2
@@ -1406,3 +1463,15 @@ func _space(amount: float) -> Control:
 
 func _fill(control: Control) -> void:
 	control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+func heading_plate(label: Label) -> void:
+	var plate := StyleBoxTexture.new()
+	plate.texture = preload("res://art/piying/v4/heading.png")
+	plate.texture_margin_left = 32
+	plate.texture_margin_right = 32
+	plate.set_content_margin_all(0)
+	label.add_theme_stylebox_override("normal", plate)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_override("font", HEADING_FONT)

@@ -16,7 +16,7 @@ func present(main, gained: Dictionary) -> void:
 	var note := "离开 %s" % clock(away)
 	if counted < away:
 		note += "，计满 %s" % clock(counted)
-	body.add_child(_text(note, 14, ui.MUTED))
+	body.add_child(_text(note, 14, ui.GOLD))
 	var material := Gear.material(String(gained.get("material", "")))
 	body.add_child(_pairs([["击杀", "%d" % int(gained.get("kills", 0))],
 		["灵砂", "+%d" % int(gained.get("silver", 0))],

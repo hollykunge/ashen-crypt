@@ -22,7 +22,12 @@ func build(main) -> void:
 	ui = main
 	add_theme_constant_override("separation", 10)
 	var row: HBoxContainer = ui._hbox(10)
-	add_child(row)
+	var panel := PanelContainer.new()
+	var backing: StyleBoxTexture = ui.paper_box(0.98, 0)
+	backing.set_content_margin_all(4)
+	panel.add_theme_stylebox_override("panel", backing)
+	add_child(panel)
+	panel.add_child(row)
 	var back: Button = ui._icon_button(&"back", "返回", false, Vector2(48, 48))
 	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void: back_requested.emit())
@@ -34,6 +39,8 @@ func build(main) -> void:
 	var nameplate: Label = ui._label("列仙图录", 34, ui.INK)
 	nameplate.add_theme_constant_override("outline_size", 6)
 	nameplate.add_theme_color_override("font_outline_color", ui.NIGHT)
+	ui.heading_plate(nameplate)
+	nameplate.add_theme_constant_override("outline_size", 1)
 	stack.add_child(nameplate)
 	var sound: Button = ui._sound_button()
 	sound.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -46,7 +53,7 @@ func build(main) -> void:
 	list = ui._vbox(10)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
-	notice = ui._label("", 12, Color("#a13f32"))
+	notice = ui._label("", 12, Color("#ff9a79"))
 	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notice.hide()
 	add_child(notice)
@@ -75,8 +82,8 @@ func show_error(text: String) -> void:
 	notice.text = text
 	notice.visible = not text.is_empty()
 
-# 每一格是一张毛边宣纸签（main.gd 的 paper_box）；空位的纸淡一些
-const BLOT = preload("res://art/ui-icons/ink-blot.png")
+# 每一格使用云头框，空位降低透明度。
+
 
 func _frame(faint := false) -> HBoxContainer:
 	var panel := PanelContainer.new()
@@ -94,18 +101,10 @@ func _person_card(slot: int, profile) -> void:
 	var female: bool = person.get("gender") == "female"
 	var stem := String(person.get("day_stem", "geng"))
 	var element := WuXing.stem_element(stem)
-	# 头像垫一团淡墨晕，像月下立着的人
+	# 头像垫一圈镂空皮饰。
 	var holder := Control.new()
 	holder.custom_minimum_size = Vector2(84, 104)
 	row.add_child(holder)
-	var blot := TextureRect.new()
-	blot.texture = BLOT
-	blot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	blot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	blot.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.55)
-	blot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(blot)
-	blot.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
 	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -162,7 +161,7 @@ func _broken_card(slot: int, error: String) -> void:
 	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	facts.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(facts)
-	facts.add_child(ui._label("第 %d 格 · %s" % [slot + 1, error], 18, Color("#a13f32")))
+	facts.add_child(ui._label("第 %d 格 · %s" % [slot + 1, error], 18, Color("#ff9a79")))
 	facts.add_child(_line("这份存档读不出来。删掉之后这一格可以重新创角。", ui.MUTED))
 	var actions: VBoxContainer = ui._vbox(6)
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -178,24 +177,24 @@ class Seal extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
-		var red := Color("#a33a2c")
+		var red := Color("#b8321f")
 		draw_rect(Rect2(Vector2.ZERO, size), red, true)
-		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color("#f0e0bf"), false, 1.0)
+		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color("#dfb268"), false, 1.0)
 		var font := get_theme_default_font()
 		var pixels := int(size.y * 0.66)
 		var base := size.y * 0.5 + (font.get_ascent(pixels) - font.get_descent(pixels)) * 0.5
-		draw_string(font, Vector2(0, base), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, pixels, Color("#f0e0bf"))
+		draw_string(font, Vector2(0, base), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, pixels, Color("#f1dfb4"))
 
 func _delete_button(slot: int) -> Button:
 	var armed := armed_delete == slot
-	# 删人是次要的事：不刷墨，只是一行淡字；按了一下变成红字「确认删除」
+	# 删除操作确认时标红。
 	var remove := Button.new()
 	remove.text = "确认删除" if armed else "删除"
 	remove.flat = true
 	remove.focus_mode = Control.FOCUS_NONE
 	remove.custom_minimum_size = Vector2(76, 30)
 	remove.add_theme_font_size_override("font_size", 13)
-	var ink: Color = Color("#a13f32") if armed else ui.MUTED
+	var ink: Color = Color("#ff9a79") if armed else ui.MUTED
 	for color_name in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		remove.add_theme_color_override(color_name, ink)
 	remove.pressed.connect(_delete.bind(slot))

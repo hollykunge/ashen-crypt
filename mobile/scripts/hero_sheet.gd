@@ -33,6 +33,7 @@ func tick(main, delta: float) -> void:
 func _rebuild(main) -> void:
 	_clear()
 	live.clear()
+	_title("角色信息")
 	var person := profile.character()
 	var female: bool = person.get("gender") == "female"
 	var stem := String(person.get("day_stem", "geng"))
@@ -41,7 +42,7 @@ func _rebuild(main) -> void:
 	var top: HBoxContainer = ui._hbox(12)
 	body.add_child(top)
 	var face: TextureRect = ui._image(SideArt.portrait(person.get("gender", "")))
-	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	face.custom_minimum_size = Vector2(66, 86)
 	face.modulate = Roster.ELEMENT_TINTS[element].lerp(Color.WHITE, 0.67)
 	top.add_child(face)

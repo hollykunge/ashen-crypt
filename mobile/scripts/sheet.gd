@@ -12,7 +12,7 @@ func build(main) -> void:
 	ui = main
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
-	dim.color = Color(ui.NIGHT, 0.62)
+	dim.color = Color(ui.NIGHT, 0.50)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(dim)
 	ui._fill(dim)
@@ -52,6 +52,7 @@ func _title(text: String, subtitle: String = "") -> void:
 	if not subtitle.is_empty():
 		body.add_child(_text(subtitle, 12, ui.GOLD))
 	var heading: Label = ui._label(text, 26, ui.INK)
+	ui.heading_plate(heading)
 	body.add_child(heading)
 
 func _section(text: String) -> void:

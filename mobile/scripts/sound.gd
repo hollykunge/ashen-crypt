@@ -19,8 +19,15 @@ var voices: Array[AudioStreamPlayer] = []
 var cursor := 0
 
 func _ready() -> void:
+	for bus in ["Music", "SFX"]:
+		if AudioServer.get_bus_index(bus) < 0:
+			AudioServer.add_bus()
+			var index := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(index, bus)
+			AudioServer.set_bus_send(index, "Master")
 	for _i in range(4):
 		var voice := AudioStreamPlayer.new()
+		voice.bus = &"SFX"
 		add_child(voice)
 		voices.append(voice)
 
@@ -57,3 +64,11 @@ func _make_tone(tone: Array) -> AudioStreamWAV:
 	stream.mix_rate = RATE
 	stream.data = bytes
 	return stream
+
+func set_volume(bus: String, amount: float) -> void:
+	var index := AudioServer.get_bus_index(bus)
+	var linear := clampf(amount, 0.0, 1.0)
+	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(0.0001, linear)))
+	AudioServer.set_bus_mute(index, is_zero_approx(linear))
+	if bus == "SFX":
+		enabled = linear > 0.0

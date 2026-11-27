@@ -54,7 +54,9 @@ const MINION := {"hp": 0.55, "damage": 0.60, "size": 48.0, "radius": 13.0, "drop
 # 怪群按三路纵深、一列一列地从前方压上来。
 const HORDE_ROWS := [0.0, -66.0, 66.0]
 const HORDE_COLUMN := 88.0
-const FARM_HORDE := 5
+const FARM_HORDE := 3
+# 皮影戏台上人少才看得清：同时上场的精怪最多三只，一波里多出来的在幕后候着，倒下一只补上一只。
+const STAGE_CAP := 3
 # 小怪隔着一路纵深也能出手，所以被围住时两侧的也会咬人；离得远时小跑着压上来，一群怪几乎同时到。
 const FLANK_DEPTH := 72.0
 const CHARGE_DISTANCE := 170.0
@@ -122,6 +124,8 @@ var dungeon_layer := 1
 var challenging := false
 var continuous := false
 var wave_index := 0
+# 本波还在幕后候场、没上台的小怪
+var wave_reserve := 0
 var section_x := 0.0
 var advancing := false
 var encounter_stem := "jia"
@@ -170,6 +174,7 @@ func reset(layer: int, bonuses: Dictionary, form: String, boss_fight: bool = fal
 	challenging = boss_fight
 	continuous = boss_fight and continuous_route
 	wave_index = 0
+	wave_reserve = 0
 	section_x = 0.0
 	advancing = false
 	encounter_stem = Gear.WuXing.ling_of(layer) if stem.is_empty() else stem
@@ -375,6 +380,12 @@ func step(delta: float, direction: Vector2 = Vector2.ZERO, hold_attack: bool = f
 	if challenging:
 		if hp <= 0:
 			result = &"defeat"
+		elif wave_reserve > 0 and not advancing:
+			spawn_in = maxf(0.0, spawn_in - delta)
+			if spawn_in == 0.0 and enemies.size() < STAGE_CAP:
+				_spawn_enemy(0.3)
+				wave_reserve -= 1
+				spawn_in = 0.6
 		elif enemies.is_empty() and not advancing:
 			if boss_wave():
 				result = &"victory"
@@ -491,8 +502,12 @@ func _spawn_wave() -> void:
 	if boss_wave():
 		_spawn_enemy(0.62)
 	else:
-		for slot in range(WAVE_SIZES[wave_index]):
+		var count: int = WAVE_SIZES[wave_index]
+		var on_stage := mini(count, STAGE_CAP)
+		for slot in range(on_stage):
 			_spawn_enemy(0.22 + slot * 0.07)
+		wave_reserve = count - on_stage
+		spawn_in = 0.6
 
 func _spawn_enemy(delay: float = 0.38) -> void:
 	var strong := boss_wave()

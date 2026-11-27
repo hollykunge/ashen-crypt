@@ -7,10 +7,9 @@ const Gear = preload("res://scripts/gear.gd")
 const Loadout = preload("res://scripts/loadout.gd")
 const Roster = preload("res://scripts/roster.gd")
 const WuXing = preload("res://scripts/rules/wuxing.gd")
-const PORTRAIT_LIGHT = preload("res://scripts/portrait_light.gdshader")
 const SideArt = preload("res://scripts/side_art.gd")
-const GOOD := Color("#4f7045")
-const BAD := Color("#a13f32")
+const GOOD := Color("#acc894")
+const BAD := Color("#ff9a79")
 const PAGES := ["性别", "日干", "月令", "时辰", "出身"]
 const TALENTS := [
 	["炉温 +1", "初始炉温提高一档"], ["投料格 +1", "初始投料格多一格"],
@@ -177,12 +176,8 @@ func _build_portrait() -> void:
 	ui._fill(portrait)
 	portrait.offset_left = 12.0
 	portrait.offset_right = -12.0
-	portrait.offset_top = 6.0
-	portrait.offset_bottom = -7.0
-	var material := ShaderMaterial.new()
-	material.shader = PORTRAIT_LIGHT
-	material.set_shader_parameter("soften_edges", true)
-	portrait.material = material
+	portrait.offset_top = 18.0
+	portrait.offset_bottom = -104.0
 	frame.add_child(portrait)
 
 	portrait_frame = PortraitFrame.new()
@@ -299,7 +294,7 @@ func _create() -> void:
 		error.show()
 
 class PortraitFrame extends Control:
-	var tint := Color("#785b3e")
+	var tint := Color("#e0b76c")
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -316,7 +311,12 @@ class PortraitFrame extends Control:
 
 func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bool = true, back: bool = false) -> void:
 	var row: HBoxContainer = ui._hbox(6)
-	parent.add_child(row)
+	var panel := PanelContainer.new()
+	var backing: StyleBoxTexture = ui.paper_box(0.98, 0)
+	backing.set_content_margin_all(4)
+	panel.add_theme_stylebox_override("panel", backing)
+	parent.add_child(panel)
+	panel.add_child(row)
 	if back:
 		var leave: Button = ui._icon_button(&"back", "返回", false, Vector2(48, 48))
 		leave.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -327,10 +327,12 @@ func _header(parent: VBoxContainer, title: String, subtitle: String, catalog: bo
 	row.add_child(stack)
 	var upper := _text(subtitle, 12, ui.GOLD)
 	stack.add_child(upper)
-	var nameplate := _text(title, 34, ui.INK)
+	var nameplate := _text(title, 23, ui.INK)
 	nameplate.add_theme_font_override("font", ui.HEADING_FONT)
 	nameplate.add_theme_color_override("font_outline_color", ui.NIGHT)
 	nameplate.add_theme_constant_override("outline_size", 6)
+	ui.heading_plate(nameplate)
+	nameplate.add_theme_constant_override("outline_size", 1)
 	stack.add_child(nameplate)
 	if catalog:
 		var gallery_button := _button("仙班名录", 39, _show_gallery)
@@ -356,14 +358,11 @@ func _build_gallery() -> void:
 	list.add_theme_constant_override("v_separation", 8)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
-	var gallery_light := ShaderMaterial.new()
-	gallery_light.shader = PORTRAIT_LIGHT
 	for i in range(Roster.NAMES.size()):
 		var entry := _card(list)
 		var frame: Control = entry.get_parent()
 		frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var art: TextureRect = ui._image(Roster.PORTRAITS[i])
-		art.material = gallery_light
 		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		art.custom_minimum_size.y = 146
 		entry.add_child(art)

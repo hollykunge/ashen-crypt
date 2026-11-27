@@ -843,7 +843,8 @@ func _test_horde() -> bool:
 	var run := Combat.new()
 	run.combat_rng.seed = 11
 	run.reset(1, {}, "sword", true, "", true)
-	_check(run.enemies.size() == Combat.WAVE_SIZES[0], "第一波一次放出整群")
+	_check(run.enemies.size() == mini(Combat.WAVE_SIZES[0], Combat.STAGE_CAP)
+		and run.wave_reserve == Combat.WAVE_SIZES[0] - run.enemies.size(), "第一波台上最多三只，其余候场")
 	var boss_run := Combat.new()
 	boss_run.reset(1, {}, "sword", true)
 	var boss: Dictionary = boss_run.enemies[0]
@@ -892,7 +893,7 @@ func _test_horde() -> bool:
 	for _tick in range(60 * 20):
 		farm.step(1.0 / 60.0)
 		peak = maxi(peak, farm.enemies.size())
-	_check(peak > 3 and peak <= Combat.FARM_HORDE, "挂机场上成群但不超过上限（峰值 %d）" % peak)
+	_check(peak >= 2 and peak <= Combat.FARM_HORDE, "挂机场上有几只但不超过皮影戏台的上限（峰值 %d）" % peak)
 	_check(farm.kills >= 20, "挂机二十秒击退二十只以上")
 
 	# 全自动空手打第一层的两波小怪，打得完而且死不了。

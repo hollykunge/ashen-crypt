@@ -313,14 +313,15 @@ func set_outfit(outfit) -> void:
 			m = 0.0
 		if not _textures.has(path):
 			var img: Image
-			if FileAccess.file_exists(path):
-				img = Image.load_from_file(path)
-			else:
-				# 导出包保存的是 Godot 导入的纹理。
+			if ResourceLoader.exists(path, "Texture2D"):
+				# 优先用 Godot 导入的纹理：导出包里只有它，编辑器里也用它，看到的和手机上一致。
 				var texture := ResourceLoader.load(path, "Texture2D") as Texture2D
 				img = texture.get_image()
 				if img.is_compressed():
 					img.decompress()
+			else:
+				# 还没导入的新图（比如刚生成的换装件）才直接读文件。
+				img = Image.load_from_file(path)
 			# 游戏人物缩小时用多级渐远减少闪烁和锯齿。
 			img.generate_mipmaps()
 			_textures[path] = ImageTexture.create_from_image(img)
@@ -743,11 +744,10 @@ func _update_trail() -> void:
 		_trail.z_as_relative = false
 		_trail.joint_mode = Line2D.LINE_JOINT_ROUND
 		_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
-		# 刀光颜色可在 rig.json 的 trail_color 里改（皮影幕布上白色刀光像一道纸条，改成朱红）
-		var tc: Array = rig.get("trail_color", [0.95, 0.97, 1.0, 0.75])
 		var g := Gradient.new()
-		g.set_color(0, Color(tc[0], tc[1], tc[2], 0.0))
-		g.set_color(1, Color(tc[0], tc[1], tc[2], tc[3]))
+		g.set_color(0, Color("#e85a1100"))
+		g.add_point(0.68, Color("#ffa13999"))
+		g.set_color(g.get_point_count() - 1, Color("#ffe9a9e6"))
 		_trail.gradient = g
 		var c := Curve.new()
 		c.add_point(Vector2(0, 0.15))

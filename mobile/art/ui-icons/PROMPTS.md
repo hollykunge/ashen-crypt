@@ -1,95 +1,60 @@
-# 界面图标出图提示词
+# 月夜皮影 · 第二版出图记录
 
-现在这批（raw/sheet-1～4）是用 Codex 桌面版自带的命令行 `codex exec` 调内置出图生成的，每张一次就出好了。
-重出某张：把对应提示词交给 `codex exec`，让它把生成的 PNG 复制到 `raw/` 下同名文件，再跑切图。
+以下 11 张原稿均由内置图像生成工具生成，每次均传入 `mobile/art/piying/style-ref.webp`。三张整幅布景采用不透明背景，其余八张图集启用透明背景。`raw/night-*.png` 保存原图，运行 `python mobile/art/ui-icons/slice.py` 可重建运行时使用的纹理。
 
-游戏里约 24 个按钮图标，现在是代码拼的线条。按下面 4 段提示词各出一张图（每张 3 列 × 2 行，6 个图标），
-存进 `mobile/art/ui-icons/raw/`，文件名 `sheet-1.png` … `sheet-4.png`，然后跑切图脚本（见最后）。
+## raw/night-river.png
 
-## 出图要求（四张都一样）
+Recreate ONLY the unoccupied background landscape of reference, wide panoramic composition, fine distressed woven linen throughout. Remove all puppets, controls, lettering, moon, foreground foliage and HUD. Keep moonlit blue teal layered hills, sweeping arched Chinese stone bridge and warm tiny lanterns and river reflections. Classic antique shadow theatre scenic backdrop, pale mist, textured dusk, no bright daylight.
 
-- 尺寸 **1536 × 1024**（横版 3:2），3 列 × 2 行，每格 512 × 512，图标居中，四周留白约 15%。
-- 底色 **纯白 #FFFFFF**，不要纸纹、不要边框、不要格线、不要阴影、不要文字。切图时白底会抠成透明。
-- 每格只画一个物件，物件之间不相连。
-- 出得不满意的某一格可以单独重出一张 512 × 512，命名 `<图标名>.png` 放进 `raw/`，会覆盖图集里那一格。
+## raw/night-scenery.png
 
-## 共用风格段（每段提示词都已包含）
+Transparent game prop atlas, exactly THREE columns by TWO rows, equal cells, separate isolated cutouts with ample clear margins, in reference's antique blue-grey moonlit shadow theatre style. Row 1 luminous textured round full moon; low distant blue-grey mountain ridge; long shallow stone arched bridge with tiny glowing lanterns. Row 2 small dark teal pavilion; dark hanging willow fronds; dark silhouetted reed clump with golden tips. No text or frames.
 
-> Hand-drawn Chinese ink-brush game UI icons on a pure white background. Each icon is a single object drawn with confident sumi-e brush strokes in dark sepia-brown ink (#3a2c22), varying stroke weight from thick to hair-thin, slight dry-brush texture at stroke ends, a few small cinnabar red (#9b4a36) accents only. Flat, no gradients, no glow, no drop shadow, no frame, no background shapes, no text or characters. Readable silhouette at 44 pixels. Consistent line weight and scale across all icons. Style of an antique Ming-dynasty woodblock-print and ink-wash manual, matching a dark folk-tale wuxia mobile game with aged-paper UI.
+## raw/night-fittings.png
 
----
+Transparent game UI atlas exactly THREE columns TWO rows with ample padding, each item isolated centered. Match reference's ornate antique shadow puppet game UI. Top row: blank circular vermilion leather badge thin ornate gold rim; blank long dark red and gilt cloud-ended horizontal nameplate; blank dark ink teal rectangular panel with thin gold edges and cloud corner ornaments. Bottom row: glowing small golden oil lamp with flame; gold-orange crescent flame slash with curling cloud tongues, soft glow; round gold framed side profile portrait of reference's young Chinese straw hat hero. No text anywhere.
 
-## sheet-1：普攻和招式
+## raw/night-glyphs.png
 
-```
-Hand-drawn Chinese ink-brush game UI icons on a pure white background, a 3 by 2 grid of six separate icons, each centered in its own equal square cell with generous white margin, no grid lines, no text. Each icon is a single object drawn with confident sumi-e brush strokes in dark sepia-brown ink (#3a2c22), varying stroke weight from thick to hair-thin, slight dry-brush texture at stroke ends, a few small cinnabar red (#9b4a36) accents only. Flat, no gradients, no glow, no drop shadow, no frame. Readable silhouette at 44 pixels. Style of an antique Ming-dynasty woodblock-print and ink-wash manual.
-Top row, left to right:
-1. A Chinese dao saber, single curved broad blade, round guard, wrapped grip, laid diagonally with the tip to the upper right; small red cord tassel at the pommel.
-2. A Chinese jian straight double-edged sword, slim blade with a central ridge, small winged guard, laid diagonally with the tip to the upper right; red tassel.
-3. A Chinese spear, long shaft diagonal from lower left to upper right, leaf-shaped spearhead, a tuft of red horsehair below the head.
-Bottom row, left to right:
-4. A Chinese recurved bow held upright with one arrow nocked, string drawn slightly, red fletching.
-5. A sweeping crescent sword slash: one bold curved brush stroke arc with a speed-trail of thinner strokes, a small red spark at its tip ("break formation" skill).
-6. A Taoist paper talisman strip with a seal script swirl drawn on it and a red square seal stamp, slightly curling ("intimidate" skill).
-```
+One production game icon atlas, exactly 5 columns x 4 rows uniform grid. Each icon is an isolated GOLD cut leather silhouette ONLY on transparent background, no badges or disks, no text. Large simple gold luminous carved cut-paper forms, readable at 24px, in the reference's shadow puppet style. In order: row1 curved dao sword, straight jian sword, spear, bow, fire crescent. Row2 magic talisman, retreat double arrows, portal arch, pause twin bars, travel boot. Row3 pouch, scroll notice, return arrow left, forward arrow right, exit gate. Row4 sounding gong, muted gong, manual joystick, sword assist, automatic crossed swords. Exactly 20 cells.
 
-## sheet-2：撤步、操控方式、倍速
+## raw/night-title.png
 
-```
-Hand-drawn Chinese ink-brush game UI icons on a pure white background, a 3 by 2 grid of six separate icons, each centered in its own equal square cell with generous white margin, no grid lines, no text. Each icon is a single object drawn with confident sumi-e brush strokes in dark sepia-brown ink (#3a2c22), varying stroke weight from thick to hair-thin, slight dry-brush texture at stroke ends, a few small cinnabar red (#9b4a36) accents only. Flat, no gradients, no glow, no drop shadow, no frame. Readable silhouette at 44 pixels. Style of an antique Ming-dynasty woodblock-print and ink-wash manual.
-Top row, left to right:
-1. Retreat / back-step: a cloth shoe stepping backward to the left over a small swirl of dust cloud, with two short motion strokes.
-2. Manual control: an open right hand, palm facing the viewer, fingers slightly spread, drawn in brush outline.
-3. Assisted control: the same open hand with a small red ribbon-like cloud curling around the wrist, as if guided.
-Bottom row, left to right:
-4. Fully automatic: a yin-yang taiji disc with a ring of three short curved arrows circling around it, one arrow red.
-5. Battle speed x1: one bold brush chevron pointing right.
-6. Battle speed x2: two bold brush chevrons pointing right, overlapping slightly.
-```
+Vertical 9:19.5 title background artwork for this same shadow puppet game. Closely reproduce reference's teal blue-gray weave, parchment moon at upper left, sparse small warm bridge lanterns, middle-distance arched stone bridge and glowing reflections, shadow silhouettes of hanging willow upper left and reeds lower corners. Keep middle open for title text, no text or HUD or characters. Calm illustrated antique linen Chinese shadow theatre. A tiny distant pavilion at the far right. Detailed fine linen, no ink brush painting.
 
-## sheet-3：倍速三档、暂停、离开、声音、返回
+## raw/night-faces.png
 
-```
-Hand-drawn Chinese ink-brush game UI icons on a pure white background, a 3 by 2 grid of six separate icons, each centered in its own equal square cell with generous white margin, no grid lines, no text. Each icon is a single object drawn with confident sumi-e brush strokes in dark sepia-brown ink (#3a2c22), varying stroke weight from thick to hair-thin, slight dry-brush texture at stroke ends, a few small cinnabar red (#9b4a36) accents only. Flat, no gradients, no glow, no drop shadow, no frame. Readable silhouette at 44 pixels. Style of an antique Ming-dynasty woodblock-print and ink-wash manual.
-Top row, left to right:
-1. Battle speed x3: three bold brush chevrons pointing right, the last one red.
-2. Pause: two thick upright brush bars side by side, like two bamboo slips.
-3. Leave / exit: a traditional Chinese wooden double door half open, with a short arrow stroke leaving through it to the right.
-Bottom row, left to right:
-4. Sound muted: a small bronze temple bell with a single red diagonal brush stroke across it.
-5. Sound on: the same small bronze temple bell with three curved sound-wave strokes to its right.
-6. Back: a bold brush arrow pointing left, its tail ending in a curl like a cloud scroll.
-```
+Game UI sprite sheet in same reference style. Transparent background. Precisely 3 columns x 2 rows separate centered assets. Top row 3 round gilded portrait frames around Chinese young FEMALE shadow puppet warrior in side profile, respectively jade green armor, cinnabar armor, ochre armor, carved painted leather. Bottom row three golden carved-leather icons: single forward speed chevron, double chevrons, triple chevrons. All equal square cells, lots of space, no letters.
 
-## sheet-4：前进、行装、告示、连战、天劫、传送
+## raw/night-river-portrait.png
 
-```
-Hand-drawn Chinese ink-brush game UI icons on a pure white background, a 3 by 2 grid of six separate icons, each centered in its own equal square cell with generous white margin, no grid lines, no text. Each icon is a single object drawn with confident sumi-e brush strokes in dark sepia-brown ink (#3a2c22), varying stroke weight from thick to hair-thin, slight dry-brush texture at stroke ends, a few small cinnabar red (#9b4a36) accents only. Flat, no gradients, no glow, no drop shadow, no frame. Readable silhouette at 44 pixels. Style of an antique Ming-dynasty woodblock-print and ink-wash manual.
-Top row, left to right:
-1. Forward: a bold brush arrow pointing right, its tail ending in a curl like a cloud scroll (mirror of a back arrow).
-2. Travel pack / equipment: a cloth bundle tied with a knot, hanging from a short wooden carrying stick, a red cord on the knot.
-3. Notice: a hanging paper scroll partly unrolled, a few illegible brush marks for writing (no real characters), a red seal in the corner.
-Bottom row, left to right:
-4. March onward / continuous battle: a triangular war banner on a pole fluttering to the right, red edge trim.
-5. Heavenly tribulation: a dark swirling storm cloud with one jagged lightning bolt striking down, the bolt red.
-6. Portal: a round Chinese moon gate in a wall, viewed straight on, the opening empty, faint swirl strokes inside.
-```
+Paint a 4:5 slightly vertical scenery plate for a Chinese shadow theatre side-scrolling game. Reference image is strict art direction. Entire upper 53% empty quiet teal-blue fabric sky with delicately fine horizontal/vertical linen weave. Lower half has delicate distant misty mountain silhouettes, at 70% height a very small Chinese multi-arch bridge seen from far across the lake, 4 tiny golden lanterns and soft golden reflections down to bottom. Perspective wide, distant, multiple arches fit within the CENTRAL HALF of the frame. Subtle clouds, low contrast grey-green like the reference. Beautiful natural unlettered cloth. No characters, NO moon, no foreground leaves or framing reeds (added as layers by game), no writing, no Chinese characters or symbols or repeated decorative motifs, no border, no UI. Preserve clear creamy gray middle ground behind figures.
 
----
+## raw/night-gallery.png
 
-## 切图
+Use this image as the stylistic reference. Gilt details and glowing cut leather in jade, cinnabar, pale gold and lamp black designed to read against a dark teal ground. Isolated objects, transparent atlas, no text or background. Transparent 3 columns x 2 rows sheet of SIX isolated Chinese shadow puppet theatrical busts. Each fits completely in its own equal square cell with 12% margin, no overlap. Head and shoulders, each facing right. Museum-grade cut leather profiles, expressive etched almond eyes and intricate die-cut headdresses. Top row: Erlang Shen third eye golden crown, Jiutian Xuannu indigo phoenix crown, Hou Yi red archer with bow on shoulder. Bottom row: Qingniao fairy green feather headdress, Thunder Master dark bearded thunder official with drum, Dianmu vermilion headdress with two small round mirrors. No calligraphy, no words, no background discs.
 
-图放好以后跑（需要 Python 和 Pillow）：
+## raw/night-weapon-forms.png
 
-```
-python mobile/art/ui-icons/slice.py
-```
+Use this image as the stylistic reference. Gilt details and glowing cut leather in jade, cinnabar, pale gold and lamp black designed to read against a dark teal ground. Isolated objects, transparent atlas, no text or background. Transparent portrait sprite sheet, exactly 4 columns and 3 rows of equal cells. Twelve Chinese fantasy stage-prop silhouettes, diagonal, full object visible within each cell, generously separated. Museum shadow-puppet craftsmanship, clear bold outline with few carved details. Row 1 three distinct single-edged dao: plain gently curved dao, seven-star dao with seven pierced dots, wavy flame-edged dao; fourth cell longbow. Row 2 three distinct straight jian swords: plain straight double edge, seven-star pierced sword, wavy flamberge sword; fourth cell sharply recurved bow. Row 3 three upright spears: leaf-point spear, serpentine spear, crescent halberd; fourth cell a small quiver. Full weapon shafts, no text, no hands, no framing.
 
-会把每格抠成透明底、裁边，存成 `mobile/art/ui-icons/<图标名>.png`。游戏里按钮发现有图就用图，没有就还用原来的线条，所以缺几张也不会坏。
+## raw/night-materials.png
 
-| 图 | 格子顺序（左上起，先横后竖） |
-| --- | --- |
-| sheet-1 | dao、jian、spear、bow、slash、sigil |
-| sheet-2 | retreat、manual、assist、auto、speed1、speed2 |
-| sheet-3 | speed3、pause、leave、mute、sound、back |
-| sheet-4 | forward、pack、notice、march、jie、portal |
+Use this image as the stylistic reference. Gilt details and glowing cut leather in jade, cinnabar, pale gold and lamp black designed to read against a dark teal ground. Isolated objects, transparent atlas, no text or background. Game inventory materials, Chinese shadow puppet theatre knife-carved translucent dyed cowhide. Transparent RGBA 4 x 4 grid of precisely 16 different isolated icons each centered in equal square cell with large 18% clear gutters. Strong readable outline at 24 pixels, deep brown contour and pierced amber or cinnabar patterns; no background, NO tile, no plate, no text, no cast shadow. Read left to right. Row1 short cross-section of wood log with tree rings, green coiled vine, cluster of cinnabar sand granules, lump of charcoal. Row2 ochre angular rock, reddish rolled clay lump, raw dark iron nugget, iron shavings in a curl. Row3 indigo crystal cluster, hexagonal ice core, bronze iron ingot, carved dragon bone. Row4 three pale blue ice granules, polished steel bar, multicolor round alchemy pill, vermilion boss relic medallion. Folk craft materials collected in a fantasy theatre game. Flat silhouettes.
+
+## raw/night-gear.png
+
+Use this image as the stylistic reference. Gilt details and glowing cut leather in jade, cinnabar, pale gold and lamp black designed to read against a dark teal ground. Isolated objects, transparent atlas, no text or background. Transparent background, game equipment icon atlas, exactly four columns x three rows of equally sized square cells. All cells centered, ample empty gutters. Columns are always tunic, wrist bracer, single shin guard, side-view boot. First row plain amber cloth, second row red-brown strapped leather with studs, third row indigo scale mail with scalloped scales. Authentic Chinese shadow-puppet dyed translucent leather cutouts with sharply carved small ornamental apertures, simple strong shapes readable at 44px. No human bodies, no words, no frames, no shading.
+
+
+## 第四版界面素材
+
+- `ref-title.webp` → Remove all letters, logo, buttons and text completely from this reference image. Preserve the entire gorgeous landscape 16:9 composition, exactly the moonlit woven teal river landscape with bridge, foreground willow and reeds, golden lantern reflection and youthful Chinese shadow puppet boy on lower right holding lantern. Clean game background.
+- `ref-armory.webp` → Transparent sprite atlas, regular 4 columns by 3 rows equal square cells, each object isolated centered with ample margin. Columns exactly tunic, wrist bracers, shin guards, boots. Rows cloth, leather, linked scale armor. Match the reference's finely cut Chinese shadow puppet teal crimson and golden floral perforations, brass pins, bright warm translucent edges. No writing no UI no shadows.
+- `ref-weapons.webp` → Transparent sprite atlas 4 columns 3 rows, equally sized square cells, one centered isolated complete Chinese shadow puppet weapon per cell including grip, all diagonal from bottom left to top right. Row one: three different curved dao sabres and one longbow. Row two: three different straight jian swords and one recurve bow. Row three: leaf spear, snake spear, halberd, simple spear. Match reference engraved crimson gold and jade floral cut leather, openwork, tassels, rivets; no frames or text.
+- `ref-settings.webp` → Transparent UI asset sheet. EXACT 2 columns x 2 rows equal sized cells. Center each item inside its cell, full silhouette, no text anywhere. Upper left: long wide dark red lacquer button with narrow gold double border and ornate gold ruyi terminals copying reference bottom buttons. Upper right: brighter cinnabar selected version. Lower left: grand wider ornamental maroon page title cartouche curling gold cloud terminals as reference top. Lower right: dark teal rectangular panel with thin gold border and cloud corners. Blank centers. Pure transparent background. Landscape 3:2 sheet.
+- `ref-weapons.webp` → Keep the entire original landscape composition and decorative golden rod, hanging lanterns, fabric tassels, the four empty matching translucent hanging silk banners with pointed floral bottoms. Remove every weapon, all lettering, all red labels, title, buttons, portrait, pause icon and selected orange glow. Four equally spaced empty gauze banners evenly distributed across the full width. Background painting only, full bleed landscape.
+- `ref-title.webp` → Recompose reference into a tall portrait 9:19.5 mobile opening illustration. Woven teal moonlit river with arch bridge, foreground willow/reeds, lantern-carrying shadow puppet boy complete body lower RIGHT in bottom half, red lantern reflection below. Full moon upper right. Keep upper left and middle upper third smooth negative space for title. No text, buttons or UI.
+- `ref-settings.webp` → Remove entire UI including panel title controls and all text, leave a clean landscape illustration of the teal moonlit river bridge, moon upper left, foreground willow / reeds, a warm red paper lantern hanging at far right, same painted folk art cloth texture and muted values. Landscape wide 16:9.
+- `ref-armory.webp` → Create a character dressing-room painted backdrop, using ONLY the LEFT landscape half of the armory reference as composition. Remove boy, all UI, all text. Square 1:1 closely framed stage: willow sprigs and bright warm full moon upper left, broad stone arched bridge spanning across CENTER at 50 percent image height, lantern reflections in water lower middle. Flat broad grassy rock ledge forming continuous ground centered across bottom 10 percent specifically for a character sprite to stand on. Cool teal and gray mist, hand painted Chinese shadow puppet cloth with warm golden highlights on reeds and water, dark foreground reeds at extreme sides. The bridge should be clearly visible, no big empty sky.
+- `ref-weapons.webp` → Recompose the supplied Chinese shadow puppet weapons selection scene as a portrait 9:19.5 mobile background. The same teal cloth river landscape is ONE unbroken scene across the page. Exactly FOUR empty tall translucent gauze banners in a strict TWO COLUMN by TWO ROW arrangement, hung from two separate ornate horizontal rods (upper rod around y=12%, lower rod around y=51%); right/left banner centers x=27% and 73%. Upper banners between y=16%-48%; lower banners y=55%-87%. Each individual banner outlined in delicate gold with pointed peony hem, swag and red tassels, lanterns at sides. River bridge at y=67%, reeds on bottom corners. Top and bottom 8% free for UI. No weapons and no text or labels or buttons or portrait. Showcase blank subtly translucent dark gauze that the game places weapons on.

@@ -39,6 +39,13 @@ func display(config: Dictionary, person: Dictionary, form: String, preview := fa
 func _draw() -> void:
 	if size.x < 1 or size.y < 1:
 		return
-	var height := minf(size.x * 2.0, size.y * (1.0 - MARGIN * 2.0) * stature)
+	var height := minf(size.x * 2.0, size.y * 0.89 * stature)
+	var feet_x := size.x * 0.45
+	var feet_y := size.y * 0.90
+	if actor._puppet_on and actor.puppet.who == "piying":
+		# 备战架势的刀伸向右上方，按人和刀的合计宽度取景。
+		height = minf(height, size.x * 1.10)
+		feet_x = size.x * 0.30
+		feet_y = size.y * 0.90
 	actor.fit(height / CutoutHero.SPRITE_HEIGHT, get_viewport().get_final_transform().get_scale().x)
-	actor.draw(self, Vector2(size.x * 0.45, size.y * (1.0 - MARGIN)), 1.0, tint)
+	actor.draw(self, Vector2(feet_x, feet_y), 1.0, tint)

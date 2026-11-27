@@ -16,15 +16,16 @@ WORK=${TMPDIR:-/tmp}/gen-cutout/$1
 N=${N:-3}
 mkdir -p $OUT $WORK
 
-field() { python3 -c "import json,sys;d=json.load(open('$WHO/prompts.json'));print(d[sys.argv[1]]['ref'] if sys.argv[2]=='ref' else d[sys.argv[1]]['prompt']+'\n'+d['style'])" $KIND $1; }
-REF=$WHO/$(field ref)
+field() { python3 -c "import json,sys;d=json.load(open('$WHO/prompts.json'));p=d[sys.argv[1]];print('\n'.join(p.get('refs') or [p['ref']]) if sys.argv[2]=='ref' else p['prompt']+'\n'+d['style'])" $KIND $1; }
+ref_args=()
+while IFS= read -r ref; do ref_args+=(-i "$WHO/$ref"); done < <(field ref)
 PROMPT=$(field prompt)
 
 one() {
   local out=$1
   local dir=$WORK/$out
   rm -rf $dir && mkdir -p $dir
-  $CODEX exec --skip-git-repo-check -C $dir -s workspace-write -c model_reasoning_effort='"low"' -i $REF -- \
+  $CODEX exec --skip-git-repo-check -C $dir -s workspace-write -c model_reasoning_effort='"low"' "${ref_args[@]}" -- \
     "Use your built-in image generation tool to create exactly one image from the prompt below (landscape 1536x1024). The attached image is the reference the prompt talks about; pass it to the image tool as a reference image. Then copy the resulting PNG file into the current working directory as $out.png. Do not do anything else and do not edit any other files.
 
 PROMPT:

@@ -2,22 +2,22 @@ extends RefCounted
 
 const IVORY := Color("#fff1c9")
 const CINNABAR := Color("#b6452f")
-## 皮影戏：刀光换成一片镂空的朱红月牙皮子（art/piying/fx/slash.png，凸面朝右），按刀光的转轴、半径、倾角贴上去
+## 皮影戏：刀光换成一片带卷云火舌的金橙焰弧（art/piying/fx/slash.png，凸面朝右），按刀光的转轴、半径、倾角贴上去
 const PIYING := true
 const PIYING_SLASH := preload("res://art/piying/fx/slash.png")
 ## 月牙在刀光椭圆里占的范围（以椭圆半轴为单位）：左边到右边、上到下
-const PIYING_SLASH_BOX := Rect2(0.2, -1.08, 0.85, 2.16)
+const PIYING_SLASH_BOX := Rect2(-0.40, -1.04, 1.50, 2.08)
 
 static func slash(canvas: CanvasItem, origin: Vector2, effect: Dictionary, age: float, actor_zoom: float) -> void:
 	var side := -1.0 if cos(float(effect.angle)) < 0.0 else 1.0
 	var stroke: int = effect.stroke
 	var final: bool = effect.finisher
 	var slant := -1.0 if stroke % 2 == 0 else 1.0
-	var pivot := origin + Vector2(10.0 * side, (-47.0 + slant * 12.0) * actor_zoom)
+	var pivot := origin + Vector2(24.0 * side, -41.0 + slant * 8.0) * actor_zoom
 	var swing: float = effect.radius * (0.52 + age * 0.37) * (1.13 if final else 1.0)
 	var axes := Vector2(swing, swing * (0.76 if final else 0.54))
 	var lean := slant * 0.51
-	var opacity := pow(1.0 - age, 1.55)
+	var opacity := pow(1.0 - age, 0.92)
 	var tint: Color = effect.color
 	if PIYING:
 		var box := PIYING_SLASH_BOX

@@ -1,11 +1,10 @@
 extends RefCounted
 
 const Places = preload("res://scripts/rules/places.gd")
-const SNOW_PASS = preload("res://art/side/kunlun-snow-pass.webp")
-# 主角侧面半身像：3D 角色模型渲的（gen-out/model/scripts/render_portrait.py）
-const PORTRAIT := preload("res://art/model-hero/portrait.png")
-const PORTRAIT_FEMALE := preload("res://art/model-hero/portrait_female.png")
-const INK_STAGE := preload("res://art/ink/mountain-road.png")
+const SNOW_PASS = preload("res://art/piying/stage/river-scroll.webp")
+# UI portraits share the dyed-leather cutouts.
+const PORTRAIT := preload("res://art/ui-icons/portrait.png")
+const PORTRAIT_FEMALE := preload("res://art/ui-icons/portrait-female.png")
 const CELL := Vector2(96, 96)
 const PIVOT := Vector2(47, 89)
 const FLOOR := 0.76
@@ -14,25 +13,22 @@ const SNOW_FLOOR := 0.79
 # 使用原画比例，导入时降低纹理分辨率也会保持同样的人物大小。
 const STREET_ACTOR_SCALE := 1.64 / 887.0
 const SNOW_ACTOR_SCALE := 1.52 / 887.0
-# 每个地域一条长卷，由 art/side/plates/prompts.json 的四幅拼成，地面线都按 79% 出图。
-# haze 是远景空气透视的颜色（snow_haze.gdshader），weather 决定前景飘的东西，shadow 是脚下阴影。
-# near 是镜头最前面那层剪影（草、芦苇、乱石、云絮），比镜头走得快，拉出纵深；near_ink 是它的颜色。
-# 长卷本身已经按远近压过色，空气透视只取雪道的一半（PLATE_DEPTH），不然远处的地标会被洗没。
+# 地域共用月夜河卷，镜头位置、景片、天气按层变化。
 const PLATES := {
-	"drought": {"path": "res://art/side/plates/drought.webp", "floor": 0.79, "haze": Color("#d6c4a0"),
+	"drought": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#d6c4a0"),
 		"weather": &"dust", "shadow": Color("#3b2a1a9c"), "near": &"grass", "near_ink": Color("#3a2f20")},
-	"plague": {"path": "res://art/side/plates/plague.webp", "floor": 0.79, "haze": Color("#b8b69b"),
+	"plague": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#b8b69b"),
 		"weather": &"ash", "shadow": Color("#1c1a16b4"), "near": &"grass", "near_ink": Color("#2b2a22")},
-	"mine": {"path": "res://art/side/plates/mine.webp", "floor": 0.79, "haze": Color("#9da3a8"),
+	"mine": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#9da3a8"),
 		"weather": &"grit", "shadow": Color("#121416bc"), "near": &"rock", "near_ink": Color("#16181a")},
-	"war": {"path": "res://art/side/plates/war.webp", "floor": 0.79, "haze": Color("#a8b5c6"),
+	"war": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#a8b5c6"),
 		"weather": &"ash", "shadow": Color("#1a2230ac"), "near": &"grass", "near_ink": Color("#2a2a2c")},
-	"flood": {"path": "res://art/side/plates/flood.webp", "floor": 0.79, "haze": Color("#a7b6bb"),
+	"flood": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#a7b6bb"),
 		"weather": &"rain", "shadow": Color("#1f2a2eac"), "near": &"reed", "near_ink": Color("#18241f")},
-	"court": {"path": "res://art/side/plates/court.webp", "floor": 0.79, "haze": Color("#dde5ee"),
+	"court": {"path": "res://art/piying/stage/river-scroll.webp", "floor": 0.79, "haze": Color("#dde5ee"),
 		"weather": &"mist", "shadow": Color("#3a4a66a0"), "near": &"cloud", "near_ink": Color("#eef3fa")},
 }
-# 长卷缺失时（还没出图、或日后新增地域）退回昆仑雪道，画面照常能跑。
+# 长卷缺失时（还没出图、或日后新增地域）退回月夜河卷，画面照常能跑。
 const PLATE_DEPTH := 0.5
 # 长卷两头各有一段为拼接留的空地（每幅两侧 18%，折合整卷约 5%），镜头不往那里停。
 const PLATE_MARGIN := 0.05
@@ -55,11 +51,9 @@ static func plate_for(layer: int) -> Dictionary:
 		plate["margin"] = PLATE_MARGIN
 		plate["texture"] = load(spec.path)
 		if key == "drought":
-			plate["texture"] = INK_STAGE
 			plate["floor"] = 0.78
 			plate["haze"] = Color("#d8be95")
 			plate["depth"] = 0.12
-			plate["ink"] = true
 		_plate_cache[key] = plate
 	return _plate_cache[key]
 

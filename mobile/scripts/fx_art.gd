@@ -41,4 +41,4 @@ static func draw(canvas: CanvasItem, kind: StringName, element: String, progress
 	var pixels := height / ART_HEIGHT
 	var pivot: Vector2 = sheet.pivot
 	canvas.draw_texture_rect_region(sheet.texture, Rect2(-pivot * pixels, Vector2(sheet.cell) * pixels),
-		region(kind, element, frame_at(kind, progress)))
+		region(kind, element, frame_at(kind, progress)), Color(1.16, 1.08, 0.96))

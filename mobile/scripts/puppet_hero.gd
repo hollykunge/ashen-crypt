@@ -60,6 +60,7 @@ func _init(character := "piying") -> void:
 	_height_local = rig.stand_height()
 	var fix := ShaderMaterial.new()
 	fix.shader = UNPREMULTIPLY
+	fix.set_shader_parameter("puppet_light", true)
 	_fix.material = fix
 	_fix.z_index = RenderingServer.CANVAS_ITEM_Z_MAX
 	_fix.z_as_relative = false
@@ -150,5 +151,15 @@ func fit(pixels: float, density: float) -> void:
 ## 把画布贴到 canvas 上：feet 是脚底的屏幕位置，facing 朝向，offset 是残影往后错开的屏幕像素
 func draw(canvas: CanvasItem, feet: Vector2, facing: float, ink: Color, offset := Vector2.ZERO) -> void:
 	canvas.draw_set_transform(feet, 0.0, Vector2(facing, 1.0))
-	canvas.draw_texture_rect(texture, Rect2(offset - FEET * _height, Vector2(viewport.size) / _density), false, ink)
+	canvas.draw_texture_rect(texture, Rect2(offset - FEET * _height, Vector2(viewport.size) / _density), false, ink * Color(1.09, 1.045, 1.0))
+	if offset == Vector2.ZERO:
+		for bone in ["arm_near_lo", "leg_near_lo", "arm_near_up"]:
+			var joint := _joint(bone)
+			var radius := clampf(_height * 0.011, 1.2, 3.4)
+			canvas.draw_circle(joint, radius, Color("#573518"), true, -1, true)
+			canvas.draw_circle(joint - Vector2.ONE * radius * 0.22, radius * 0.58, Color("#ddb669"), true, -1, true)
 	canvas.draw_set_transform(Vector2.ZERO)
+
+func _joint(bone: String) -> Vector2:
+	var node: Node2D = rig._bones[bone]
+	return holder.to_local(node.global_position) * _height / _height_local

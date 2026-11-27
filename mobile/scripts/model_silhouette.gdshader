@@ -20,5 +20,7 @@ void fragment() {
 	}
 	// 人物内部保持原色；人物外、但贴着人物的一圈画成墨色
 	float edge = clamp(near_a - c.a, 0.0, 1.0);
-	COLOR = vec4(mix(c.rgb, ink.rgb, edge * (1.0 - c.a)), max(c.a, edge * ink.a));
+	float rim = max(0.0, c.a - texture(TEXTURE, UV - px).a);
+	vec3 leather = c.rgb * vec3(1.12, 1.04, 0.93) + vec3(0.68, 0.40, 0.13) * rim * 0.50;
+	COLOR = vec4(mix(leather, ink.rgb, edge * (1.0 - c.a)), max(c.a, edge * ink.a));
 }

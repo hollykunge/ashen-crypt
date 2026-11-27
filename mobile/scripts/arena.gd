@@ -18,7 +18,7 @@ const WORLD_CENTER_X := 538.0
 const SIDE_DEPTH := 0.18
 const HERO_SCALE := 1.34
 const FOE_SCALE := 1.30
-const LANDSCAPE_ACTOR_MAGNIFICATION := 1.40
+const LANDSCAPE_ACTOR_MAGNIFICATION := 2.20
 const CUT_IN_TIME := 0.43
 # 连战镜头在原取景上整体推近：站位、人物和背景同比放大，交手距离的观感不变，
 # 只是空地少了，人物占得更满。
@@ -38,19 +38,15 @@ const NEAR_PARALLAX := 1.6
 # 暗黑调色的力度（0 关掉，1 全开）和四角压暗。挂机取景远，压角轻一点。
 const GRADE := 1.0
 const VIGNETTE := 0.7
-## 皮影戏幕布：长卷换成被灯照透的暖琥珀幕布、景物成深褐影子（snow_haze.gdshader 的 screen），0 关掉
+## 月夜布幕，四边压暗，保留河面和山脊的青灰层次。
 const PIYING_SCREEN := 1.0
-## 皮影布景：镂空雕刻的远山、树、亭台、民房、石桥，立在人物身后的台口上，随镜头慢慢挪（_draw_scenery）。
-## [图, 高度（画面高的比例）, 视差（长卷走 1 它走多少）, 出现的权重]；远山走得最慢，在最后面
-const SCENERY := [
-	["mountains", 0.34, 0.35, 0.0], ["pine", 0.21, 0.6, 1.0], ["pavilion", 0.17, 0.6, 0.6],
-	["house", 0.15, 0.6, 0.9], ["bridge", 0.08, 0.6, 0.4], ["deadtree", 0.19, 0.6, 1.0],
-]
-const SCENERY_DIR := "res://art/piying/stage/"
-## 布景调淡、半透，颜色贴近幕布，退到人物后面当陪衬（人物、精怪是最鲜明的一层）；远山更淡
-const SCENERY_INK := Color(0.92, 0.72, 0.52, 0.42)
-const SCENERY_FAR_INK := Color(0.9, 0.7, 0.5, 0.3)
-static var _scenery_tex := {}
+const PORTRAIT_RIVER = preload("res://art/piying/stage/river-portrait.webp")
+const MOON = preload("res://art/piying/stage/moon.png")
+const WILLOW = preload("res://art/piying/stage/willow.png")
+const REEDS = preload("res://art/piying/stage/reeds.png")
+const PAVILION = preload("res://art/piying/stage/pavilion.png")
+const BRIDGE = preload("res://art/piying/stage/bridge.png")
+const MOUNTAINS = preload("res://art/piying/stage/mountains.png")
 ## 幕布四边烧暗的力度（皮影戏台口外是黑的）
 const PIYING_VIGNETTE := 0.45
 const VIGNETTE_CAMP := 0.6
@@ -125,7 +121,7 @@ func _ready() -> void:
 	cutout = CutoutHero.new()
 	add_child(cutout)
 	cutout.dress(look)
-	texture_filter = TEXTURE_FILTER_NEAREST
+	texture_filter = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	spark_rng.randomize()
 	backdrop.texture = SideArt.FALLBACK_PLATE.texture
 	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -234,8 +230,8 @@ func _update_light() -> void:
 		return
 	var warm := clampf(1.0 - absf(daylight - 0.5) * 2.0, 0.0, 1.0)
 	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
-	if plate.get("ink", false):
-		# 纸本场景保留墨线和中间调，天色仍随关卡变化。
+	if PIYING_SCREEN > 0.0:
+		# 月夜幕布，按时辰和波次压暗边缘。
 		atmosphere.visible = warm > 0.01 or dark > 0.01 or PIYING_SCREEN > 0.0
 		light.set_shader_parameter("grade", 0.0)
 		light.set_shader_parameter("vignette", PIYING_VIGNETTE if PIYING_SCREEN > 0.0 else 0.10)
@@ -382,55 +378,20 @@ func _draw_sparks() -> void:
 ## 皮影布景：远山一排连着铺在最后面；前面每隔一段按种子摆一件（树、亭台、民房、石桥、枯树），
 ## 有的位置空着。同一层每次进来摆法一样（种子取自层数）。都贴着画面坐标画，底边落在台口（地面线）稍后
 func _draw_scenery() -> void:
-	if PIYING_SCREEN <= 0.0 or size.y <= 0.0:
-		return
 	draw_set_transform(Vector2.ZERO)
-	var base := floor_height - size.y * 0.012 + jitter.y
-	var layer_seed: int = (run.dungeon_layer if run != null else 1) * 131
-	for spec in SCENERY:
-		if not _scenery_tex.has(spec[0]):
-			var path: String = SCENERY_DIR + spec[0] + ".png"
-			_scenery_tex[spec[0]] = load(path) if ResourceLoader.exists(path) else null
-	# 远山：一张接一张铺满，走得最慢
-	var hills: Texture2D = _scenery_tex.mountains
-	if hills != null:
-		var h: float = size.y * float(SCENERY[0][1])
-		var w := h * hills.get_width() / hills.get_height()
-		var shift := fposmod(-follow.x * scale_to_screen * float(SCENERY[0][2]) + jitter.x, w)
-		var x := shift - w
-		while x < size.x:
-			draw_texture_rect(hills, Rect2(x, base - h, w, h), false, SCENERY_FAR_INK)
-			x += w
-	# 近一层的景物：按格子摆，每格最多一件
-	var spacing := size.y * 0.30
-	var parallax: float = SCENERY[1][2]
-	var offset := -follow.x * scale_to_screen * parallax + jitter.x
-	var first := floori((-offset - spacing * 2.0) / spacing)
-	var last := ceili((size.x - offset + spacing) / spacing)
-	var total := 0.0
-	for spec in SCENERY.slice(1):
-		total += float(spec[3])
-	for i in range(first, last + 1):
-		var r := _hash(i + layer_seed)
-		if r < 0.45:
-			continue
-		var pick := _hash(i * 7 + layer_seed + 3) * total
-		var spec: Array = SCENERY[1]
-		for s in SCENERY.slice(1):
-			pick -= float(s[3])
-			if pick <= 0.0:
-				spec = s
-				break
-		var tex: Texture2D = _scenery_tex.get(spec[0])
-		if tex == null:
-			continue
-		var h: float = size.y * float(spec[1]) * (0.85 + 0.3 * _hash(i + layer_seed + 11))
-		var w := h * tex.get_width() / tex.get_height()
-		var flip := -1.0 if _hash(i + layer_seed + 29) < 0.5 else 1.0
-		var x := i * spacing + offset + (_hash(i + layer_seed + 17) - 0.5) * spacing * 0.6
-		draw_set_transform(Vector2(x, base), 0.0, Vector2(flip, 1.0))
-		draw_texture_rect(tex, Rect2(-w * 0.5, -h, w, h), false, SCENERY_INK)
-	draw_set_transform(Vector2.ZERO)
+	var drift := follow.x * scale_to_screen
+	var side := minf(size.x * 0.23, size.y * 0.17)
+	var moon_pos := Vector2(size.x * 0.17 - sin(drift * 0.001) * 5.0, size.y * 0.20)
+	draw_texture_rect(MOON, Rect2(moon_pos, Vector2.ONE * side), false, Color(1, 0.94, 0.83, 0.90))
+	var bank := backdrop.position.y + backdrop.size.y * 0.78
+	var shift := sin(drift * 0.0017) * size.x * 0.12
+	if plate.key in ["mine", "war"]:
+		draw_texture_rect(MOUNTAINS, Rect2(shift - size.x * 0.1, bank - size.y * 0.14, size.x * 1.3, size.y * 0.14), false, Color(0.64, 0.75, 0.74, 0.75))
+	elif plate.key in ["flood", "court"]:
+		draw_texture_rect(BRIDGE, Rect2(size.x * 0.55 - shift, bank - size.y * 0.065, size.y * 0.28, size.y * 0.065), false)
+	else:
+		var height := size.y * 0.045
+		draw_texture_rect(PAVILION, Rect2(size.x * 0.85 - shift, bank - height, height, height), false, Color(0.73, 0.80, 0.78, 0.83))
 
 func _fit_stage() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -444,7 +405,7 @@ func _fit_stage() -> void:
 	var portrait_battle := route_view and not wide
 	floor_height = size.y * PORTRAIT_BATTLE_FLOOR if portrait_battle else framing_floor
 	world_center_x = PORTRAIT_BATTLE_CENTER_X if portrait_battle else WORLD_CENTER_X
-	var native := backdrop.texture.get_size()
+	var native: Vector2 = plate.texture.get_size()
 	var margin := 340.0 if route_view else 104.0
 	# 地面锚点对齐角色脚底，同时覆盖地面上、下两段视口。
 	var framing := maxf(framing_floor / street_floor, (size.y - framing_floor) / (1.0 - street_floor))
@@ -470,14 +431,20 @@ func _fit_stage() -> void:
 		initial_left = -lerpf(start, maxf(start, overflow - stride - edge), progress)
 	else:
 		initial_left = -overflow * lerpf(0.06, 0.94, progress)
-	if plate.get("ink", false):
-		initial_left = -overflow * lerpf(0.34, 0.66, progress)
+	if plate.key == "drought":
+		initial_left = -overflow * lerpf(0.20, 0.78, progress)
 	camera_limits = Vector2(initial_left, initial_left + overflow) / scale_to_screen
 	follow.x = clampf(follow.x, camera_limits.x, camera_limits.y)
 	var anchor := Vector2(world_center_x + follow.x, Combat.HOME.y)
 	world_offset = Vector2(size.x * 0.5, floor_height) - anchor * scale_to_screen
-	backdrop.position = Vector2(initial_left - follow.x * scale_to_screen, floor_height - street_size.y * street_floor)
-	backdrop.size = street_size
+	# Keep the bridge distant when the combat camera moves in on the puppets.
+	backdrop.texture = plate.texture if wide else PORTRAIT_RIVER
+	var scenic := backdrop.texture.get_size()
+	var scenic_scale := maxf(size.y / scenic.y, size.x / scenic.x)
+	backdrop.size = scenic * scenic_scale
+	var travel := maxf(0.0, backdrop.size.x - size.x)
+	var scenic_left := travel * lerpf(0.20 if wide else 0.40, 0.72, progress)
+	backdrop.position = Vector2(-clampf(scenic_left + follow.x * scale_to_screen * 0.16, 0.0, travel), size.y - backdrop.size.y)
 	queue_redraw()
 
 # 交手时停住镜头。换波跑图或主角靠近画面边缘时才移动。
@@ -506,7 +473,8 @@ func _draw() -> void:
 	var across := cos(shake_seed * 3.7) + 0.4 * sin(shake_seed * 7.9)
 	var perpendicular := Vector2(-shake_dir.y, shake_dir.x)
 	jitter = ((shake_dir * along * 0.7 + perpendicular * across * 0.35) * amplitude + kick) * scale_to_screen
-	_draw_mist()
+	if not camp_view:
+		_draw_mist()
 	_draw_scenery()
 	_world_transform()
 	_draw_telegraphs()
@@ -515,16 +483,14 @@ func _draw() -> void:
 		_draw_fallen_enemy(fallen)
 	_draw_retinue()
 
-	var actors: Array[Dictionary] = [{"pos": run.position, "hero": true}]
+	var actors: Array[Dictionary] = []
 	for enemy in run.enemies:
 		if enemy.spawn <= 0.0 and enemy.hp > 0:
 			actors.append(enemy)
 	actors.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.pos.y < b.pos.y)
 	for actor in actors:
-		if actor.has("hero"):
-			_draw_hero()
-		else:
-			_draw_enemy(actor)
+		_draw_enemy(actor)
+	_draw_hero()
 
 	for shot in run.shots:
 		_draw_projectile(shot)
@@ -542,19 +508,14 @@ func _draw() -> void:
 		var center := origin - Vector2(font.get_string_size(popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x * 0.5, 0.0)
 		if popup.has("material"):
 			var item := Gear.material(popup.material)
-			draw_texture_rect_region(ForgeArt.ATLAS, Rect2(origin - Vector2(24, 19), Vector2(23, 23)), ForgeArt.region(item.icon), Color(1, 1, 1, opacity))
+			draw_texture_rect_region(ForgeArt.MATERIALS, Rect2(origin - Vector2(24, 19), Vector2(23, 23)), ForgeArt.material_region(popup.material), Color(1, 1, 1, opacity))
 			pixels = 16
 			ink = Color(item.tint, opacity)
 			center = origin
-		# 挂机画面整体发虚，伤害数字加一块描边衬底才读得出来；手操时只描边，别挡视野。
 		var rise := (1.0 - minf(popup.life / 0.6, 1.0))
 		var lifted := center - Vector2(0.0, rise * 4.0)
-		if camp_view:
-			var text_width := font.get_string_size(popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels).x
-			var plate := Rect2(lifted.x - 5.0, lifted.y - font.get_ascent(pixels) - 2.0, text_width + 10.0, font.get_height(pixels) + 4.0)
-			draw_rect(plate, Color(0.07, 0.06, 0.065, 0.70 * opacity))
 		draw_string_outline(font, lifted, popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels, 5 if critical else 4,
-			Color(0.08, 0.05, 0.10, opacity))
+			Color(0.14, 0.08, 0.05, opacity))
 		draw_string(font, lifted, popup.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pixels, ink)
 	match StringName(plate.weather):
 		&"snow": _draw_snow()
@@ -688,111 +649,20 @@ func _draw_snow() -> void:
 
 # 镜头最前面那层剪影：沿画面底边一丛一丛，比长卷走得快，人和精怪就夹在两层中间。
 # 每丛的样子由序号算出来，镜头怎么走都是同一片草。
-## 这一层的所有叶片、穗头、石头、云团先攒成一个三角形列表，最后一次画完（原来每片叶子一次绘制，一屏一百多次）
-var _near_pts := PackedVector2Array()
-var _near_cols := PackedColorArray()
-
 
 func _draw_near() -> void:
 	if run == null or size.x <= 0.0:
 		return
-	_near_pts.clear()
-	_near_cols.clear()
-	_collect_near()
-	if not _near_pts.is_empty():
-		RenderingServer.canvas_item_add_triangle_array(near.get_canvas_item(), PackedInt32Array(), _near_pts, _near_cols)
+	var sway := sin(follow.x * scale_to_screen * 0.004) * size.x * 0.07
+	var leaves := minf(size.x * 0.30, size.y * 0.32)
+	near.draw_texture_rect(WILLOW, Rect2(-leaves * 0.26 + sway, -leaves * 0.14, leaves, leaves * 1.15), false)
+	var reeds := minf(size.x * 0.37, size.y * 0.35)
+	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.31 + sway, size.y - reeds * 0.79, reeds, reeds), false)
+	near.draw_set_transform(Vector2(size.x, 0), 0, Vector2(-1, 1))
+	near.draw_texture_rect(REEDS, Rect2(-reeds * 0.44 - sway, size.y - reeds * 0.93, reeds, reeds), false)
+	near.draw_set_transform(Vector2.ZERO)
 
-
-func _near_tri(a: Vector2, b: Vector2, c: Vector2, color: Color) -> void:
-	_near_pts.append_array([a, b, c])
-	_near_cols.append_array([color, color, color])
-
-
-## 扇形（凸的轮廓，从中心连到一圈点）
-func _near_fan(center: Vector2, ring: PackedVector2Array, color: Color, closed: bool) -> void:
-	for k in range(ring.size() if closed else ring.size() - 1):
-		_near_tri(center, ring[k], ring[(k + 1) % ring.size()], color)
-
-
-## 椭圆：圆心、半径、拉伸、旋转
-func _near_ellipse(center: Vector2, radius: float, stretch: Vector2, angle: float, color: Color, sides := 12) -> void:
-	var ring := PackedVector2Array()
-	for k in range(sides):
-		var a := TAU * k / sides
-		ring.append(center + (Vector2(cos(a), sin(a)) * radius * stretch).rotated(angle))
-	_near_fan(center, ring, color, true)
-
-
-func _collect_near() -> void:
-	var kind: StringName = plate.get("near", &"grass")
-	var ink: Color = plate.get("near_ink", Color("#1d1c17"))
-	var dark := clampf((daylight - 0.45) / 0.55, 0.0, 1.0)
-	var unit := minf(size.x, size.y) / 390.0
-	var spacing := 46.0 * unit
-	var shift := -follow.x * scale_to_screen * NEAR_PARALLAX + jitter.x
-	var first := floori((-shift - spacing * 2.0) / spacing)
-	var last := ceili((size.x - shift + spacing * 2.0) / spacing)
-	for i in range(first, last + 1):
-		var seed := _hash(i)
-		if seed < 0.38:
-			continue
-		var x := i * spacing + shift + (_hash(i + 71) - 0.5) * spacing * 0.8
-		match kind:
-			&"rock":
-				_near_rock(x, seed, unit, ink)
-			&"cloud":
-				_near_cloud(x, seed, unit, Color(ink.lerp(Color("#5a6a90"), dark * 0.7), 1.0 - dark * 0.45))
-			_:
-				_near_blades(x, seed, unit, ink, kind == &"reed")
-
-# 一丛草：每片叶子从根部斜出去再顺风弯下来，叶尖随风摆。外面先描一圈淡的，像镜头没对上焦。
-func _near_blades(x: float, seed: float, unit: float, ink: Color, reed: bool) -> void:
-	var count := (6 if reed else 9) + int(seed * 6.0)
-	var reach := ((44.0 + 50.0 * _hash(int(seed * 9973.0))) if reed else (18.0 + 30.0 * _hash(int(seed * 9973.0)))) * unit
-	# 一阵风过来，整丛往同一边倒，各片叶子再各自错开一点。
-	var wind := 0.18 + 0.14 * sin(ash_time * 0.9 + x * 0.006)
-	for j in range(count):
-		var pick := _hash(int(seed * 7919.0) + j)
-		var tall := reach * (0.35 + 0.65 * pick)
-		var lean := (float(j) / maxf(count - 1, 1) - 0.5) * (0.55 if reed else 0.9) + (pick - 0.5) * 0.3
-		var bend := wind + 0.28 * pick * pick + sin(ash_time * 1.7 + j * 1.3 + x * 0.02) * 0.03
-		var base := Vector2(x + lean * 14.0 * unit, size.y + 4.0)
-		var width := (1.3 if reed else 0.9 + 0.8 * pick) * unit
-		var left := PackedVector2Array()
-		var right := PackedVector2Array()
-		for k in range(6):
-			var t := float(k) / 5.0
-			var point := base + Vector2((lean * 0.5 * t + bend * t * t) * tall, -tall * t * (1.0 - 0.3 * bend * t))
-			var w := width * (1.0 - t * 0.9)
-			left.append(point - Vector2(w, 0.0))
-			right.append(point + Vector2(w, 0.0))
-		var color := Color(ink, 0.88 if reed else 0.78)
-		for k in range(5):  # 叶片是一条从根到尖的带子，每段两个三角形
-			_near_tri(left[k], right[k], right[k + 1], color)
-			_near_tri(left[k], right[k + 1], left[k + 1], color)
-		if reed and pick > 0.66:
-			var head := left[4].lerp(right[4], 0.5)
-			_near_ellipse(head, 1.9 * unit, Vector2(1.0, 3.2), lean * 0.5 + bend * 0.9, Color(ink.lightened(0.1), 0.9), 10)
-
-func _near_rock(x: float, seed: float, unit: float, ink: Color) -> void:
-	var wide := (22.0 + 30.0 * seed) * unit
-	var tall := wide * (0.45 + 0.3 * _hash(int(seed * 613.0)))
-	var points := PackedVector2Array()
-	for k in range(11):
-		var angle := PI + PI * float(k) / 10.0
-		var bump := 0.82 + 0.18 * _hash(int(seed * 331.0) + k)
-		points.append(Vector2(x + cos(angle) * wide * bump, size.y + 6.0 + sin(angle) * tall * bump))
-	_near_fan(Vector2(x, size.y + 6.0), points, Color(ink, 0.94), false)
-
-func _near_cloud(x: float, seed: float, unit: float, ink: Color) -> void:
-	var drift := sin(ash_time * 0.21 + seed * 9.0) * 14.0 * unit
-	for k in range(5):
-		var r := (16.0 + 26.0 * _hash(int(seed * 211.0) + k)) * unit
-		var point := Vector2(x + drift + (float(k) - 2.0) * r * 1.3, size.y - r * 0.15 - (k % 2) * 8.0 * unit)
-		_near_ellipse(point, r * 1.4, Vector2(2.4, 1.0), 0.0, Color(ink, ink.a * 0.06), 20)
-		_near_ellipse(point, r, Vector2(2.4, 1.0), 0.0, Color(ink, ink.a * 0.11), 20)
-
-static func _hash(n: int) -> float:
+func _hash(n: int) -> float:
 	return fposmod(sin(float(n) * 12.9898 + 78.233) * 43758.5453, 1.0)
 
 func _world_transform() -> void:
@@ -994,21 +864,18 @@ func _draw_drops() -> void:
 			var glint: Color = item.tint
 			draw_line(point + Vector2(0, 3), point - Vector2(0, 38), Color(glint, 0.52), 1.5)
 			draw_circle(point, 13, Color(glint, 0.16))
-			draw_texture_rect_region(ForgeArt.ATLAS, Rect2(point - Vector2(14, 14), Vector2(28, 28)), ForgeArt.region(item.icon))
+			draw_texture_rect_region(ForgeArt.MATERIALS, Rect2(point - Vector2(14, 14), Vector2(28, 28)), ForgeArt.material_region(drop.material))
 			continue
-		var ink := Color("#80ffc1") if drop.heal else Color("#ffbd68")
-		_square(point - Vector2(3, 6), 6.0, ink)
-		_square(point - Vector2(6, 0), 12.0, ink)
-		_square(point - Vector2(3, -9), 6.0, ink)
-		_square(point - Vector2(3, 0), 6.0, Color("#fff2d4"))
+		var token := "taiji_pill" if drop.heal else "relic_core"
+		draw_texture_rect_region(ForgeArt.MATERIALS, Rect2(point - Vector2(12, 12), Vector2(24, 24)), ForgeArt.material_region(token))
 
 # 击打特效贴在受击者脚下，用与 _draw_enemy 相同的变换与像素比例 —— 特效的像素和精怪的像素是同一张网格。
 # 图集里的火花朝右飞，出手朝左时整体翻过来。
 func _draw_impact(effect: Dictionary, origin: Vector2, progress: float) -> void:
 	var side := -1.0 if cos(float(effect.get("angle", 0.0))) < 0.0 else 1.0
-	_at_actor(origin, side, FOE_SCALE * actor_zoom)
+	_at_actor(origin - Vector2(0, float(effect.radius) * FOE_SCALE * actor_zoom * 0.22), side, FOE_SCALE * actor_zoom)
 	FxArt.draw(self, &"crit" if effect.get("critical", false) else &"hit", String(effect.get("element", "")),
-		progress, float(effect.radius))
+		progress, float(effect.radius) * 0.62)
 	_world_transform()
 
 func _draw_effect(effect: Dictionary) -> void:

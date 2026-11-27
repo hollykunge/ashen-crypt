@@ -42,6 +42,8 @@ func _start() -> void:
 	if route:
 		game.challenge_button.pressed.emit()
 		_press(game.place_notice, "接敕")
+	elif OS.get_cmdline_user_args().size() > 3 and OS.get_cmdline_user_args()[3] == "boss":
+		game._start_encounter(true)
 	var field = game.field
 	print("form=%s cutout=%s" % [field.look.form, field.cutout != null])
 

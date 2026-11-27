@@ -1,44 +1,46 @@
 extends RefCounted
 
-const ATLAS = preload("res://art/immortals/armory.webp")
 const CELL := Vector2(128, 128)
 
-# 需要区分男女式样时使用 [男, 女]。每行依次为武器、上衣、护腕、护腿、靴子。
-const ICONS := {
-	"jin": [[10, 12], 7, 17, 17, 20],
-	"mu": [11, 15, 18, 18, 21],
-	"huo": [9, [4, 15], 17, 17, 22],
-	"shui": [13, 16, 18, 18, [21, 22]],
-	"tu": [[10, 12], 4, 17, 17, [20, 22]]
-}
+# 皮影兵器保持与手持模型相同的刀身、枪头或弓臂形制。
+const WEAPONS = preload("res://art/piying/v4/weapons.png")
+const GARMENTS = preload("res://art/piying/v4/garments.png")
+const WEAPON_GRID := Vector2(4, 3)
+const FORM_ICONS := {"bow": 7, "spear": 8, "jian": 4, "sword": 0}
+const WEAPON_PARTS := [
+	"dao_blade_jian", "dao_blade_qixing", "dao_blade_bolang", "bow_limbs_chang",
+	"sword_blade_jian", "sword_blade_qixing", "sword_blade_bolang", "bow_limbs_fanqu",
+	"spear_head_leaf", "spear_head_snake", "spear_head_ji"
+]
 
-# 形制图标由 art/side/pack_weapons.py 从法器原画抠出，4 列 × 2 行。
-const WEAPONS = preload("res://art/forge-weapons.png")
-const WEAPON_GRID := Vector2(4, 2)
-const FORM_ICONS := {"bow": 2, "spear": 6, "jian": 7, "sword": 0}
-
-static func item_index(slot_index: int, element: String, female: bool) -> int:
-	var variant: Variant = ICONS[element][slot_index]
-	return variant[int(female)] if variant is Array else variant
-
-static func weapon_region(form: String) -> Rect2:
-	var index: int = FORM_ICONS[form]
+static func weapon_region(form: String, part := "") -> Rect2:
+	var index := WEAPON_PARTS.find(part)
+	if index < 0:
+		index = FORM_ICONS[form]
 	var cell := WEAPONS.get_size() / WEAPON_GRID
 	return Rect2(Vector2(index % int(WEAPON_GRID.x), floori(index / WEAPON_GRID.x)) * cell, cell)
 
-static func weapon_icon(form: String) -> AtlasTexture:
+static func weapon_icon(form: String, part := "") -> AtlasTexture:
 	var result := AtlasTexture.new()
 	result.atlas = WEAPONS
-	result.region = weapon_region(form)
+	result.region = weapon_region(form, part)
 	result.filter_clip = true
 	return result
 
-static func texture(index: int) -> AtlasTexture:
+static func garment_icon(slot_index: int, kind: String) -> AtlasTexture:
+	var row := maxi(0, ["cloth", "leather", "chain"].find(kind))
 	var item := AtlasTexture.new()
-	item.atlas = ATLAS
-	item.region = region(index)
+	item.atlas = GARMENTS
+	item.region = Rect2(Vector2(slot_index, row) * CELL, CELL)
 	item.filter_clip = true
 	return item
 
-static func region(index: int) -> Rect2:
-	return Rect2(Vector2(index % 6, floori(index / 6.0)) * CELL, CELL)
+const MATERIALS = preload("res://art/ui-icons/materials.png")
+const MATERIAL_IDS := ["jia", "yi", "bing", "ding", "wu", "ji", "geng", "xin", "ren", "gui",
+	"zhengyue_ingot", "dragon_bone", "xuanming_sand", "geng_jing", "taiji_pill", "relic_core"]
+
+static func material_region(id: String) -> Rect2:
+	var index := MATERIAL_IDS.find(id)
+	if index < 0:
+		index = MATERIAL_IDS.size() - 1
+	return Rect2(Vector2(index % 4, floori(index / 4.0)) * CELL, CELL)

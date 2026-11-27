@@ -9,12 +9,12 @@ const NAMES := ["二郎神", "九天玄女", "后羿", "青鸟仙子", "雷部�
 const CONFIRM_TIME := 0.55
 
 const PORTRAITS := [
-	preload("res://art/immortals/portrait-0.webp"),
-	preload("res://art/immortals/portrait-1.webp"),
-	preload("res://art/immortals/portrait-2.webp"),
-	preload("res://art/immortals/portrait-3.webp"),
-	preload("res://art/immortals/portrait-4.webp"),
-	preload("res://art/immortals/portrait-5.webp")
+	preload("res://art/ui-icons/immortal-0.png"),
+	preload("res://art/ui-icons/immortal-1.png"),
+	preload("res://art/ui-icons/immortal-2.png"),
+	preload("res://art/ui-icons/immortal-3.png"),
+	preload("res://art/ui-icons/immortal-4.png"),
+	preload("res://art/ui-icons/immortal-5.png")
 ]
 
 static func id(role: int, style: int) -> int:

@@ -13,9 +13,9 @@ const EquipmentSlot = preload("res://scripts/equipment_slot.gd")
 @onready var center: CenterContainer = $Center
 
 func configure(ui) -> void:
-	color = Color(ui.NIGHT, 0.78)
+	color = Color(ui.NIGHT, 0.55)
 	$Center/Panel.add_theme_stylebox_override("panel", ui.paper_box(1.0, 14))
-	%Title.add_theme_font_override("font", ui.HEADING_FONT)
+	ui.heading_plate(%Title)
 	%Title.add_theme_color_override("font_color", ui.INK)
 	%Layer.add_theme_color_override("font_color", ui.GOLD)
 	%Sight.add_theme_color_override("font_color", ui.INK)
